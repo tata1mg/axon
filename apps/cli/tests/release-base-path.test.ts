@@ -5,22 +5,27 @@ import { join } from "node:path";
 
 // Exercise the real release scripts in isolation. Stub only native build/sign tools
 // and remote HTTP: no production build, upload, browser, or network side effects.
-test("release compilation, preparation and publication preserve the production base path", async () => {
-  const root = await mkdtemp(join(tmpdir(), "axon-release-base-"));
-  const prepare = new URL("../scripts/prepare-s3-release.ts", import.meta.url).href;
-  const publish = new URL("../scripts/publish-s3-release.ts", import.meta.url).href;
-  const manifest = await Bun.file(new URL("../package.json", import.meta.url)).json();
-  await Bun.write(join(root, "package.json"), JSON.stringify({ ...manifest, version: "0.2.0" }));
-  await Bun.write(
-    join(root, "pi-version.json"),
-    Bun.file(new URL("../pi-version.json", import.meta.url)),
-  );
-  const child = Bun.spawn(
-    [
-      process.execPath,
-      "--no-env-file",
-      "--eval",
-      `
+test.each([
+  { label: "default targets", selection: undefined, targets: ["darwin-arm64", "darwin-x64"] },
+  { label: "arm64 only", selection: "darwin-arm64", targets: ["darwin-arm64"] },
+])(
+  "release compilation, preparation and publication preserve the production base path ($label)",
+  async ({ selection, targets }) => {
+    const root = await mkdtemp(join(tmpdir(), "axon-release-base-"));
+    const prepare = new URL("../scripts/prepare-s3-release.ts", import.meta.url).href;
+    const publish = new URL("../scripts/publish-s3-release.ts", import.meta.url).href;
+    const manifest = await Bun.file(new URL("../package.json", import.meta.url)).json();
+    await Bun.write(join(root, "package.json"), JSON.stringify({ ...manifest, version: "0.2.0" }));
+    await Bun.write(
+      join(root, "pi-version.json"),
+      Bun.file(new URL("../pi-version.json", import.meta.url)),
+    );
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        "--no-env-file",
+        "--eval",
+        `
       import assert from "node:assert/strict";
       import { mkdirSync, writeFileSync } from "node:fs";
       import { dirname } from "node:path";
@@ -46,7 +51,7 @@ test("release compilation, preparation and publication preserve the production b
         if (argv[0] === "codesign") return spawn([process.execPath, "--eval", ""], options);
         return spawn(argv, options);
       };
-      const targets = ["darwin-arm64", "darwin-x64"];
+      const targets = ${JSON.stringify(targets)};
       // Re-preparing over a larger artifact must not retain its trailing bytes.
       mkdirSync("release", { recursive: true });
       writeFileSync("release/axon-darwin-arm64.gz", Buffer.alloc(1024 * 1024, 0xff));
@@ -56,6 +61,8 @@ test("release compilation, preparation and publication preserve the production b
       assert.equal(compiledBase, 'BUILD_SERVICE_ORIGIN="https://deputydev.ai/axon"');
       const config = await Bun.file("release/cli-release-config.json").json();
       const metadata = await Bun.file("release/release-metadata.json").json();
+      assert.deepEqual(Object.keys(config["0.2.0"]), targets);
+      assert.deepEqual(Object.keys(metadata.targets), targets);
       const base = "https://deputydev.ai/axon/api/v1/cli/releases";
       const archives = {};
       for (const target of targets) {
@@ -91,6 +98,7 @@ test("release compilation, preparation and publication preserve the production b
             assert.equal(request.headers.get("authorization"), "Bearer synthetic-upload-secret");
             const body = await request.json();
             assert.equal(body.version, "0.2.0");
+            assert.ok(targets.includes(body.target), "only selected targets may be uploaded");
             uploading = body.target;
             return Response.json({ url: "https://storage.example.test/upload", headers: {
               "If-None-Match": "*", "Content-Type": "application/gzip",
@@ -112,8 +120,7 @@ test("release compilation, preparation and publication preserve the production b
         };
         await publishS3Release();
         assert.deepEqual(calls, [
-          ["GET", base + "/0.2.0/checksums-darwin-arm64.txt"],
-          ["GET", base + "/0.2.0/checksums-darwin-x64.txt"],
+          ...targets.map(target => ["GET", base + "/0.2.0/checksums-" + target + ".txt"]),
           ["GET", base + "/0.2.0/checksums.txt"],
           ...targets.flatMap(target => [
             ["POST", base + "/uploads/presign"],
@@ -123,34 +130,46 @@ test("release compilation, preparation and publication preserve the production b
           ]),
         ]);
       }
+      // A changed selection must fail before any checksum request, presign, or upload.
+      if (targets.length === 1) delete process.env.RELEASE_TARGETS;
+      else process.env.RELEASE_TARGETS = "darwin-arm64";
+      let mismatchRequests = 0;
+      globalThis.fetch = async () => {
+        mismatchRequests++;
+        throw new Error("mismatched targets must not perform network work");
+      };
+      await assert.rejects(publishS3Release(), /prepared release targets do not match RELEASE_TARGETS/);
+      assert.equal(mismatchRequests, 0);
       `,
-    ],
-    {
-      cwd: root,
-      env: {
-        ...process.env,
-        RELEASE_VERSION: "0.2.0",
-        BUILD_COMMIT: "a".repeat(40),
-        AXON_SERVICE_ORIGIN: "https://deputydev.ai/axon",
-        RELEASE_KEY_PREFIX: "axon-prod/cli/releases/",
-        CLI_UPLOAD_AUTH_KEY: "synthetic-upload-secret",
-        RELEASE_BINARY_PATH: "",
+      ],
+      {
+        cwd: root,
+        env: {
+          ...process.env,
+          RELEASE_VERSION: "0.2.0",
+          BUILD_COMMIT: "a".repeat(40),
+          AXON_SERVICE_ORIGIN: "https://deputydev.ai/axon",
+          RELEASE_KEY_PREFIX: "axon-prod/cli/releases/",
+          CLI_UPLOAD_AUTH_KEY: "synthetic-upload-secret",
+          RELEASE_BINARY_PATH: "",
+          RELEASE_TARGETS: selection,
+        },
+        stdout: "pipe",
+        stderr: "pipe",
       },
-      stdout: "pipe",
-      stderr: "pipe",
-    },
-  );
-  try {
-    const [status, stdout, stderr] = await Promise.all([
-      child.exited,
-      new Response(child.stdout).text(),
-      new Response(child.stderr).text(),
-    ]);
-    expect({ status, stderr }).toEqual({ status: 0, stderr: "" });
-    expect(stdout).toContain("Published and verified axon 0.2.0");
-  } finally {
-    child.kill();
-    await child.exited;
-    await rm(root, { recursive: true, force: true });
-  }
-});
+    );
+    try {
+      const [status, stdout, stderr] = await Promise.all([
+        child.exited,
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+      ]);
+      expect({ status, stderr }).toEqual({ status: 0, stderr: "" });
+      expect(stdout).toContain("Published and verified axon 0.2.0");
+    } finally {
+      child.kill();
+      await child.exited;
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);

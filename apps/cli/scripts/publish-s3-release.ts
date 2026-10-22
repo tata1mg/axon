@@ -3,12 +3,15 @@ import { join } from "node:path";
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../src/product/endpoints.ts";
 import {
   LEGACY_CHECKSUMS_NAME,
-  RELEASE_TARGETS,
   type ReleaseTarget,
   releaseAssetNames,
 } from "../src/product/release-targets.ts";
 import { parseServiceOrigin } from "../src/product/service-origin.ts";
-import { assertCanonicalSemVer, requireEnvironmentVariable } from "./release-contract.ts";
+import {
+  assertCanonicalSemVer,
+  requireEnvironmentVariable,
+  resolveS3ReleaseTargets,
+} from "./release-contract.ts";
 
 interface PreparedArchive {
   readonly target: ReleaseTarget;
@@ -117,6 +120,7 @@ async function uploadArchive(
 }
 
 export async function publishS3Release(): Promise<void> {
+  const targets = resolveS3ReleaseTargets(process.env["RELEASE_TARGETS"]);
   const version = requireEnvironmentVariable("RELEASE_VERSION");
   const token = requireEnvironmentVariable("CLI_UPLOAD_AUTH_KEY");
   const origin = parseServiceOrigin(requireEnvironmentVariable("AXON_SERVICE_ORIGIN"), {
@@ -132,11 +136,22 @@ export async function publishS3Release(): Promise<void> {
   if (typeof configuration !== "object" || configuration === null || !(version in configuration)) {
     throw new Error("release configuration does not contain the requested version");
   }
-  const entry = configuration[version as keyof typeof configuration] as Record<string, unknown>;
+  const entry: unknown = configuration[version as keyof typeof configuration];
+  if (
+    typeof entry !== "object" ||
+    entry === null ||
+    Array.isArray(entry) ||
+    Object.keys(entry).length !== targets.length ||
+    targets.some((target) => !(target in entry))
+  ) {
+    throw new Error(
+      "prepared release targets do not match RELEASE_TARGETS; use the same selection for preparation and publishing",
+    );
+  }
 
-  // Verify every target locally and against the backend before uploading any of them.
+  // Verify every selected target locally and against the backend before uploading any of them.
   const prepared: PreparedArchive[] = [];
-  for (const target of RELEASE_TARGETS) {
+  for (const target of targets) {
     const names = releaseAssetNames(target);
     const asset = Reflect.get(entry, target);
     const expected =
@@ -176,7 +191,7 @@ export async function publishS3Release(): Promise<void> {
     );
   }
   console.log(
-    `Published and verified axon ${version} for ${RELEASE_TARGETS.join(" and ")}. Now set CLI_RELEASES.LATEST_VERSION in backend config.json and restart it.`,
+    `Published and verified axon ${version} for ${targets.join(" and ")}. Now set CLI_RELEASES.LATEST_VERSION in backend config.json and restart it.`,
   );
 }
 
@@ -186,7 +201,7 @@ if (import.meta.main) {
   } catch {
     // Network errors can contain a presigned URL; never emit one into CI or terminal logs.
     console.error(
-      "Publishing failed. Check backend configuration, credentials, and release assets.",
+      "Publishing failed. Check RELEASE_TARGETS, backend configuration, credentials, and release assets.",
     );
     process.exitCode = 1;
   }

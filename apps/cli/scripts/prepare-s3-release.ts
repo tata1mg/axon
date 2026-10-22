@@ -7,7 +7,6 @@ import {
   LEGACY_CHECKSUMS_NAME,
   LEGACY_CHECKSUMS_TARGET,
   LIPO_ARCHITECTURES,
-  RELEASE_TARGETS,
   type ReleaseTarget,
   releaseAssetNames,
 } from "../src/product/release-targets.ts";
@@ -19,6 +18,7 @@ import {
   optionalEnvironmentVariable,
   readPackageVersion,
   requireEnvironmentVariable,
+  resolveS3ReleaseTargets,
 } from "./release-contract.ts";
 
 interface Digest {
@@ -103,6 +103,7 @@ async function prepareTarget(
 }
 
 export async function prepareS3Release(): Promise<void> {
+  const targets = resolveS3ReleaseTargets(process.env["RELEASE_TARGETS"]);
   const version = requireEnvironmentVariable("RELEASE_VERSION");
   const commit = requireEnvironmentVariable("BUILD_COMMIT");
   const origin = parseServiceOrigin(requireEnvironmentVariable("AXON_SERVICE_ORIGIN"), {
@@ -124,9 +125,8 @@ export async function prepareS3Release(): Promise<void> {
   }
   const output = join(process.cwd(), "release");
   await mkdir(output, { recursive: true });
-  // Every version ships every target, so no installed launcher is left without an update.
   const prepared: PreparedTarget[] = [];
-  for (const target of RELEASE_TARGETS) {
+  for (const target of targets) {
     prepared.push(await prepareTarget(target, version, prefix, output));
   }
   const releaseBase = `${resolveServiceUrl(origin, SERVICE_ENDPOINTS.release.base)}/${encodeURIComponent(version)}`;
@@ -184,7 +184,7 @@ export async function prepareS3Release(): Promise<void> {
     ),
   ]);
   console.log(
-    `Prepared ${version} for ${RELEASE_TARGETS.join(" and ")}. Add release/cli-release-config.json to backend CLI_RELEASES.VERSIONS before publishing.`,
+    `Prepared ${version} for ${targets.join(" and ")}. Add release/cli-release-config.json to backend CLI_RELEASES.VERSIONS before publishing.`,
   );
 }
 

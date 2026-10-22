@@ -1,4 +1,4 @@
-/** macOS targets that every release publishes a native binary for. */
+/** Supported macOS release targets; S3 preparation may select an arm64-only subset. */
 export const RELEASE_TARGETS = ["darwin-arm64", "darwin-x64"] as const;
 
 export type ReleaseTarget = (typeof RELEASE_TARGETS)[number];
