@@ -5,6 +5,7 @@ import {
   isCanonicalSemVer,
   isCliReleaseTag,
   parseCliReleaseTag,
+  resolveS3ReleaseTargets,
 } from "../scripts/release-contract.ts";
 import { PRODUCT_IDENTITY } from "../src/product/identity.ts";
 import { resolveAxonPaths } from "../src/product/paths.ts";
@@ -40,6 +41,32 @@ describe("CLI release tag contract", () => {
     expect(() => parseCliReleaseTag("backend-0.2.0")).toThrow(/must start with cli-/);
     expect(() => parseCliReleaseTag("cli-01.0.0")).toThrow(/canonical semantic version/);
     expect(() => formatCliReleaseTag("v0.2.0")).toThrow(/canonical semantic version/);
+  });
+});
+
+describe("S3 release target selection", () => {
+  test("defaults to both architectures and accepts an arm64-only release", () => {
+    expect(resolveS3ReleaseTargets(undefined)).toEqual(["darwin-arm64", "darwin-x64"]);
+    expect(resolveS3ReleaseTargets("darwin-arm64")).toEqual(["darwin-arm64"]);
+  });
+
+  test("normalizes whitespace and uses canonical target order", () => {
+    expect(resolveS3ReleaseTargets(" darwin-x64, darwin-arm64 ")).toEqual([
+      "darwin-arm64",
+      "darwin-x64",
+    ]);
+  });
+
+  test.each(["", " ", "darwin-arm64,", "linux-arm64", "darwin-arm64,linux-x64"])(
+    "rejects empty or unsupported target selections: %j",
+    (selection) => {
+      expect(() => resolveS3ReleaseTargets(selection)).toThrow("RELEASE_TARGETS");
+    },
+  );
+
+  test("rejects duplicates and x64-only releases", () => {
+    expect(() => resolveS3ReleaseTargets("darwin-arm64,darwin-arm64")).toThrow("duplicates");
+    expect(() => resolveS3ReleaseTargets("darwin-x64")).toThrow("must include darwin-arm64");
   });
 });
 
