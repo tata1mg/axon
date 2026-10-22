@@ -1,0 +1,39 @@
+apps/cli/docs/shipplan.md
+  s_962f283dcbe24f::t_fa3686791bbd35 31,33-34
+apps/cli/scripts/release-contract.ts
+  s_962f283dcbe24f::t_1c9581a5797e51 1-7,42-46,50-57
+  s_962f283dcbe24f::t_575d42f307d3fb 47-49
+  s_962f283dcbe24f::t_2c359f9dd612dd 58-59
+apps/cli/tests/release-contract.test.ts
+  s_962f283dcbe24f::t_d08e3237c6c1c5 8,47-70
+  s_962f283dcbe24f::t_036516fbffd788 71-72
+apps/cli/tests/release-base-path.test.ts
+  s_962f283dcbe24f::t_f8fc4be0f8e55c 8-10,54,64-65,101,123,133-142
+  s_962f283dcbe24f::t_575d42f307d3fb 11-28,144-158,160-175
+apps/cli/src/product/release-targets.ts
+  s_962f283dcbe24f::t_0445715c7716ba 1
+apps/cli/scripts/prepare-s3-release.ts
+  s_962f283dcbe24f::t_c310712feb9982 21,106,129,187
+apps/cli/scripts/publish-s3-release.ts
+  s_962f283dcbe24f::t_4325d23146f642 10-14,123,139-150,152,154,194
+  s_962f283dcbe24f::t_eb8edb14984732 204
+apps/cli/README.md
+  s_962f283dcbe24f::t_1c0ca674213e50 435,437,440-451
+  s_962f283dcbe24f::t_87b8651d7e1ed7 452
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4e2c3e7e958c08658f0060d6a734df5b5303b489",
+  "prompts": {},
+  "sessions": {
+    "s_962f283dcbe24f": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a16356-5213-75f2-b7dd-fe427ee38030",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
