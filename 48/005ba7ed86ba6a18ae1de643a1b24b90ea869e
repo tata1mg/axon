@@ -1,0 +1,46 @@
+apps/cli/src/harnesses/pi/telemetry/docs/limitations.md
+  s_962f283dcbe24f::t_07e08aaad96f04 15
+apps/cli/src/harnesses/pi/resources/extensions/compaction.ts
+  s_962f283dcbe24f::t_c81adf6a657659 147,154,156
+apps/cli/README.md
+  s_962f283dcbe24f::t_e2ad569582300a 23,45,163,271-275
+apps/backend/pyproject.toml
+  h_cbc19accedcd8a 3
+docs/session-backup-and-restore.md
+  s_962f283dcbe24f::t_8d46c61ffeda6f 12
+apps/cli/tests/compaction-launch-preferences.test.ts
+  s_962f283dcbe24f::t_8f957503974b14 118,152-197
+  s_962f283dcbe24f::t_47ded4aa2c6b61 198
+apps/cli/pi-version.json
+  s_962f283dcbe24f::t_ec8e0b65fd7e8a 2
+apps/cli/package.json
+  h_cbc19accedcd8a 3
+  s_962f283dcbe24f::t_3150d56959c349 45-46
+apps/cli/src/harnesses/pi/telemetry/docs/telemetry-schema.md
+  s_962f283dcbe24f::t_67147c6c42a7a4 3
+apps/backend/uv.lock
+  s_962f283dcbe24f::t_7dbec27b6beac3 64
+bun.lock
+  s_962f283dcbe24f::t_522b1b595b5a9c 13,27-28,117,119,121,123,125,127,129,367-368
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "48005ba7ed86ba6a18ae1de643a1b24b90ea869e",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_962f283dcbe24f": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a16356-5213-75f2-b7dd-fe427ee38030",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
