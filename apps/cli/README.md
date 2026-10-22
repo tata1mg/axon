@@ -20,7 +20,7 @@ This is a clean-install rename: previous product installations are not automatic
 - Standalone web search through the existing authenticated LiteLLM relay, with grounding, session attribution, and tool usage/cost reporting
 - Pi-only setup checks, including append-only organization MCP defaults at `~/.config/mcp/mcp.json`, requested only for interactive online launches and throttled locally
 - Pi agent/session isolation under `${AXON_HOME}/pi`, with Pi version checks disabled and every Pi-documented provider API key removed from Pi only (LiteLLM variables are kept)
-- Exact Pi 1.3.0 pin: Axon uses only its isolated executable under `${AXON_HOME}/pi-runtime`, installed from Pi's release API with `npm ci`; the user's PATH Pi is never used or changed
+- Exact Pi 1.4.0 pin: Axon uses only its isolated executable under `${AXON_HOME}/pi-runtime`, installed from Pi's release API with `npm ci`; the user's PATH Pi is never used or changed
 - Content-addressed, checksum-verified Axon Pi resources injected through explicit Pi flags that reference the immutable runtime directory
 - Embedded required-package policy with exact, minimum, and Pi/user-managed floating versions
 - Locked package reconciliation, last-known-good exact fallback, and local-only warm checks
@@ -42,7 +42,7 @@ This is a clean-install rename: previous product installations are not automatic
 
 ## Installation
 
-Releases support macOS on Apple Silicon (`darwin-arm64`) and Intel (`darwin-x64`). The installer picks the build that runs natively, including from a Rosetta terminal on Apple Silicon, and each binary updates only to the same target. The launcher does not bundle Pi. The installer checks for Node.js 22.19 or newer and npm before installing `axon`; if either is unavailable, it offers to install or upgrade Node.js with Homebrew in an interactive terminal. Non-interactive installations require Node.js and npm to be installed first. `axon pi` installs and uses its own exact Pi 1.3.0 release on first use, independently of any user-installed Pi.
+Releases support macOS on Apple Silicon (`darwin-arm64`) and Intel (`darwin-x64`). The installer picks the build that runs natively, including from a Rosetta terminal on Apple Silicon, and each binary updates only to the same target. The launcher does not bundle Pi. The installer checks for Node.js 22.19 or newer and npm before installing `axon`; if either is unavailable, it offers to install or upgrade Node.js with Homebrew in an interactive terminal. Non-interactive installations require Node.js and npm to be installed first. `axon pi` installs and uses its own exact Pi 1.4.0 release on first use, independently of any user-installed Pi.
 
 Once the backend serves the public `/install.sh` endpoint (rendered from this repository's [`install.sh`](install.sh) using its configured release URL), install with:
 
@@ -160,7 +160,7 @@ all settings. `PI_WEB_SEARCH_MODE` and `PI_WEB_SEARCH_SEARCH_TOOL` are obsolete.
 
 ### Pi installation bootstrap
 
-`axon pi` uses **only** the Axon-managed executable at `${AXON_HOME}/pi-runtime/1.3.0/node_modules/.bin/pi`. It verifies the installed package and reported executable version, installs that exact version on demand if missing, and never reads or modifies `pi` on `PATH`, regardless of its version. This also applies to forwarded Pi administration (`install`, `auth`, `mcp`, etc.). `axon pi update` (including `--extensions`) is blocked before launching Pi; use `pi update` directly for a separate global installation. Axon's own required-package reconciliation still works through its pinned executable.
+`axon pi` uses **only** the Axon-managed executable at `${AXON_HOME}/pi-runtime/1.4.0/node_modules/.bin/pi`. It verifies the installed package and reported executable version, installs that exact version on demand if missing, and never reads or modifies `pi` on `PATH`, regardless of its version. This also applies to forwarded Pi administration (`install`, `auth`, `mcp`, etc.). `axon pi update` (including `--extensions`) is blocked before launching Pi; use `pi update` directly for a separate global installation. Axon's own required-package reconciliation still works through its pinned executable.
 
 The official `https://pi.dev/install.sh` cannot pin a version, requires an interactive terminal, and may edit shell profiles, so Axon does not run it. Instead it follows the same steps as Pi's own managed `pi update`: it downloads `package.json` and `package-lock.json` for the exact version from `https://pi.dev/api/installer/releases/<version>/`, plus the release metadata from `https://pi.dev/api/installer/releases/<version>`, validates that all three describe `@earendil-works/pi-coding-agent@<version>`, merges the first-party tarball SHA-512 hashes from the metadata into the lockfile (the published lockfile omits them) so that every resolved tarball is integrity-checked, runs `npm ci --ignore-scripts --omit=dev --include=optional` in a staging directory under a same-user lock, verifies the installed package version and launcher, and atomically renames the tree into place. Shell profiles and `PATH` are never modified.
 
@@ -268,7 +268,11 @@ unavailable config keep local fallback; offline still suppresses managed search/
 Compaction enablement controls extension overrides, **not native automatic compaction**. Pi settings
 still control automatic compaction and retention. Configured summaries retain model-registry/auth
 checks, idle-only custom thresholds, native overflow recovery, and failure cancellation without
-silently switching summary models. Positive limits are not a guarantee of a sensible combination.
+silently switching summary models. Pi 1.4 summaries use the model's output limit by default;
+`compaction.reserveTokens` controls only when native compaction starts. An explicit
+`COMPACTION.MAX_OUTPUT_TOKENS` / `PI_COMPACTION_MAX_OUTPUT_TOKENS` cap is clamped to the
+selected summary model's known positive output limit. Positive limits are not a guarantee of
+a sensible combination.
 Recommender countdowns must be positive; backend recommendation eligibility/204 still takes priority.
 Provider discovery timeout zero disables discovery (and affected integrations such as MCP). Context
 window fallback only fills missing metadata; known per-model context/output limits are preserved.
