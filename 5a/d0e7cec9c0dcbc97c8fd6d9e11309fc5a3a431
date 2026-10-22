@@ -1,0 +1,16 @@
+apps/backend/pyproject.toml
+  h_cbc19accedcd8a 3
+apps/backend/uv.lock
+  h_cbc19accedcd8a 64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5ad0e7cec9c0dcbc97c8fd6d9e11309fc5a3a431",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
