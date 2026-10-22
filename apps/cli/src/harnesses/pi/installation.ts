@@ -17,6 +17,7 @@ import { withFileLock } from "../../launcher/file-lock.ts";
 import { compareSemVer, isSemVer, parseFirstSemVer } from "../../launcher/version.ts";
 import { PRODUCT_IDENTITY } from "../../product/identity.ts";
 import type { AxonPaths } from "../../product/paths.ts";
+import { runSandboxCommand } from "../../sandbox/session.ts";
 import { createPiEnvironment } from "./environment.ts";
 import { isPiOffline } from "./setup/packages/invocation.ts";
 import { type PiVersionProber, probePiVersion, resolvePiVersion } from "./version.ts";
@@ -40,6 +41,7 @@ export interface PiToolchain {
 }
 
 export interface PiNpmCiRequest {
+  readonly context: LaunchContext;
   readonly cwd: string;
   readonly environment: NodeJS.ProcessEnv;
   readonly npmPath: string;
@@ -274,22 +276,18 @@ async function fetchReleaseArtifact(url: string): Promise<string> {
 async function captureVersion(
   executable: string,
   environment: NodeJS.ProcessEnv,
+  context: LaunchContext,
 ): Promise<string | undefined> {
   try {
-    const subprocess = Bun.spawn([executable, "--version"], {
-      env: environment,
-      stdin: "ignore",
-      stdout: "pipe",
-      stderr: "ignore",
-      timeout: TOOLCHAIN_PROBE_TIMEOUT_MS,
-      killSignal: "SIGKILL",
-    });
-    const [stdout, exitCode] = await Promise.all([
-      new Response(subprocess.stdout).text(),
-      subprocess.exited,
-    ]);
-    return exitCode === 0 ? parseFirstSemVer(stdout) : undefined;
-  } catch {
+    const result = await runSandboxCommand(
+      context,
+      { executable, arguments: ["--version"], environment, cwd: context.cwd },
+      { purpose: "probe", timeoutMs: TOOLCHAIN_PROBE_TIMEOUT_MS },
+    );
+    return result.exitCode === 0 ? parseFirstSemVer(result.stdout) : undefined;
+  } catch (error) {
+    // A denied sandbox is not evidence that Node.js is missing or incompatible.
+    if (error instanceof LauncherError) throw error;
     return undefined;
   }
 }
@@ -301,7 +299,7 @@ async function probeInstalledToolchain(context: LaunchContext): Promise<PiToolch
     resolveCommandOnPath("npm", context.environment, context.cwd),
   ]);
   const nodeVersion =
-    nodePath === undefined ? undefined : await captureVersion(nodePath, environment);
+    nodePath === undefined ? undefined : await captureVersion(nodePath, environment, context);
   return {
     ...(nodePath === undefined ? {} : { nodePath }),
     ...(nodeVersion === undefined ? {} : { nodeVersion }),
@@ -310,33 +308,31 @@ async function probeInstalledToolchain(context: LaunchContext): Promise<PiToolch
 }
 
 async function runNpmCi(request: PiNpmCiRequest): Promise<void> {
-  const subprocess = Bun.spawn(
-    [
-      request.npmPath,
-      "ci",
-      "--ignore-scripts",
-      "--min-release-age=0",
-      "--omit=dev",
-      "--include=optional",
-      "--no-fund",
-      "--no-audit",
-      "--progress=false",
-      "--loglevel=error",
-    ],
+  const result = await runSandboxCommand(
+    request.context,
     {
+      executable: request.npmPath,
+      arguments: [
+        "ci",
+        "--ignore-scripts",
+        "--min-release-age=0",
+        "--omit=dev",
+        "--include=optional",
+        "--no-fund",
+        "--no-audit",
+        "--progress=false",
+        "--loglevel=error",
+      ],
       cwd: request.cwd,
-      env: request.environment,
-      stdin: "ignore",
-      stdout: "inherit",
-      stderr: "inherit",
+      environment: request.environment,
     },
+    { purpose: "provision", writePaths: [request.cwd], inheritOutput: true },
   );
-  const exitCode = await subprocess.exited;
-  if (subprocess.signalCode !== null) {
-    throw new Error(`npm ci terminated by signal ${subprocess.signalCode}`);
+  if (result.signalCode !== null) {
+    throw new Error(`npm ci terminated by signal ${result.signalCode}`);
   }
-  if (exitCode !== 0) {
-    throw new Error(`npm ci exited with status ${exitCode}`);
+  if (result.exitCode !== 0) {
+    throw new Error(`npm ci exited with status ${result.exitCode}`);
   }
 }
 
@@ -444,6 +440,7 @@ async function installManagedPi(
     await Bun.write(join(stageDirectory, "package.json"), packageJson);
     await Bun.write(join(stageDirectory, "package-lock.json"), completedLock);
     await (dependencies.runNpmCi ?? runNpmCi)({
+      context,
       cwd: stageDirectory,
       environment: createHarnessEnvironment(context.environment),
       npmPath: toolchain.npmPath,
@@ -462,6 +459,7 @@ async function installManagedPi(
       (await (dependencies.probeVersion ?? probePiVersion)(
         launcher,
         createPiEnvironment(context.environment, context.paths, { PI_OFFLINE: "1" }),
+        { ...context, cwd: stageDirectory },
       )) !== version
     ) {
       throw new Error(`installed Pi executable does not report ${version}`);

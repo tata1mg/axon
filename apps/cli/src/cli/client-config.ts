@@ -2,6 +2,7 @@ import { z } from "zod";
 import { BUILD_INFO } from "../build-info.ts";
 import { isSingleCommandPrefix } from "../harnesses/pi/terminal-permissions/command-parser.ts";
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../product/endpoints.ts";
+import { sandboxPolicySchema } from "../sandbox/contracts.ts";
 import { emitProductEvent } from "../telemetry/product-events.ts";
 
 export const CLIENT_CONFIG_TIMEOUT_MS = 700;
@@ -120,6 +121,7 @@ const litellmClientSchema = z.strictObject({
   defaultContextWindow: optionalOverride(positiveInteger),
 });
 const featureSchemas = {
+  sandbox: sandboxPolicySchema,
   pi: piSchema,
   telemetry: telemetrySchema,
   webSearch: webSearchSchema,

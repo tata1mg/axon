@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, mock, test } from "bun:test";
 import { chmod, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -15,10 +15,15 @@ import {
   resolvePiExecutable,
   validatePiReleaseArtifacts,
 } from "../src/harnesses/pi/installation.ts";
-import { resolvePiVersion } from "../src/harnesses/pi/version.ts";
+import { probePiVersion, resolvePiVersion } from "../src/harnesses/pi/version.ts";
 import { resolveHarnessRegistration } from "../src/harnesses/registry.ts";
-import type { HarnessRegistration, LaunchContext } from "../src/launcher/contracts.ts";
+import type {
+  HarnessRegistration,
+  LaunchContext,
+  SandboxSession,
+} from "../src/launcher/contracts.ts";
 import { resolveAxonPaths } from "../src/product/paths.ts";
+import { sandboxFailure } from "../src/sandbox/policy.ts";
 
 const fixtureRoots: string[] = [];
 const DEVELOPMENT_VERSION = PI_INSTALL_VERSION === "0.90.0" ? "0.91.0" : "0.90.0";
@@ -116,6 +121,8 @@ function installerDependencies(fixture: { readonly root: string }, version: stri
       return url.endsWith("/package-lock.json") ? artifacts.packageLock : artifacts.metadata;
     },
     probeToolchain: async () => healthyToolchain,
+    // Installation decisions use an injected probe; unit fixtures never spawn Pi.
+    probeVersion: async () => version,
     runNpmCi: async (request: { readonly cwd: string; readonly npmPath: string }) => {
       state.npmRuns += 1;
       expect(request.npmPath).toBe("/fixture/npm");
@@ -258,7 +265,48 @@ describe("Pi version probe cache", () => {
     // A changed executable invalidates the cached record.
     await Bun.sleep(5);
     await writePi(executable, "0.86.0 with a longer banner line\n");
-    expect(await resolvePiVersion(executable, fixture.context)).toBe("0.86.0");
+    const runProbe = mock<SandboxSession["run"]>(async (specification, options) => {
+      expect(specification.executable).toBe(executable);
+      expect(specification.arguments).toEqual(["--version"]);
+      expect(specification.environment["PI_OFFLINE"]).toBe("1");
+      expect(options).toEqual({ purpose: "probe", timeoutMs: 5_000 });
+      return {
+        exitCode: 0,
+        signalCode: null,
+        stdout: "0.86.0 with a longer banner line\n",
+        stderr: "",
+      };
+    });
+    const sandboxedContext: LaunchContext = {
+      ...fixture.context,
+      sandbox: {
+        clientConfig: () => undefined,
+        async wrap() {
+          throw new Error("Unexpected interactive launch in a version-probe fixture");
+        },
+        run: runProbe,
+        dispose() {},
+      },
+    };
+    expect(await resolvePiVersion(executable, sandboxedContext)).toBe("0.86.0");
+    expect(await resolvePiVersion(executable, sandboxedContext)).toBe("0.86.0");
+    expect(runProbe).toHaveBeenCalledTimes(1);
+
+    // Missing/expired authorization must not be mistaken for an unknown version.
+    await expect(
+      probePiVersion(executable, fixture.context.environment, fixture.context),
+    ).rejects.toThrow("An Axon-owned sandbox is required before running Pi");
+    const authorizationError = sandboxFailure("Axon sandbox authorization expired or was closed");
+    runProbe.mockRejectedValueOnce(authorizationError);
+    await expect(
+      probePiVersion(executable, fixture.context.environment, sandboxedContext),
+    ).rejects.toBe(authorizationError);
+
+    // Ordinary process failures remain an unknown version and are never cached.
+    runProbe.mockRejectedValueOnce(new Error("Fixture process could not start"));
+    expect(
+      await probePiVersion(executable, fixture.context.environment, sandboxedContext),
+    ).toBeUndefined();
   });
 });
 
@@ -379,7 +427,10 @@ describe("Pi executable resolution", () => {
     await writePi(binary, DEVELOPMENT_VERSION);
     const { dependencies, state } = installerDependencies(fixture, PI_INSTALL_VERSION);
     await expect(
-      resolvePiExecutable(fixture.context, piRegistration(), launchOptions, dependencies),
+      resolvePiExecutable(fixture.context, piRegistration(), launchOptions, {
+        ...dependencies,
+        probeVersion: async () => DEVELOPMENT_VERSION,
+      }),
     ).rejects.toMatchObject({
       exitStatus: 121,
       message: expect.stringContaining("does not match pinned version"),
@@ -426,6 +477,17 @@ describe("Pi executable resolution", () => {
       message: expect.stringContaining("Node.js 20.0.0 is older than 22.19.0"),
       remediation: expect.stringContaining("https://pi.dev/install.sh"),
     });
+
+    // The real toolchain probe must preserve missing sandbox authorization, too.
+    await writePi(join(fixture.bin, "node"), healthyToolchain.nodeVersion ?? "22.19.0");
+    await writePi(join(fixture.bin, "npm"), "10.0.0");
+    await expect(
+      resolvePiExecutable(fixture.context, piRegistration(), launchOptions, {
+        fetchArtifact: dependencies.fetchArtifact,
+        runNpmCi: dependencies.runNpmCi,
+        probeVersion: dependencies.probeVersion,
+      }),
+    ).rejects.toThrow("An Axon-owned sandbox is required before running Pi");
     expect(state.fetched).toEqual([]);
   });
 

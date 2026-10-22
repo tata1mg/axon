@@ -446,6 +446,7 @@ function watchSessionRecovery(ctx: ExtensionContext): () => void {
 
 export default function axonExtension(pi: ExtensionAPI): void {
   let stopRecovery: (() => void) | undefined;
+  let sandboxEditorOpen = false;
   let backupState: BackupHeaderState | undefined;
   let terminalState: TerminalHeaderState | undefined;
   let refreshHeader: (() => void) | undefined;
@@ -496,6 +497,107 @@ export default function axonExtension(pi: ExtensionAPI): void {
     const data = entry.data as { message?: unknown };
     const message = typeof data.message === "string" ? data.message : "Axon is active";
     return new Text(theme.fg("accent", message), 1, 0);
+  });
+
+  pi.registerCommand("sandbox", {
+    description:
+      "Edit filesystem access; saving automatically restarts Axon and resumes this session",
+    handler: async (args, ctx) => {
+      if (args.trim()) {
+        ctx.ui.notify(
+          "Use /sandbox without arguments to open the filesystem access editor.",
+          "warning",
+        );
+        return;
+      }
+      const config = authRelayConfiguration();
+      if (ctx.mode !== "tui" || config === undefined) {
+        ctx.ui.notify(
+          "Open an interactive Axon session or run axon sandbox in your terminal.",
+          "warning",
+        );
+        return;
+      }
+      if (sandboxEditorOpen) return;
+      if (!ctx.isIdle()) {
+        ctx.ui.notify("Wait for the current turn to finish, then run /sandbox.", "warning");
+        return;
+      }
+      const sessionFile = ctx.sessionManager.getSessionFile();
+      const sessionId = ctx.sessionManager.getSessionId();
+      if (
+        !sessionFile &&
+        !(await ctx.ui.confirm(
+          "Session is not persisted",
+          "Saving sandbox settings restarts Axon with a fresh chat because this session is in memory only. Continue?",
+        ))
+      )
+        return;
+      sandboxEditorOpen = true;
+      let restarting = false;
+      // Do not let a background login dialog compete with the parent-owned terminal editor.
+      stopRecovery?.();
+      stopRecovery = undefined;
+      try {
+        const outcome = await ctx.ui.custom<{ opened: boolean; restart: boolean }>(
+          async (tui, _theme, _keybindings, done) => {
+            // Release stdin and terminal protocols before Axon takes over the same terminal.
+            tui.stop();
+            let outcome = { opened: false, restart: false };
+            try {
+              process.stdout.write("\x1b[2J\x1b[H");
+              const response = await fetch(new URL("/_axon/sandbox/configure", config.origin), {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${config.capability}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ sessionId, sessionFile }),
+                redirect: "error",
+                cache: "no-store",
+              });
+              if (!response.ok) throw new Error("Sandbox editor unavailable");
+              const result: unknown = await response.json();
+              const payload = result as { opened?: unknown; restart?: unknown } | null;
+              if (typeof payload?.opened !== "boolean")
+                throw new Error("Invalid sandbox editor response");
+              outcome = { opened: payload.opened, restart: payload.restart === true };
+            } finally {
+              // Restore the chat even if the relay fails or the user cancels the editor.
+              tui.start();
+              tui.requestRender(true);
+            }
+            done(outcome);
+            return { render: () => [], invalidate: () => {} };
+          },
+        );
+        if (outcome.restart) {
+          restarting = true;
+          ctx.ui.notify(
+            "Sandbox permissions saved. Restarting Axon and resuming this session…",
+            "info",
+          );
+          // Native shutdown flushes the session and extension backups before the parent relaunches.
+          ctx.shutdown();
+          return;
+        }
+        ctx.ui.notify(
+          outcome.opened
+            ? "Sandbox editor closed without saving. Your chat is unchanged."
+            : "Sandbox configuration cancelled. Your chat is unchanged.",
+          "info",
+        );
+      } catch {
+        restarting = false;
+        ctx.ui.notify(
+          "Could not complete sandbox configuration. If permissions were saved, restart Axon to apply them.",
+          "warning",
+        );
+      } finally {
+        sandboxEditorOpen = false;
+        if (!restarting) stopRecovery = watchSessionRecovery(ctx);
+      }
+    },
   });
 
   pi.registerCommand("axon-status", {

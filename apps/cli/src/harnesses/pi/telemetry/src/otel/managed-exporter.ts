@@ -110,7 +110,12 @@ export class ManagedOtlpTransport implements IExporterTransport {
     try {
       for (let attempt = 0; attempt < 3; attempt++) {
         signal.throwIfAborted();
-        const session = await loadEncryptedSession(this.paths);
+        const relayOrigin = process.env["PI_AXON_AUTH_RELAY_URL"];
+        const relayKey = process.env["PI_AXON_AUTH_RELAY_KEY"];
+        const viaRelay = Boolean(
+          relayOrigin && relayKey && new URL(this.url).origin === relayOrigin,
+        );
+        const session = viaRelay ? relayKey : await loadEncryptedSession(this.paths);
         signal.throwIfAborted();
         if (!session) throw new Error("Missing managed session");
         const response = await fetch(this.url, {
@@ -124,7 +129,12 @@ export class ManagedOtlpTransport implements IExporterTransport {
         try {
           // Only our trusted backend is contacted. A stale batch cannot overwrite a new login.
           const refreshed = response.headers.get("x-session-refresh-token");
-          if (refreshed && refreshed.length <= 16384 && /^[\x21-\x7e]+$/.test(refreshed)) {
+          if (
+            !viaRelay &&
+            refreshed &&
+            refreshed.length <= 16384 &&
+            /^[\x21-\x7e]+$/.test(refreshed)
+          ) {
             await refreshEncryptedSession(this.paths, session, refreshed, signal).catch(
               () => false,
             );

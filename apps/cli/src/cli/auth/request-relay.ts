@@ -4,6 +4,11 @@ import { BUILD_INFO } from "../../build-info.ts";
 import { applyPiDefaults } from "../../harnesses/pi/settings-defaults.ts";
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../../product/endpoints.ts";
 import type { AxonPaths } from "../../product/paths.ts";
+import {
+  createSandboxConfigurationRelay,
+  type SandboxRestartSession,
+} from "../../sandbox/configuration-relay.ts";
+import { createBackupRelay } from "../../sessions/relay.ts";
 import { emitProductEvent } from "../../telemetry/product-events.ts";
 import { fetchClientConfig } from "../client-config.ts";
 import { loadEncryptedSession, refreshEncryptedSession } from "./session.ts";
@@ -42,6 +47,7 @@ const REMOVED_RESPONSE_HEADERS = [
 export interface AuthenticatedRequestRelay {
   readonly origin: string;
   readonly capability: string;
+  takeSandboxRestart?(): Promise<SandboxRestartSession | undefined>;
   dispose(): void;
 }
 
@@ -350,11 +356,20 @@ async function refreshPiDefaults(
 /** A per-launch, capability-protected loopback transport owned by axon, not a provider fork. */
 export function startAuthenticatedRequestRelay(
   paths: AxonPaths,
-  options: { readonly allowPiConfigRefresh?: boolean } = {},
+  options: {
+    readonly allowPiConfigRefresh?: boolean;
+    readonly allowTelemetry?: boolean;
+    readonly allowSandboxConfiguration?: boolean;
+    readonly cwd?: string;
+  } = {},
 ): AuthenticatedRequestRelay {
   const capability = `${crypto.randomUUID()}${crypto.randomUUID()}`;
   const recovery = createSessionRecovery(paths);
   const session = createRelaySession(paths);
+  const backupRelay = createBackupRelay(paths, options.cwd ?? process.cwd());
+  const sandboxConfiguration = options.allowSandboxConfiguration
+    ? createSandboxConfigurationRelay(paths, options.cwd ?? process.cwd())
+    : undefined;
   const server = Bun.serve({
     hostname: "127.0.0.1",
     port: 0,
@@ -372,6 +387,10 @@ export function startAuthenticatedRequestRelay(
       // Control calls never wait for authentication work so Pi can approve a pending login.
       const controlResponse = await recovery.handle(request, url);
       if (controlResponse !== undefined) return controlResponse;
+      if (url.pathname.startsWith("/_axon/sandbox/")) {
+        if (!sandboxConfiguration) return relayError(404, "Axon endpoint is not available");
+        return sandboxConfiguration.handle(request, url);
+      }
       if (url.pathname === "/_axon/pi-defaults/refresh") {
         if (!options.allowPiConfigRefresh || request.method !== "POST" || url.search !== "") {
           return relayError(404, "Axon endpoint is not available");
@@ -382,7 +401,15 @@ export function startAuthenticatedRequestRelay(
           return relayError(503, "Could not refresh Pi defaults; current settings were preserved.");
         }
       }
+      const backupResponse = await backupRelay(request, url);
+      if (backupResponse !== undefined) return backupResponse;
+      const telemetryAllowed =
+        options.allowTelemetry === true &&
+        request.method === "POST" &&
+        url.search === "" &&
+        /^\/api\/v1\/otel\/v1\/(traces|metrics|logs)$/.test(url.pathname);
       const allowed =
+        telemetryAllowed ||
         url.pathname.startsWith("/litellm/") ||
         (url.pathname === SERVICE_ENDPOINTS.models.recommendations && request.method === "POST");
       if (!allowed) return relayError(404, "Axon endpoint is not available");
@@ -399,7 +426,9 @@ export function startAuthenticatedRequestRelay(
   return Object.freeze({
     origin: server.url.origin,
     capability,
+    takeSandboxRestart: async () => sandboxConfiguration?.takeRestart(),
     dispose: () => {
+      sandboxConfiguration?.dispose();
       recovery.dispose();
       void server.stop(true);
     },

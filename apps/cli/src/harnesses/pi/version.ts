@@ -4,12 +4,15 @@ import { dirname } from "node:path";
 import { z } from "zod";
 
 import type { LaunchContext } from "../../launcher/contracts.ts";
+import { LauncherError } from "../../launcher/errors.ts";
 import { parseFirstSemVer } from "../../launcher/version.ts";
+import { runSandboxCommand } from "../../sandbox/session.ts";
 import { createPiEnvironment } from "./environment.ts";
 
 export type PiVersionProber = (
   executable: string,
   environment: NodeJS.ProcessEnv,
+  context: LaunchContext,
 ) => Promise<string | undefined>;
 
 export interface PiVersionResolutionOptions {
@@ -70,22 +73,19 @@ async function writeState(path: string, state: PiExecutableState): Promise<void>
 export async function probePiVersion(
   executable: string,
   environment: NodeJS.ProcessEnv,
+  context: LaunchContext,
 ): Promise<string | undefined> {
   try {
-    const subprocess = Bun.spawn([executable, "--version"], {
-      env: environment,
-      stdin: "ignore",
-      stdout: "pipe",
-      stderr: "ignore",
-      timeout: PROBE_TIMEOUT_MS,
-      killSignal: "SIGKILL",
-    });
-    const [stdout, exitCode] = await Promise.all([
-      new Response(subprocess.stdout).text(),
-      subprocess.exited,
-    ]);
-    return exitCode === 0 ? parseFirstSemVer(stdout) : undefined;
-  } catch {
+    const result = await runSandboxCommand(
+      context,
+      { executable, arguments: ["--version"], environment, cwd: context.cwd },
+      { purpose: "probe", timeoutMs: PROBE_TIMEOUT_MS },
+    );
+    return result.exitCode === 0 ? parseFirstSemVer(result.stdout) : undefined;
+  } catch (error) {
+    // Authorization/policy failures must retain their original remediation, not look
+    // like an executable with an unknown version. Never retry outside the sandbox.
+    if (error instanceof LauncherError) throw error;
     return undefined;
   }
 }
@@ -122,6 +122,7 @@ export async function resolvePiVersion(
   const version = await probe(
     executable,
     createPiEnvironment(context.environment, context.paths, { PI_OFFLINE: "1" }),
+    context,
   );
   if (version === undefined) {
     return undefined;

@@ -112,6 +112,20 @@
     "REQUIRE_GROUNDING": true,
     "SEARCH_CONTEXT_SIZE": null
   },
+  "SANDBOX": {
+    "POLICY_ID": "safehouse-v1",
+    "MAX_SESSION_SECONDS": 14400,
+    "LOCAL_GIT": "read-only",
+    "ALLOW_ADDITIONAL_READ_PATHS": true,
+    "ALLOW_ADDITIONAL_WRITE_PATHS": true,
+    "PACKAGE_REGISTRY_HOSTS": [
+      "registry.npmjs.org",
+      "registry.yarnpkg.com",
+      "pypi.org",
+      "files.pythonhosted.org"
+    ],
+    "PROTECTED_PATHS": []
+  },
   "TERMINAL_PERMISSIONS": {
     "YOLO_MODE": false,
     "REQUIRE_APPROVAL_COMMANDS": [],

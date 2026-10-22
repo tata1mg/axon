@@ -7,9 +7,11 @@ import { exitLikeChild, LAUNCHER_EXIT_STATUS } from "./exit-status.ts";
 
 const FORWARDED_SIGNALS = ["SIGTERM", "SIGHUP"] as const;
 
-export async function spawnHarness(specification: LaunchSpec): Promise<never> {
+/** Returns new arguments only for a parent-approved restart; ordinary exits retain their status. */
+export async function spawnHarness(specification: LaunchSpec): Promise<readonly string[]> {
   let subprocess: Bun.Subprocess<"inherit", "inherit", "inherit">;
   let spawnError: Error | undefined;
+  let stopping = false;
   const startedAt = Date.now();
 
   try {
@@ -54,6 +56,7 @@ export async function spawnHarness(specification: LaunchSpec): Promise<never> {
   const forwardingHandlers = new Map<NodeJS.Signals, () => void>();
   for (const signal of FORWARDED_SIGNALS) {
     const forwardSignal = (): void => {
+      stopping = true;
       if (subprocess.exitCode === null && subprocess.signalCode === null) {
         subprocess.kill(signal);
       }
@@ -63,9 +66,31 @@ export async function spawnHarness(specification: LaunchSpec): Promise<never> {
     process.on(signal, forwardSignal);
   }
 
+  let forceStop: ReturnType<typeof setTimeout> | undefined;
+  const expiry =
+    specification.expiresAt === undefined
+      ? undefined
+      : setTimeout(
+          () => {
+            stopping = true;
+            console.error(
+              "axon: backend sandbox authorization expired; restart axon pi to continue",
+            );
+            // Closing parent-owned capabilities immediately revokes all brokered network access.
+            specification.dispose?.();
+            subprocess.kill("SIGTERM");
+            forceStop = setTimeout(() => {
+              if (subprocess.exitCode === null && subprocess.signalCode === null)
+                subprocess.kill("SIGKILL");
+            }, 5_000);
+          },
+          Math.max(1, specification.expiresAt - Date.now()),
+        );
   try {
     await subprocess.exited;
   } finally {
+    if (expiry !== undefined) clearTimeout(expiry);
+    if (forceStop !== undefined) clearTimeout(forceStop);
     process.off("SIGINT", ignoreTerminalInterrupt);
     for (const [signal, handler] of forwardingHandlers) {
       process.off(signal, handler);
@@ -80,6 +105,16 @@ export async function spawnHarness(specification: LaunchSpec): Promise<never> {
       LAUNCHER_EXIT_STATUS.executableUnavailable,
       { cause: spawnError, remediation: "Run axon doctor for executable diagnostics." },
     );
+  }
+
+  if (
+    !stopping &&
+    subprocess.exitCode === 0 &&
+    subprocess.signalCode === null &&
+    (specification.expiresAt === undefined || Date.now() < specification.expiresAt)
+  ) {
+    const restartArguments = await specification.restartArguments?.();
+    if (restartArguments !== undefined) return restartArguments;
   }
 
   return exitLikeChild({

@@ -22,6 +22,7 @@ import {
   createModelRecommenderOverrides,
 } from "./launch-preferences-environment.ts";
 import { invalidateStalePiRelayModels } from "./model-cache.ts";
+import { piRestartArguments } from "./restart.ts";
 import {
   applyPiDefaults,
   applyPiProviderDefaults,
@@ -88,15 +89,19 @@ export function createPiAdapter(): HarnessAdapter {
           );
         }
         let config: ClientConfig | undefined;
-        // All startup preferences share this one bounded fetch, regardless of local switches.
+        // The mandatory sandbox fetch already contains these preferences. Reuse it only
+        // for the same verified credential; identity changes require fresh authorization.
         if (encryptedSession && !setup.offline) {
-          const result = await fetchClientConfig(encryptedSession, {
-            // Startup precedes the TUI, so this is the one place stderr diagnostics are safe.
-            onInvalidSection: (section) =>
-              console.error(
-                `${PRODUCT_IDENTITY.command}: ignored invalid client config section: ${section}`,
-              ),
-          });
+          const authorizedConfig = context.sandbox?.clientConfig(encryptedSession);
+          const result = authorizedConfig
+            ? { config: authorizedConfig, sessionRefreshToken: undefined }
+            : await fetchClientConfig(encryptedSession, {
+                // Startup precedes the TUI, so stderr diagnostics are safe here.
+                onInvalidSection: (section) =>
+                  console.error(
+                    `${PRODUCT_IDENTITY.command}: ignored invalid client config section: ${section}`,
+                  ),
+              });
           // Persist rotation before passing the credential to the child. Config is
           // optional, so a failed local rotation must not prevent Pi launch.
           config = result.config;
@@ -149,11 +154,17 @@ export function createPiAdapter(): HarnessAdapter {
             }
           }
         }
+        relay = startAuthenticatedRequestRelay(context.paths, {
+          allowPiConfigRefresh: !setup.offline,
+          allowTelemetry: config?.telemetry?.enabled === true,
+          allowSandboxConfiguration: setup.invocationKind === "interactive",
+          cwd: context.cwd,
+        });
         telemetryOverrides = createTelemetryOverrides(
           context.environment,
           config?.telemetry,
           setup.offline,
-          { home: context.paths.home },
+          { home: context.paths.home, serviceOrigin: relay.origin },
         );
         await initializeProductTelemetry(context.paths, undefined, {
           decision: { offline: setup.offline, policy: config?.telemetry },
@@ -166,9 +177,7 @@ export function createPiAdapter(): HarnessAdapter {
         const effectiveProviderEnvironment = { ...context.environment, ...featureOverrides };
         // Pi receives only a per-launch loopback capability. The relay reads the
         // live session for each request and owns refresh persistence and recovery.
-        relay = startAuthenticatedRequestRelay(context.paths, {
-          allowPiConfigRefresh: !setup.offline,
-        });
+        // The relay above also owns backup and telemetry credentials outside Safehouse.
         // Startup discovery seeds fresh models, but Pi restores its cached catalog over
         // them. Old per-launch relay URLs would then hide otherwise available models.
         // Keep the cache intact whenever the provider will not discover replacements.
@@ -218,6 +227,28 @@ export function createPiAdapter(): HarnessAdapter {
           decision: { offline: setup.offline },
         });
       }
+      // Administrative invocations are sandboxed too, without inheriting auth markers.
+      if (relay === undefined) {
+        relay = startAuthenticatedRequestRelay(context.paths, { cwd: context.cwd });
+        litellmOverrides = {
+          ...litellmOverrides,
+          PI_AXON_AUTH_RELAY_URL: relay.origin,
+          PI_AXON_AUTH_RELAY_KEY: relay.capability,
+          LITELLM_API_KEY: relay.capability,
+          LITELLM_BASE_URL: new URL("/litellm", relay.origin).toString(),
+          PI_MODEL_RECOMMENDER_API_KEY: relay.capability,
+          PI_MODEL_RECOMMENDER_URL: new URL(
+            "/api/v1/model-recommendations",
+            relay.origin,
+          ).toString(),
+          PI_WEB_SEARCH_API_KEY: relay.capability,
+          PI_WEB_SEARCH_URL: new URL("/litellm/v1/chat/completions", relay.origin).toString(),
+          PI_WEB_SEARCH_ENABLED: "false",
+          PI_ORG_OTEL_ENABLED: "false",
+          PI_ORG_OTEL_MANAGED_ENDPOINT: undefined,
+          PI_ORG_OTEL_MANAGED_HOME: undefined,
+        };
+      }
       const themeArguments =
         setup.invocationKind === "interactive"
           ? await axonThemeArguments(context.paths, context.cwd, userArguments)
@@ -239,6 +270,10 @@ export function createPiAdapter(): HarnessAdapter {
         ...(relay === undefined
           ? {}
           : {
+              restartArguments: async () => {
+                const session = await relay.takeSandboxRestart?.();
+                return session ? piRestartArguments(userArguments, session) : undefined;
+              },
               dispose: () => {
                 relay.dispose();
                 void closeProductTelemetry();

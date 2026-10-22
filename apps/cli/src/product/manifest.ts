@@ -104,7 +104,7 @@ const AXON_LIGHT_THEME_RESOURCE = Object.freeze({
 
 export const AXON_MANIFEST = parseAxonManifest({
   schemaVersion: 1,
-  revision: "16",
+  revision: "18",
   pi: {
     packages: [
       {

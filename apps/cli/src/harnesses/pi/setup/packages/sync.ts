@@ -6,6 +6,7 @@ import { LAUNCHER_EXIT_STATUS } from "../../../../launcher/exit-status.ts";
 import { withFileLock } from "../../../../launcher/file-lock.ts";
 import { PRODUCT_IDENTITY } from "../../../../product/identity.ts";
 import { AXON_MANIFEST } from "../../../../product/manifest.ts";
+import { runSandboxCommand } from "../../../../sandbox/session.ts";
 import { createPiEnvironment } from "../../environment.ts";
 import { type InstalledPackageInspection, inspectInstalledPackage } from "./inspect.ts";
 import {
@@ -72,36 +73,27 @@ async function runPiPackageAction(
   request: PiPackageActionRequest,
 ): Promise<{ readonly exitCode: number }> {
   console.error(`${PRODUCT_IDENTITY.command}: ${describeAction(request)}...`);
-  const subprocess = Bun.spawn([context.executable, request.action, request.source], {
-    cwd: context.cwd,
-    env: createPiEnvironment(context.environment, context.paths),
-    stdin: "inherit",
-    stdout: "inherit",
-    stderr: "inherit",
-  });
-
-  const forwardingHandlers = new Map<NodeJS.Signals, () => void>();
-  for (const signal of ["SIGTERM", "SIGHUP"] as const) {
-    const handler = (): void => {
-      if (subprocess.exitCode === null && subprocess.signalCode === null) {
-        subprocess.kill(signal);
-      }
-    };
-    forwardingHandlers.set(signal, handler);
-    process.on(signal, handler);
-  }
-
-  try {
-    const exitCode = await subprocess.exited;
-    if (subprocess.signalCode !== null) {
-      throw new Error(`Pi package ${request.action} terminated by signal ${subprocess.signalCode}`);
-    }
-    return { exitCode };
-  } finally {
-    for (const [signal, handler] of forwardingHandlers) {
-      process.off(signal, handler);
-    }
-  }
+  const result = await runSandboxCommand(
+    context,
+    {
+      executable: context.executable,
+      arguments: [request.action, request.source],
+      cwd: context.cwd,
+      environment: createPiEnvironment(context.environment, context.paths),
+    },
+    {
+      purpose: "provision",
+      writePaths: [
+        `${context.paths.pi}/npm`,
+        `${context.paths.pi}/settings.json`,
+        `${context.paths.pi}/settings.json.lock`,
+      ],
+      inheritOutput: true,
+    },
+  );
+  if (result.signalCode !== null)
+    throw new Error(`Pi package ${request.action} terminated by signal ${result.signalCode}`);
+  return { exitCode: result.exitCode };
 }
 
 function packageStateMatchesInspection(

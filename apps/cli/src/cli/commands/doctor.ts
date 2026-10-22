@@ -19,6 +19,7 @@ import { LAUNCHER_EXIT_STATUS, type LauncherExitStatus } from "../../launcher/ex
 import { compareSemVer } from "../../launcher/version.ts";
 import { PRODUCT_IDENTITY } from "../../product/identity.ts";
 import type { AxonPaths } from "../../product/paths.ts";
+import { runSandboxCommand, withSandboxSession } from "../../sandbox/session.ts";
 
 const PATH_ENVIRONMENT_VARIABLE = "PATH";
 
@@ -154,23 +155,19 @@ async function inspectLauncherPath(context: LaunchContext): Promise<readonly Doc
 
 async function probeVersion(
   executable: string,
-  environment: NodeJS.ProcessEnv,
+  context: LaunchContext,
 ): Promise<string | undefined> {
   try {
-    const subprocess = Bun.spawn([executable, "--version"], {
-      env: createHarnessEnvironment(environment),
-      stdin: "ignore",
-      stdout: "pipe",
-      stderr: "pipe",
-      timeout: 2_000,
-      killSignal: "SIGKILL",
-    });
-
-    const [stdout, stderr, exitCode] = await Promise.all([
-      new Response(subprocess.stdout).text(),
-      new Response(subprocess.stderr).text(),
-      subprocess.exited,
-    ]);
+    const { stdout, stderr, exitCode } = await runSandboxCommand(
+      context,
+      {
+        executable,
+        arguments: ["--version"],
+        environment: createHarnessEnvironment(context.environment),
+        cwd: context.cwd,
+      },
+      { purpose: "probe", timeoutMs: 2_000 },
+    );
 
     if (exitCode !== 0) {
       return undefined;
@@ -178,7 +175,8 @@ async function probeVersion(
 
     const output = (stdout.trim() || stderr.trim()).split(/\r?\n/, 1)[0];
     return output?.slice(0, 300) || undefined;
-  } catch {
+  } catch (error) {
+    if (error instanceof LauncherError) throw error;
     return undefined;
   }
 }
@@ -242,6 +240,31 @@ async function inspectHarness(
   context: LaunchContext,
 ): Promise<DoctorResult> {
   try {
+    return await withSandboxSession(context, (sandboxedContext) =>
+      inspectSandboxedHarness(registration, sandboxedContext),
+    );
+  } catch (error) {
+    if (error instanceof LauncherError) {
+      return {
+        findings: [
+          {
+            level: "error",
+            message: error.message,
+            ...(error.remediation === undefined ? {} : { remediation: error.remediation }),
+          },
+        ],
+        exitStatus: error.exitStatus,
+      };
+    }
+    throw error;
+  }
+}
+
+async function inspectSandboxedHarness(
+  registration: HarnessRegistration,
+  context: LaunchContext,
+): Promise<DoctorResult> {
+  try {
     const adapter = await loadHarnessAdapter(registration.id);
     // Diagnostics locate executables but never download one.
     const executable =
@@ -254,7 +277,7 @@ async function inspectHarness(
     const exactVersion = adapter.exactVersion?.(context);
     const version =
       adapter.probeVersion === undefined
-        ? await probeVersion(executable, context.environment)
+        ? await probeVersion(executable, context)
         : await adapter.probeVersion(context, executable);
     const adapterFindings = await adapter.doctor(context);
 

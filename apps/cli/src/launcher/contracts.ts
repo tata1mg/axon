@@ -1,3 +1,4 @@
+import type { ClientConfig } from "../cli/client-config.ts";
 import type { AxonPaths } from "../product/paths.ts";
 
 export type StableHarnessId = "pi";
@@ -6,6 +7,8 @@ export interface LaunchContext {
   readonly cwd: string;
   readonly environment: NodeJS.ProcessEnv;
   readonly paths: AxonPaths;
+  /** Owned by Axon for the entire invocation, before any Pi executable runs. */
+  readonly sandbox?: SandboxSession;
 }
 
 export interface HarnessLaunchContext extends LaunchContext {
@@ -20,8 +23,34 @@ export interface LaunchSpec {
   readonly cwd: string;
   /** Explicit invocation offline state, not a telemetry environment preference. */
   readonly offline?: boolean;
+  /** Backend-authorized session lease; no local setting may extend it. */
+  readonly expiresAt?: number;
+  /** Parent-owned restart request, consumed only after a successful, graceful child exit. */
+  readonly restartArguments?: () => Promise<readonly string[] | undefined>;
   /** Release per-session resources before propagating the child's exit status. */
   readonly dispose?: () => void;
+}
+
+export interface SandboxCommandOptions {
+  readonly purpose: "probe" | "provision";
+  readonly writePaths?: readonly string[];
+  readonly inheritOutput?: boolean;
+  readonly timeoutMs?: number;
+}
+
+export interface SandboxCommandResult {
+  readonly exitCode: number;
+  readonly signalCode: NodeJS.Signals | null;
+  readonly stdout: string;
+  readonly stderr: string;
+}
+
+export interface SandboxSession {
+  /** Reuse startup configuration only while the verified credential is unchanged. */
+  clientConfig(session: string): ClientConfig | undefined;
+  wrap(specification: LaunchSpec): Promise<LaunchSpec>;
+  run(specification: LaunchSpec, options: SandboxCommandOptions): Promise<SandboxCommandResult>;
+  dispose(): void;
 }
 
 export interface DoctorFinding {

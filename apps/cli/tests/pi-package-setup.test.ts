@@ -1,7 +1,7 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { chmod, mkdir, mkdtemp, readlink, rm, symlink, utimes } from "node:fs/promises";
+import { afterAll, beforeAll, describe, expect, mock, test } from "bun:test";
+import { mkdir, mkdtemp, readlink, rm, symlink, utimes } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { inspectPiPackages } from "../src/harnesses/pi/setup/packages/doctor.ts";
 import {
   classifyPiInvocation,
@@ -19,7 +19,7 @@ import { readPiPackageState } from "../src/harnesses/pi/setup/packages/state.ts"
 import { synchronizePiPackages } from "../src/harnesses/pi/setup/packages/sync.ts";
 import { materializePiResources } from "../src/harnesses/pi/setup/resources.ts";
 import { resolveHarnessRegistration } from "../src/harnesses/registry.ts";
-import type { HarnessLaunchContext } from "../src/launcher/contracts.ts";
+import type { HarnessLaunchContext, SandboxSession } from "../src/launcher/contracts.ts";
 import { withFileLock } from "../src/launcher/file-lock.ts";
 import { AXON_MANIFEST, EMBEDDED_PI_RESOURCES } from "../src/product/manifest.ts";
 import { resolveAxonPaths } from "../src/product/paths.ts";
@@ -629,56 +629,64 @@ describe("Pi package synchronization", () => {
     expect(installCalls).toBe(1);
   });
 
-  test("runs the real Pi subprocess with isolated environment and strict argv", async () => {
-    const contextBase = createContext("direct-subprocess");
+  test("routes Pi package actions through the sandbox with isolated environment and strict argv", async () => {
+    const contextBase = createContext("sandbox-subprocess");
     const fakePi = join(contextBase.paths.home, "fake-pi");
-    const recordPath = join(contextBase.paths.home, "record.json");
-    await mkdir(dirname(fakePi), { recursive: true });
-    await Bun.write(
-      fakePi,
-      `#!/usr/bin/env -S bun --no-env-file
-import { mkdir } from "node:fs/promises";
-const [action, source] = process.argv.slice(2);
-await Bun.write(process.env.FAKE_RECORD, JSON.stringify({
-  action,
-  source,
-  piDir: process.env.PI_CODING_AGENT_DIR,
-  sessionDir: process.env.PI_CODING_AGENT_SESSION_DIR,
-  skipVersion: process.env.PI_SKIP_VERSION_CHECK,
-  anthropic: process.env.ANTHROPIC_API_KEY,
-  openai: process.env.OPENAI_API_KEY,
-}));
-const name = source.replace(/^npm:/, "").replace(/@[^@]+$/, "");
-const packagePath = process.env.PI_CODING_AGENT_DIR + "/npm/node_modules/" + name;
-await mkdir(packagePath, { recursive: true });
-await Bun.write(packagePath + "/package.json", JSON.stringify({ name, version: "1.0.0" }));
-`,
-    );
-    await chmod(fakePi, 0o755);
+    const packageManifest = manifest([exactPackage("1.0.0")]);
+    // Simulate the install result at the sandbox boundary; never spawn an unwrapped fixture.
+    const runAction = mock<SandboxSession["run"]>(async () => {
+      await writeNpmPackage(contextBase, packageManifest, "1.0.0");
+      return { exitCode: 0, signalCode: null, stdout: "", stderr: "" };
+    });
     const context: HarnessLaunchContext = {
       ...contextBase,
       executable: fakePi,
       environment: {
         ...contextBase.environment,
-        FAKE_RECORD: recordPath,
         ANTHROPIC_API_KEY: "secret",
         OPENAI_API_KEY: "secret",
+      },
+      sandbox: {
+        clientConfig: () => undefined,
+        async wrap() {
+          throw new Error("Unexpected interactive launch in a package-action fixture");
+        },
+        run: runAction,
+        dispose() {},
       },
     };
 
     await synchronizePiPackages({
       allowInstall: true,
       context,
-      manifest: manifest([exactPackage("1.0.0")]),
+      manifest: packageManifest,
     });
 
-    expect(await Bun.file(recordPath).json()).toEqual({
-      action: "install",
-      source: "npm:@example/pi-tools@1.0.0",
-      piDir: context.paths.pi,
-      sessionDir: context.paths.piSessions,
-      skipVersion: "1",
-    });
+    expect(runAction).toHaveBeenCalledTimes(1);
+    expect(runAction).toHaveBeenCalledWith(
+      {
+        executable: fakePi,
+        arguments: ["install", "npm:@example/pi-tools@1.0.0"],
+        cwd: context.cwd,
+        environment: expect.objectContaining({
+          PI_CODING_AGENT_DIR: context.paths.pi,
+          PI_CODING_AGENT_SESSION_DIR: context.paths.piSessions,
+          PI_SKIP_VERSION_CHECK: "1",
+        }),
+      },
+      {
+        purpose: "provision",
+        writePaths: [
+          `${context.paths.pi}/npm`,
+          `${context.paths.pi}/settings.json`,
+          `${context.paths.pi}/settings.json.lock`,
+        ],
+        inheritOutput: true,
+      },
+    );
+    const specification = runAction.mock.calls[0]?.[0];
+    expect(specification?.environment["ANTHROPIC_API_KEY"]).toBeUndefined();
+    expect(specification?.environment["OPENAI_API_KEY"]).toBeUndefined();
   });
 });
 

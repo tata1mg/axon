@@ -2,13 +2,18 @@ import { synchronizePiMcpConfig } from "../../harnesses/pi/setup/mcp-config.ts";
 import { synchronizePiPackages } from "../../harnesses/pi/setup/packages/sync.ts";
 import { materializePiResources } from "../../harnesses/pi/setup/resources.ts";
 import { loadHarnessAdapter, resolveHarnessRegistration } from "../../harnesses/registry.ts";
-import type { HarnessLaunchContext, LaunchContext } from "../../launcher/contracts.ts";
+import type {
+  HarnessLaunchContext,
+  HarnessRegistration,
+  LaunchContext,
+} from "../../launcher/contracts.ts";
 import { LauncherError } from "../../launcher/errors.ts";
 import { resolveExecutablePath } from "../../launcher/executable.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
 import { PRODUCT_IDENTITY } from "../../product/identity.ts";
 import { AXON_MANIFEST, EMBEDDED_PI_RESOURCES } from "../../product/manifest.ts";
 import { resolveAxonPaths } from "../../product/paths.ts";
+import { withSandboxSession } from "../../sandbox/session.ts";
 
 export interface SetupOptions {
   readonly syncPackages?: boolean;
@@ -35,11 +40,16 @@ export async function runSetup(
     );
   }
 
-  const launchContext: LaunchContext = Object.freeze({
-    cwd,
-    environment,
-    paths: resolveAxonPaths(environment),
-  });
+  return withSandboxSession({ cwd, environment, paths: resolveAxonPaths(environment) }, (context) =>
+    runSandboxedSetup(registration, context),
+  );
+}
+
+async function runSandboxedSetup(
+  registration: HarnessRegistration,
+  launchContext: LaunchContext,
+): Promise<void> {
+  const { cwd, environment } = launchContext;
   const adapter = await loadHarnessAdapter(registration.id);
   // Explicit setup installs the isolated exact-version Pi runtime when absent.
   const executable =
