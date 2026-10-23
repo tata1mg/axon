@@ -1,0 +1,14 @@
+Dockerfile
+  h_cbc19accedcd8a 3,33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e63223523f89ae0a50cfe7b26d0e81959ce83e48",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
