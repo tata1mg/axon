@@ -19,6 +19,9 @@ const policy = {
   protocol: "http/protobuf" as const,
   traceSampleRatio: 1,
   metricExportIntervalMs: 10000,
+  batchScheduleDelayMs: 30_000,
+  maxExportBatchSize: 1_024,
+  maxQueueSize: 8_192,
 };
 
 test.each(
@@ -227,6 +230,87 @@ test("a short-lived CLI process exports product metrics, traces and logs before 
     await rm(home, { recursive: true, force: true });
   }
 });
+
+test("launcher honors managed delay and full-batch export despite conflicting local tuning", async () => {
+  const home = await mkdtemp(join(tmpdir(), "axon-product-batching-"));
+  const paths = resolveAxonPaths({ AXON_HOME: home, HOME: home });
+  const received: { path: string; body: Buffer }[] = [];
+  const server = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    async fetch(request) {
+      assert.equal(request.headers.get("authorization"), "Bearer batching-session");
+      received.push({
+        path: new URL(request.url).pathname,
+        body: Buffer.from(await request.arrayBuffer()),
+      });
+      return new Response(null, { headers: { "content-type": "application/x-protobuf" } });
+    },
+  });
+  const overrides = {
+    HOME: home,
+    OTEL_BSP_SCHEDULE_DELAY: "100",
+    OTEL_BLRP_SCHEDULE_DELAY: "100",
+    OTEL_BSP_MAX_EXPORT_BATCH_SIZE: "1",
+    OTEL_BLRP_MAX_EXPORT_BATCH_SIZE: "1",
+    OTEL_BSP_MAX_QUEUE_SIZE: "64",
+    OTEL_BLRP_MAX_QUEUE_SIZE: "64",
+  };
+  const previous = Object.fromEntries(Object.keys(overrides).map((key) => [key, process.env[key]]));
+  Object.assign(process.env, overrides);
+  try {
+    await closeProductTelemetry();
+    beginProductTelemetryInvocation();
+    takeProductEvents();
+    await saveEncryptedSession(paths, "batching-session");
+    await initializeProductTelemetry(
+      paths,
+      {
+        ...policy,
+        metricExportIntervalMs: 60_000,
+        maxExportBatchSize: 2,
+        maxQueueSize: 64,
+      },
+      { serviceOrigin: server.url.origin },
+    );
+    emitProductEvent({ category: "backup", stage: "capture", outcome: "success" });
+    // The old default would have exported after 1s; local batch size 1 would export immediately.
+    await Bun.sleep(1_250);
+    assert.equal(received.length, 0);
+    emitProductEvent({ category: "backup", stage: "upload", outcome: "success" });
+    const deadline = Date.now() + 2_000;
+    while (received.length < 2 && Date.now() < deadline) await Bun.sleep(20);
+    assert.deepEqual(received.map(({ path }) => path).sort(), [
+      "/api/v1/otel/v1/logs",
+      "/api/v1/otel/v1/traces",
+    ]);
+    for (const { body } of received) {
+      assert.ok(body.includes(Buffer.from("axon.backup.capture")));
+      assert.ok(body.includes(Buffer.from("axon.backup.upload")));
+    }
+    // A partial next batch still flushes on shutdown rather than waiting for the managed delay.
+    emitProductEvent({ category: "backup", stage: "commit", outcome: "success" });
+    await closeProductTelemetry();
+    for (const signal of ["logs", "traces"])
+      assert.ok(
+        received.some(
+          ({ path, body }) =>
+            path.endsWith(`/${signal}`) && body.includes(Buffer.from("axon.backup.commit")),
+        ),
+      );
+    for (const [key, value] of Object.entries(overrides)) assert.equal(process.env[key], value);
+  } finally {
+    await closeProductTelemetry();
+    beginProductTelemetryInvocation();
+    takeProductEvents();
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    server.stop(true);
+    await rm(home, { recursive: true, force: true });
+  }
+}, 10_000);
 
 test("disabled policy discards events without contacting a collector", async () => {
   beginProductTelemetryInvocation();

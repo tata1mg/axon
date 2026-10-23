@@ -17,7 +17,7 @@ async function runStartupScript(script: string): Promise<void> {
       "--eval",
       `
       import assert from "node:assert/strict";
-      import { mkdir, rm } from "node:fs/promises";
+      import { chmod, mkdir, rm, symlink } from "node:fs/promises";
       import * as sessions from "./src/cli/auth/session.ts";
       import { verifyEncryptedSession } from "./src/cli/auth/verification.ts";
       import { ensureAuthenticatedSession } from "./src/cli/auth/ensure-session.ts";
@@ -101,6 +101,102 @@ for (const status of ["EXPIRED", "NOT_VERIFIED"]) {
       await assert.rejects(ensureAuthenticatedSession(paths, { interactive: false }), /Axon login is required/);
       assert.equal(await sessions.loadEncryptedSession(paths), "initial-session");
       assert.equal(calls.length, 1);
+    `);
+  });
+}
+
+test("unreadable saved sessions report storage failure instead of requiring login", async () => {
+  await runStartupScript(`
+    await rm(paths.sharedAuthFile);
+    await mkdir(paths.sharedAuthFile);
+    await assert.rejects(ensureAuthenticatedSession(paths, { interactive: false }), error => {
+      assert.match(error.message, /saved Axon session could not be read safely/i);
+      assert.doesNotMatch(error.message, /login is required/i);
+      return true;
+    });
+    assert.equal(calls.length, 0);
+  `);
+});
+
+for (const entry of [
+  "session symlink",
+  "authentication directory symlink",
+  "authentication directory file",
+]) {
+  test(`startup still rejects an unsafe ${entry}`, async () => {
+    await runStartupScript(`
+      if (${JSON.stringify(entry)} === "session symlink") {
+        await rm(paths.sharedAuthFile);
+        await symlink("/does/not/exist", paths.sharedAuthFile);
+      } else {
+        await rm(paths.sharedAuthDirectory, { recursive: true });
+        if (${JSON.stringify(entry)} === "authentication directory symlink") {
+          const target = paths.sharedAuthDirectory + "-target";
+          await mkdir(target);
+          await symlink(target, paths.sharedAuthDirectory);
+        } else {
+          await Bun.write(paths.sharedAuthDirectory, "not a directory");
+        }
+      }
+      await assert.rejects(ensureAuthenticatedSession(paths, { interactive: false }), /could not be read safely/);
+      assert.equal(calls.length, 0);
+    `);
+  });
+}
+
+test.skipIf(process.getuid?.() === 0)(
+  "startup still rejects session read permission failures",
+  async () => {
+    await runStartupScript(`
+    await chmod(paths.sharedAuthFile, 0o000);
+    try {
+      await assert.rejects(ensureAuthenticatedSession(paths, { interactive: false }), /could not be read safely/);
+      assert.equal(calls.length, 0);
+    } finally {
+      await chmod(paths.sharedAuthFile, 0o600);
+    }
+  `);
+  },
+);
+
+for (const [name, content] of [
+  ["truncated JSON", '{"truncated'],
+  ["null JSON", "null"],
+  ["array JSON", "[]"],
+  ["invalid token", JSON.stringify({ extension_auth_token: "invalid token" })],
+  ["non-string token", JSON.stringify({ extension_auth_token: 123 })],
+] as const) {
+  test(`startup requires login for ${name} instead of reporting storage failure`, async () => {
+    await runStartupScript(`
+      console.error = () => {};
+      await Bun.write(paths.sharedAuthFile, ${JSON.stringify(content)});
+      await assert.rejects(ensureAuthenticatedSession(paths, { interactive: false }), /Axon login is required/);
+      assert.equal(calls.length, 0);
+      // Startup must leave the corrupt file untouched until the user selects login.
+      assert.equal(await Bun.file(paths.sharedAuthFile).text(), ${JSON.stringify(content)});
+      await sessions.saveEncryptedSession(paths, "repaired-session");
+      upstream = async () => Response.json({ status: "VERIFIED" });
+      assert.equal(await ensureAuthenticatedSession(paths, { interactive: false }), true);
+      assert.deepEqual(calls, ["Bearer repaired-session"]);
+    `);
+  });
+}
+
+for (const body of ["not-json", JSON.stringify({ status: "UNKNOWN" })]) {
+  test(`verification preserves a safe refresh when its body is invalid: ${body}`, async () => {
+    await runStartupScript(`
+      upstream = async () => new Response(${JSON.stringify(body)}, {
+        headers: { "x-session-refresh-token": "recoverable-session" },
+      });
+      await assert.rejects(ensureAuthenticatedSession(paths, { interactive: false }), /Could not verify/);
+      assert.equal(await sessions.loadEncryptedSession(paths), "recoverable-session");
+      assert.equal(calls.length, 1);
+      // A retry uses the preserved credential, not the now-obsolete original.
+      upstream = async request => {
+        assert.equal(request.headers.get("authorization"), "Bearer recoverable-session");
+        return Response.json({ status: "VERIFIED" });
+      };
+      assert.equal(await ensureAuthenticatedSession(paths, { interactive: false }), true);
     `);
   });
 }

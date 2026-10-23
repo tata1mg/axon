@@ -1,3 +1,4 @@
+import { afterEach, beforeEach } from "bun:test";
 import type { Attributes, Context } from "@opentelemetry/api";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import {
@@ -7,6 +8,26 @@ import {
   TracerProvider,
 } from "@opentelemetry/sdk-trace";
 import type { LogSeverity, TelemetryRuntime } from "../src/telemetry-types.ts";
+
+/** Keep fallback tests independent of the Axon session running the test command. */
+export function isolateTelemetryEnvironment(): void {
+  const isTelemetryVariable = (name: string) =>
+    /^(OTEL_|PI_ORG_OTEL_)/.test(name) || name === "PI_AXON_CLI_VERSION";
+  let previous: NodeJS.ProcessEnv = {};
+  beforeEach(() => {
+    previous = {};
+    for (const name of Object.keys(process.env).filter(isTelemetryVariable)) {
+      previous[name] = process.env[name];
+      delete process.env[name];
+    }
+  });
+  afterEach(() => {
+    for (const name of Object.keys(process.env).filter(isTelemetryVariable)) {
+      delete process.env[name];
+    }
+    Object.assign(process.env, previous);
+  });
+}
 
 export interface RecordedMetric {
   readonly kind: "count" | "record";

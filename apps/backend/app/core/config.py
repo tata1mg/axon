@@ -183,6 +183,8 @@ class Settings:
     web_search: WebSearchSettings = field(default_factory=WebSearchSettings)
     model_recommender: ModelRecommenderSettings = field(default_factory=ModelRecommenderSettings)
     backend_telemetry: BackendTelemetrySettings | None = None
+    log_level: str = "INFO"
+    log_format: str = "json"
     cli_pi: CliPiConfig | None = None
     cli_compaction: CliCompactionConfig | None = None
     cli_model_recommender: CliModelRecommenderConfig | None = None
@@ -215,6 +217,16 @@ def _backend_telemetry_settings(raw_config: dict[str, Any]) -> BackendTelemetryS
         return parse_backend_telemetry(raw_config)
     except (ValueError, TypeError):
         raise ConfigurationError("config.OPEN_TELEMETRY contains invalid settings") from None
+
+
+def _logging_settings(raw: dict[str, Any]) -> tuple[str, str]:
+    level = raw.get("LOG_LEVEL", "INFO")
+    format_ = raw.get("LOG_FORMAT", "json")
+    if not isinstance(level, str) or level not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
+        raise ConfigurationError("config.LOG_LEVEL must be DEBUG, INFO, WARNING, ERROR or CRITICAL")
+    if not isinstance(format_, str) or format_ not in {"json", "text"}:
+        raise ConfigurationError("config.LOG_FORMAT must be json or text")
+    return level, format_
 
 
 def _mapping(source: dict[str, Any], key: str, path: str) -> dict[str, Any]:
@@ -675,6 +687,7 @@ def get_settings() -> Settings:
     web_search = _web_search(raw_config)
     terminal_permissions = _terminal_permissions(raw_config)
     backend_telemetry = _backend_telemetry_settings(raw_config)
+    log_level, log_format = _logging_settings(raw_config)
 
     return Settings(
         name=_string(raw_config, "NAME", "config"),
@@ -702,4 +715,6 @@ def get_settings() -> Settings:
         model_recommender=_model_recommender(raw_config),
         terminal_permissions=terminal_permissions,
         backend_telemetry=backend_telemetry,
+        log_level=log_level,
+        log_format=log_format,
     )

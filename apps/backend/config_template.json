@@ -6,6 +6,8 @@
   "WORKERS": 1,
   "DEBUG": true,
   "LOG_LEVEL": "INFO",
+  "LOG_FORMAT": "json",
+  "ACCESS_LOG": true,
   "FRONTEND_DIR": "static",
   "CLI_INSTALL": {
     "RELEASES_URL": "https://YOUR_ORIGIN/api/v1/cli/releases"
@@ -81,7 +83,10 @@
       "ENDPOINT": "/api/v1/otel",
       "PROTOCOL": "http/protobuf",
       "TRACE_SAMPLE_RATIO": 1.0,
-      "METRIC_EXPORT_INTERVAL_MS": 10000
+      "METRIC_EXPORT_INTERVAL_MS": 10000,
+      "BATCH_SCHEDULE_DELAY_MS": 1000,
+      "MAX_EXPORT_BATCH_SIZE": 256,
+      "MAX_QUEUE_SIZE": 2048
     },
     "PROXY": {
       "ENABLED": false,
@@ -172,11 +177,17 @@
   "OPEN_TELEMETRY": {
     "ENABLED": false,
     "SERVICE_NAME": "axon-backend",
-    "ENDPOINT": "",
-    "PROTOCOL": "http/protobuf",
+    "ENDPOINT": "http://localhost:4317",
+    "PROTOCOL": "grpc",
     "HEADERS": {},
+    "METRICS_ENABLED": true,
     "METRICS_EXPORT_INTERVAL_MILLIS": 10000,
-    "SAMPLING_RATE": 0.1
+    "SAMPLING_RATE": 0.1,
+    "HTTPX_ENABLED": true,
+    "ASYNCPG_ENABLED": true,
+    "EVENT_LOOP_MONITORING": true,
+    "EVENT_LOOP_MONITOR_INTERVAL": 0.1,
+    "EVENT_LOOP_MONITOR_BLOCKING_THRESHOLD": 0.05
   },
   "AUTH_SERVICE": {
     "BASE_URL": "http://localhost:9355",

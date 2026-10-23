@@ -9,6 +9,14 @@ const AUTH_TOKEN_KEY = "extension_auth_token";
 export const SESSION_FILE_NAME = PRODUCT_IDENTITY.sharedAuthFileName;
 const MAX_SESSION_FILE_BYTES = 1024 * 1024;
 
+/** Repairable file contents, distinct from unsafe entries and filesystem failures. */
+export class InvalidSessionContentError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidSessionContentError";
+  }
+}
+
 function sessionPath(paths: AxonPaths): string {
   return paths.sharedAuthFile;
 }
@@ -47,12 +55,14 @@ async function readSessionFile(
     try {
       payload = JSON.parse(serialized);
     } catch (error) {
-      if (recoverInvalidJson && error instanceof SyntaxError) return {};
-      throw error;
+      if (!(error instanceof SyntaxError)) throw error;
+      if (recoverInvalidJson) return {};
+      // Do not retain the parser error: it may contain private session content.
+      throw new InvalidSessionContentError("Saved session file is not valid JSON");
     }
     if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
       if (recoverInvalidJson) return {};
-      throw new Error("Saved session file is not a JSON object");
+      throw new InvalidSessionContentError("Saved session file is not a JSON object");
     }
     return payload as Record<string, unknown>;
   } catch (error) {
@@ -79,7 +89,7 @@ export async function loadEncryptedSession(paths: AxonPaths): Promise<string | u
   const encryptedSession = payload?.[AUTH_TOKEN_KEY];
   if (encryptedSession === undefined) return undefined;
   if (!isEncryptedSession(encryptedSession)) {
-    throw new Error("Saved session token is invalid");
+    throw new InvalidSessionContentError("Saved session token is invalid");
   }
   return encryptedSession;
 }

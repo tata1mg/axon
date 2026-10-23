@@ -3,7 +3,7 @@
 ## Managed policy and user notice
 
 On authenticated online non-administrative Axon/Pi launches, including scripted modes, accepted backend
-organization telemetry policy controls enablement, sampling, and interval. A backend enable policy
+organization telemetry policy controls enablement, sampling, interval, and log/trace batching. A backend enable policy
 has **no supported local opt-out** via `PI_ORG_OTEL_ENABLED`, samplers, exporters, CLI flags, or Pi
 settings. The decision applies to both Pi and launcher product observations, including buffered startup
 events and shutdown flushing. It is separate from upstream Pi's `PI_TELEMETRY`. Backend disablement

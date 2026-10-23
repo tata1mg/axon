@@ -6,6 +6,9 @@ import {
   readExtensionVersion,
   readPiVersion,
 } from "../src/environment.ts";
+import { isolateTelemetryEnvironment } from "./helpers.ts";
+
+isolateTelemetryEnvironment();
 
 test("uses the version embedded in the standalone Axon extension", () => {
   assert.equal(readExtensionVersion(), PI_ORG_TELEMETRY_VERSION);
@@ -21,6 +24,16 @@ test("falls back when pi cannot be imported", async () => {
   );
   assert.equal(await readPiVersion(async () => ({ VERSION: 42 })), undefined);
   assert.equal(await readPiVersion(async () => ({ VERSION: "0.85.1" })), "0.85.1");
+});
+
+test("includes the configured CLI version without inheriting it into other tests", () => {
+  process.env.PI_AXON_CLI_VERSION = "0.2.6";
+  assert.equal(describeEnvironment().cliVersion, "0.2.6");
+});
+
+test("omits invalid CLI version values", () => {
+  process.env.PI_AXON_CLI_VERSION = "invalid version";
+  assert.equal("cliVersion" in describeEnvironment(), false);
 });
 
 test("maps platform and arch to semantic-convention values", () => {

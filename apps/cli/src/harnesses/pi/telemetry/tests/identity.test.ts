@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { resolveIdentity } from "../src/identity.ts";
 
 test("uses raw Git email as the primary identity", async () => {
-  const identity = await resolveIdentity({ readGitEmail: () => " engineer@example.com " });
+  const identity = await resolveIdentity({ env: {}, readGitEmail: () => " engineer@example.com " });
   assert.deepEqual(identity, {
     userId: "engineer@example.com",
     email: "engineer@example.com",
@@ -56,7 +56,10 @@ test("repairs a malformed fallback identity without user intervention", async ()
 });
 
 test("accepts an async git email reader", async () => {
-  const identity = await resolveIdentity({ readGitEmail: async () => "async@example.com" });
+  const identity = await resolveIdentity({
+    env: {},
+    readGitEmail: async () => "async@example.com",
+  });
   assert.equal(identity.userId, "async@example.com");
   assert.equal(identity.source, "git_email");
 });

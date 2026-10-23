@@ -14,6 +14,19 @@ describe("Pi remote clipboard", () => {
   });
 });
 
+describe("Pi relay diagnostics", () => {
+  test("only forwards a log path supplied by the current managed relay", () => {
+    const inherited = { PI_AXON_RELAY_LOG_FILE: "/stale/relay.log" };
+    expect(createPiEnvironment(inherited, paths)["PI_AXON_RELAY_LOG_FILE"]).toBeUndefined();
+    expect(
+      createPiEnvironment(inherited, paths, {
+        PI_AXON_RELAY_LOG_FILE: "/managed/axon/logs/relay.log",
+      })["PI_AXON_RELAY_LOG_FILE"],
+    ).toBe("/managed/axon/logs/relay.log");
+    expect(inherited.PI_AXON_RELAY_LOG_FILE).toBe("/stale/relay.log");
+  });
+});
+
 describe("Pi LiteLLM provider configuration", () => {
   test("preserves explicit alias configuration without replacing managed relay overrides", () => {
     const inheritedEnvironment = {

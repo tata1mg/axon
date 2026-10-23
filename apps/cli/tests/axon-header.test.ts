@@ -15,7 +15,12 @@ import axonExtension from "../src/harnesses/pi/resources/extensions/axon.ts";
 
 type HeaderFactory = NonNullable<Parameters<ExtensionContext["ui"]["setHeader"]>[0]>;
 type Header = ReturnType<HeaderFactory> & { setExpanded(value: boolean): void };
-const environmentKeys = ["PI_AXON_CLI_VERSION", "PI_AXON_AUTH_RELAY_URL"] as const;
+const environmentKeys = [
+  "PI_AXON_CLI_VERSION",
+  "PI_AXON_AUTH_RELAY_URL",
+  "PI_AXON_AUTH_RELAY_KEY",
+  "PI_AXON_RELAY_LOG_FILE",
+] as const;
 let savedEnvironment: Record<string, string | undefined>;
 let savedKeybindings: ReturnType<typeof getKeybindings>;
 
@@ -112,6 +117,121 @@ const markedTheme = () => plainTheme((color, value) => `${sgr(color)}${value}\u0
 const marked = (color: string, value: string) => `${sgr(color)}${value}\u001b[39m`;
 const collapsed = (value: string) => value.replace(/\s+/g, " ");
 const WIDTHS = [1, 8, 24, 32, 40, 48, 55, 56, 57, 60, 80, 86, 120, 200];
+
+describe("Axon prompt context", () => {
+  for (const mode of ["tui", "rpc", "json", "print"] as const) {
+    test(`adds concise Axon directory guidance without replacing the prompt in ${mode} mode`, () => {
+      const { handlers } = setup(mode);
+      const options = {
+        customPrompt: "Custom preamble",
+        appendSystemPrompt: "User addendum",
+        sections: { existing: "Other extension guidance" } as Record<string, string>,
+      };
+      const original = structuredClone(options);
+      for (const messageType of ["user", "custom"] as const) {
+        const event = {
+          messageType,
+          systemPrompt: "Original prompt",
+          systemPromptOptions: options,
+        };
+        handlers.get("before_agent_start")?.(event, {} as ExtensionContext);
+        const guidance = options.sections["axon"] ?? "";
+        expect(guidance).toContain("Axon Pi, not Pi directly");
+        expect(guidance).toContain("PI_CODING_AGENT_DIR (normally ~/.axon/pi)");
+        expect(guidance).toContain("not ~/.pi/agent");
+        expect(guidance).toContain("MCP servers in mcp.json");
+        expect(guidance).toContain("skills in skills/");
+        expect(guidance).toContain("extensions in extensions/");
+        expect(guidance).toContain("Project-local configuration still uses .pi/");
+        expect(options).toEqual({
+          ...original,
+          sections: { ...original.sections, axon: guidance },
+        });
+        expect(event.systemPrompt).toBe("Original prompt");
+        handlers.get("before_agent_start")?.(event, {} as ExtensionContext);
+        expect(options.sections["axon"]).toBe(guidance);
+      }
+    });
+  }
+});
+
+describe("Axon relay error placement", () => {
+  function transform(message: unknown) {
+    const { handlers } = setup("print");
+    return handlers.get("message_end")?.({ message }, {} as ExtensionContext) as
+      | { message: Record<string, unknown> }
+      | undefined;
+  }
+
+  function managedRelay() {
+    process.env["PI_AXON_AUTH_RELAY_URL"] = "http://127.0.0.1:12345";
+    process.env["PI_AXON_AUTH_RELAY_KEY"] = "test-capability";
+    process.env["PI_AXON_RELAY_LOG_FILE"] = "/managed/axon/logs/relay.log";
+  }
+
+  for (const errorMessage of [
+    "terminated",
+    "fetch failed",
+    "The socket connection was closed unexpectedly. For more information, pass `verbose: true` in the second argument to fetch()",
+  ]) {
+    test(`replaces ${errorMessage.split(".")[0]} in Pi's normal error pipeline`, () => {
+      managedRelay();
+      const original = {
+        role: "assistant",
+        provider: "litellm",
+        model: "test",
+        stopReason: "error",
+        errorMessage,
+        content: [{ type: "text", text: "partial answer" }],
+        usage: { totalTokens: 123 },
+      };
+      const result = transform(original);
+      expect(result?.message).toEqual({ ...original, errorMessage: expect.any(String) });
+      expect(result?.message["errorMessage"]).toContain("Connection error:");
+      expect(result?.message["errorMessage"]).toContain("/managed/axon/logs/relay.log");
+      expect(result?.message["errorMessage"]).not.toContain("verbose:");
+      expect(original.errorMessage).toBe(errorMessage);
+    });
+  }
+
+  test("does not rewrite cancellations, successful messages, unrelated errors or other providers", () => {
+    managedRelay();
+    const message = {
+      role: "assistant",
+      provider: "litellm",
+      stopReason: "error",
+      errorMessage: "terminated",
+    };
+    for (const change of [
+      { stopReason: "aborted" },
+      { stopReason: "stop" },
+      { role: "user" },
+      { provider: "openai" },
+      { errorMessage: "Insufficient budget" },
+      {
+        errorMessage: "The model service rejected this request; your Axon session is still valid.",
+      },
+    ])
+      expect(transform({ ...message, ...change })).toBeUndefined();
+    delete process.env["PI_AXON_RELAY_LOG_FILE"];
+    expect(transform(message)).toBeUndefined();
+    managedRelay();
+    delete process.env["PI_AXON_AUTH_RELAY_URL"];
+    expect(transform(message)).toBeUndefined();
+  });
+
+  test("does not render control characters from a configured diagnostic path", () => {
+    managedRelay();
+    process.env["PI_AXON_RELAY_LOG_FILE"] = "/tmp/evil\u001b]0;owned\u0007\n/relay.log";
+    const result = transform({
+      role: "assistant",
+      provider: "litellm",
+      stopReason: "error",
+      errorMessage: "terminated",
+    });
+    expect(result?.message["errorMessage"]).not.toMatch(/\p{Cc}/u);
+  });
+});
 
 describe("Axon startup header", () => {
   test("frames the neuron logo, launcher version, tagline, and Pi attribution in a card", () => {
