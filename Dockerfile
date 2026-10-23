@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 # Build from the repository root; see apps/backend/README.md#docker.
-ARG PYTHON_BASE_IMAGE=831059512818.dkr.ecr.ap-south-1.amazonaws.com/python:wolfi-3.12.14-r8
+ARG PYTHON_BASE_IMAGE=831059512818.dkr.ecr.ap-south-1.amazonaws.com/python:wolfi-3.12.15-r3-tmp
 
 # Static frontend output is architecture-independent, so build it natively.
 FROM --platform=$BUILDPLATFORM node:24-alpine AS console
@@ -30,7 +30,7 @@ WORKDIR /home/ubuntu/1mg/axon-backend
 # Resolve the virtual environment without a compiler toolchain.
 FROM python-base AS builder
 
-COPY --from=ghcr.io/astral-sh/uv:0.11.7 /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.13.5 /uv /usr/local/bin/uv
 COPY apps/backend/pyproject.toml apps/backend/uv.lock apps/backend/README.md ./
 RUN uv sync --frozen --no-dev --no-cache --python /usr/bin/python3.12
 
