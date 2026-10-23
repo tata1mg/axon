@@ -46,7 +46,10 @@ Example response:
     "endpoint": "/api/v1/otel",
     "protocol": "http/protobuf",
     "traceSampleRatio": 0.25,
-    "metricExportIntervalMs": 10000
+    "metricExportIntervalMs": 10000,
+    "batchScheduleDelayMs": 1000,
+    "maxExportBatchSize": 256,
+    "maxQueueSize": 2048
   },
   "webSearch": {
     "enabled": false,
@@ -66,7 +69,7 @@ Example response:
 
 - The route uses `require_authenticated_user`. It projects only approved per-feature settings; it never serializes auth data, private backend settings, exporter headers, or session credentials. Success and auth errors are `Cache-Control: no-store`.
 - Settings come from deployment-wide `CLI_CLIENT_CONFIG.TELEMETRY` in the backend's `config.json`, separate from backend `OPEN_TELEMETRY`. There is no new team database or per-user policy storage. A missing/null telemetry section omits telemetry, preserving environment fallback; independent Pi/search sections remain available.
-- Use `ENABLED`, optional fixed `ENDPOINT=/api/v1/otel`, `PROTOCOL=http/protobuf`, `TRACE_SAMPLE_RATIO`, and `METRIC_EXPORT_INTERVAL_MS`. Enabled managed policy requires an enabled `PROXY` and auth service. Trace ratio is 0–1; metric interval is 1,000–300,000 ms. Defaults are ratio 1 and interval 10,000 ms.
+- Use `ENABLED`, optional fixed `ENDPOINT=/api/v1/otel`, `PROTOCOL=http/protobuf`, `TRACE_SAMPLE_RATIO`, `METRIC_EXPORT_INTERVAL_MS`, `BATCH_SCHEDULE_DELAY_MS`, `MAX_EXPORT_BATCH_SIZE`, and `MAX_QUEUE_SIZE`. Enabled managed policy requires an enabled `PROXY` and auth service. Trace ratio is 0–1; metric interval is 1,000–300,000 ms. Batch delay is 100–60,000 ms, batch size is 1–4,096 records, and queue size is 64–16,384 records with batch size no greater than queue size. Defaults are ratio 1, metric interval 10,000 ms, batch delay 1,000 ms, batch size 256, and queue size 2,048.
 - Private collector origins must be explicitly approved in `CLI_CLIENT_CONFIG.ALLOWED_TELEMETRY_ORIGINS`. `PROXY.UPSTREAM_URL` and optional server-only `HEADERS` configure ingestion, never the public CLI destination. HTTP is allowed for trusted private networks. The CLI resolves the fixed proxy path against its compiled service origin, requiring HTTPS except loopback development.
 - Backend settings are validated at startup and cached: restart after changing them. The checked-in template explicitly disables telemetry; new partial launch sections have null leaves and do not silently manage any fields.
 
@@ -100,14 +103,14 @@ After first-run login if necessary, an **online non-administrative Pi** invocati
 Precedence is:
 
 1. Explicit offline mode: export disabled and no config request.
-2. An accepted fetched telemetry policy: enablement, endpoint, protocol, sampler, and metric interval win over local preferences, including all local false values or disabled samplers. Backend false also overrides local enablement. There is no supported local managed-telemetry opt-out.
+2. An accepted fetched telemetry policy: enablement, endpoint, protocol, sampler, metric interval, and batch delay/size/queue settings win over local preferences, including all local false values or disabled samplers. Backend false also overrides local enablement. There is no supported local managed-telemetry opt-out.
 3. Missing/unavailable/invalid policy: existing Pi environment settings (including local disablement); launcher product telemetry remains managed-only.
 4. No policy or environment endpoint: the loaded extension remains inert.
 
-The CLI maps known fields to `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_PROTOCOL`, `OTEL_TRACES_SAMPLER`, `OTEL_TRACES_SAMPLER_ARG`, `OTEL_METRIC_EXPORT_INTERVAL`, and `PI_ORG_OTEL_ENABLED` in the **child environment only**, without mutating `process.env`. The extension consumes launcher-owned managed endpoint/home markers at session start and performs no config fetch itself. Its bundled managed HTTP transport safely reads the saved session for each batch, refuses redirects, honors bounded retries, and persists response rotation with compare-and-swap.
+The CLI maps known fields to `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_PROTOCOL`, `OTEL_TRACES_SAMPLER`, `OTEL_TRACES_SAMPLER_ARG`, `OTEL_METRIC_EXPORT_INTERVAL`, `OTEL_BSP_*` / `OTEL_BLRP_*` delay/size/queue settings, and `PI_ORG_OTEL_ENABLED` in the **child environment only**, without mutating `process.env`. The extension consumes launcher-owned managed endpoint/home markers at session start and performs no config fetch itself. Its bundled managed HTTP transport safely reads the saved session for each batch, refuses redirects, honors bounded retries, and persists response rotation with compare-and-swap.
 
 - Clear inherited per-signal destinations/protocols when config manages the collector; otherwise the OTEL SDK can give those precedence over the base endpoint. Do not forward inherited collector authorization headers or TLS identity overrides to the configured sink. Config does not deliver credentials or arbitrary environment maps. Managed transport attaches only the locally saved Axon session to the pinned proxy; environment fallback never automatically attaches that session.
-- Local service name/resource attributes and bounded batch-queue tuning remain environment-owned. Managed proxy attribution replaces Git/installation identity with verified auth-service identity; other collection/redaction stays unchanged. Sampling applies to **traces**, not metrics/logs; setting ratio zero is not a full telemetry disable.
+- Local service name/resource attributes and bounded export timeouts remain environment-owned. Backend-managed batch delay, batch size, and queue size apply to both Pi and launcher product telemetry; without policy, Pi retains environment batch tuning. Managed proxy attribution replaces Git/installation identity with verified auth-service identity; other collection/redaction stays unchanged. Sampling applies to **traces**, not metrics/logs; setting ratio zero is not a full telemetry disable.
 - Pi administrative and offline invocations make no foreground config request; authenticated online scripted modes do. Explicit offline Pi disables telemetry and search, including environment-configured export. Missing-session preflight still blocks eligible scripted/offline invocations.
 - HTTP/auth/schema/network failures fall back without triggering re-login, deleting the saved token, or preventing Pi launch. Login completion itself is not followed by a separate config GET unless the original command launches online non-administrative Pi.
 - If a successful authenticated response carries a safe, bounded `x-session-refresh-token` (even when its config JSON is invalid), save it atomically with 0600 permissions, preserving unrelated shared-file keys; keep the refreshed token in the launcher-owned session store. Pi's LiteLLM/recommender/search environment receives only a per-launch local relay capability. Serialized CLI writers compare the current token with the request token before replacement. External VS Code writers do not share this lock, so cross-client races remain best-effort. Discard all fetched preferences if the saved session changed or cannot be verified after the fetch. Safe rotations are independent of optional preference failures. Never print bodies, tokens, or headers.

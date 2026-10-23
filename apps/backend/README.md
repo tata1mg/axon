@@ -208,8 +208,10 @@ In addition to Uvicorn access logs, the backend emits one diagnostic line per Li
 Successful requests use INFO; failures use WARNING. Cancelled requests and disconnected clients
 use INFO. An app-only console handler is installed when no application/deployment handler exists;
 it does not enable HTTP client debug logging or replace deployment logging configuration.
+`LOG_FORMAT: "json"` (the default) wraps these diagnostics in the correlated service-log schema
+described below; `LOG_FORMAT: "text"` retains the human-readable form.
 
-Example (timings and ID are illustrative):
+Text-format example (timings and ID are illustrative):
 
 ```text
 WARNING: app.proxies.litellm LiteLLM request request_id=8f96f2e7 method=GET path=/key/info stage=upstream reason=upstream_permission_denied upstream_status=403 status=403 credential_mode=virtual_key upstream_duration_ms=12.4 duration_ms=18.2 completed=true error_type=none
@@ -337,7 +339,10 @@ The template includes a complete `CLI_CLIENT_CONFIG.TELEMETRY` object with `ENAB
     "ENDPOINT": "/api/v1/otel",
     "PROTOCOL": "http/protobuf",
     "TRACE_SAMPLE_RATIO": 0.25,
-    "METRIC_EXPORT_INTERVAL_MS": 10000
+    "METRIC_EXPORT_INTERVAL_MS": 60000,
+    "BATCH_SCHEDULE_DELAY_MS": 30000,
+    "MAX_EXPORT_BATCH_SIZE": 1024,
+    "MAX_QUEUE_SIZE": 8192
   },
   "PROXY": {
     "ENABLED": true,
@@ -354,6 +359,26 @@ The template includes a complete `CLI_CLIENT_CONFIG.TELEMETRY` object with `ENAB
 ```
 
 This is deployment-wide CLI policy, separate from backend `OPEN_TELEMETRY`. Managed telemetry requires an enabled `PROXY` and `AUTH_SERVICE`. Its public endpoint is always `/api/v1/otel` on the CLI’s compiled service origin, and its protocol is always `http/protobuf`; remote config cannot select an external destination for a Axon credential. Trace ratios are 0–1; metric intervals are 1,000–300,000 ms. Use `{ "ENABLED": false }` to disable CLI export, or null to restore environment fallback. `PROXY.ENABLED: false` also disables server ingestion. **Restart the backend** after changing settings.
+
+Batching is backend-authoritative for both the embedded Pi extension and launcher product telemetry:
+
+| `CLI_CLIENT_CONFIG.TELEMETRY` setting | Default | Allowed range |
+| --- | --- | --- |
+| `METRIC_EXPORT_INTERVAL_MS` | 10000 | 1000–300000 ms |
+| `BATCH_SCHEDULE_DELAY_MS` | 1000 | 100–60000 ms |
+| `MAX_EXPORT_BATCH_SIZE` | 256 | 1–4096 records |
+| `MAX_QUEUE_SIZE` | 2048 | 64–16384 records per log/span processor |
+
+`MAX_EXPORT_BATCH_SIZE` must not exceed `MAX_QUEUE_SIZE`. These fields project as
+`metricExportIntervalMs`, `batchScheduleDelayMs`, `maxExportBatchSize`, and `maxQueueSize`.
+Managed delay, batch size, and queue size override inherited `OTEL_BSP_*` and `OTEL_BLRP_*`
+values; the export timeout remains locally bounded. Delay/queue settings apply to both logs and
+traces; the batch-size setting also caps metric export batches. Full batches can export before the
+delay, and shutdown flushes partial batches with the existing two-second wait bound. Longer delays
+reduce small requests but increase the memory-only loss window on crashes; larger batches must fit
+the proxy/collector payload limits. The example above uses 30-second log/trace batching and
+60-second metric exports. Restart backend workers and relaunch clients to apply changes; no live
+policy polling is added.
 
 Authenticated online Pi launches (interactive or scripted) fetch config best-effort with a 700 ms deadline and no response cache, even when telemetry and web search are locally disabled. Accepted telemetry enablement is backend-authoritative for the Pi extension and launcher product events, including startup buffering and shutdown flushing: there is no supported local opt-out via `PI_ORG_OTEL_ENABLED`, samplers, or exporters. Backend false also wins. Explicit offline disables export and skips config; help/administrative fetch exemptions are unchanged. Without accepted policy, Pi retains environment fallback and launcher exports remain managed-only. This is separate from upstream Pi's `PI_TELEMETRY`. Managed policy clears inherited exporter headers/TLS identity overrides and per-signal destinations. The embedded extension reads the shared saved Axon session for each batch, sends it only to the pinned backend proxy, and persists safe refresh headers with compare-and-swap so stale exports cannot overwrite a new login. No credentials or user profile are distributed in config JSON. Config/export failures never prevent Pi launch.
 
@@ -524,18 +549,94 @@ Provider credentials and routing now belong to LiteLLM. A Jev deployment configu
 `openrouter/typesafe/jev-1.14` still uses OpenRouter upstream; removing that dependency entirely
 requires a supported alternative Jev provider configured in LiteLLM.
 
-### Backend recommender telemetry
+### Backend service logs and OpenTelemetry
 
-`OPEN_TELEMETRY` now optionally initializes app-owned OTLP/HTTP trace/metric providers for the model
-recommender. Set `ENABLED: true`, `SERVICE_NAME`, `ENDPOINT` (collector HTTP base, usually port 4318),
-`PROTOCOL: "http/protobuf"`, optional server-owned `HEADERS`, `SAMPLING_RATE` and
-`METRICS_EXPORT_INTERVAL_MILLIS`. `HEADERS: {}` works for unprotected in-cluster collectors.
-Providers are initialized/closed by the lifespan; no Vortex/event-loop monitor is installed.
-Request, assessment and ranking operations record only controlled metadata and numeric scores,
-never prompts or exception text. CLI response fields `requestId`/`policyVersion` correlate the
-picker with backend traces/logs. Backend and CLI metrics use `component` to avoid double counting.
-This does not automatically instrument every backend HTTP/DB operation. See
-[product telemetry](../cli/src/harnesses/pi/telemetry/docs/product-telemetry.md). Restart after changing config.
+Axon's backend can use the same collector and structured-log infrastructure as Vortex services,
+without depending on Vortex. This is **independent of** `CLI_CLIENT_CONFIG.TELEMETRY` and its
+client-ingestion proxy: enabling backend observability does not enable CLI exports or vice versa.
+The existing recommender telemetry shares the backend's providers rather than creating a second pipeline.
+
+The template defaults to JSON logs and **disabled export**. For a Vortex-style in-cluster collector,
+set the following in the backend's private `config.json` (replace the collector hostname):
+
+```json
+"LOG_LEVEL": "INFO",
+"LOG_FORMAT": "json",
+"ACCESS_LOG": true,
+"OPEN_TELEMETRY": {
+  "ENABLED": true,
+  "SERVICE_NAME": "axon-backend",
+  "ENDPOINT": "http://YOUR_EXISTING_COLLECTOR:4317",
+  "PROTOCOL": "grpc",
+  "HEADERS": {},
+  "METRICS_ENABLED": true,
+  "METRICS_EXPORT_INTERVAL_MILLIS": 10000,
+  "SAMPLING_RATE": 0.1,
+  "HTTPX_ENABLED": true,
+  "ASYNCPG_ENABLED": true,
+  "EVENT_LOOP_MONITORING": true,
+  "EVENT_LOOP_MONITOR_INTERVAL": 0.1,
+  "EVENT_LOOP_MONITOR_BLOCKING_THRESHOLD": 0.05
+}
+```
+
+- **Transport:** `grpc` takes an HTTP(S) origin, normally port **4317**, with no path.
+  `http/protobuf` takes a collector base URL, normally port **4318**; `/v1/traces` and `/v1/metrics`
+  are appended. Use the same collector receiver as your existing deployment. HTTP is plaintext
+  for private networks; HTTPS uses TLS and certificate verification. Optional `HEADERS` are
+  server-only collector authentication metadata, never published to clients. No network destination
+  is inferred from Vortex or committed to the template.
+- **Traces:** streaming-aware server spans cover API routes, mounted LiteLLM proxies, and frontend
+  requests. Every request starts a new root trace: an incoming W3C `traceparent` is recorded only as
+  a span link, so callers cannot choose trace IDs or force sampling. HTTPX propagates the backend's
+  trace context downstream. HTTPX and asyncpg automatically create child spans for auth/LiteLLM HTTP
+  calls and PostgreSQL. Error spans retain status/type, not exception values. `SAMPLING_RATE` is 0–1
+  and applies to every request. This is head sampling, not Vortex's optional error promotion.
+- **Metrics:** `http.server.request.duration` (seconds, including full response streaming),
+  `http.server.active_requests`, HTTPX client duration, and the existing `axon.recommender.*`
+  instruments. Histograms expose request counts as well as latency. Route labels are templates,
+  not raw paths or IDs. `METRICS_ENABLED: false` disables metric export and the loop monitor while
+  retaining traces. Metric export intervals must be 1,000–300,000 ms.
+- **Event loop:** optional `asyncio.eventloop.lag`, `max_lag`, `active_tasks`, `utilization`, and
+  `blocking_events` match Vortex's instrument names. Intervals/thresholds are seconds (0.01–60).
+  `max_lag` is the worst lag since the previous metric collection; `active_tasks` refreshes once a second.
+  Utilization is a scheduling-lag estimate, **not CPU utilization**. No stack capture or py-spy is run.
+- **Privacy:** generic service spans/metrics never capture request/response bodies, credentials,
+  raw query strings, arbitrary path IDs, SQL text/parameters, or exception messages/stacktraces.
+  Dependency spans are sanitized again at export, including environment-enabled HTTP header capture.
+  Recommender operations retain their existing controlled metadata and verified identity attribution;
+  prompts are never recorded. See [product telemetry](../cli/src/harnesses/pi/telemetry/docs/product-telemetry.md).
+
+**Logs** are JSON on the app's console stream, collected by the existing log agent; they are not
+sent through an OTel log exporter. Fields match Vortex: `version: "v2"`, `timestamp`, `loglevel`,
+`message`, `logtype`, `service_name`, `branchname`, `current_tag`, `host`, `request_id`, `trace_id`,
+`span_id`, and `traceback`. Access logs also contain method, route template, status, duration,
+completion, and error type. JSON exception diagnostics contain frame locations/type only, not
+exception values, source lines, or locals. Trace/span IDs are snapshotted from the **current** span
+for every log record, so nested operations restore their parent correctly.
+
+All HTTP responses that pass through response-start middleware receive `X-Request-ID`; safe
+caller IDs are reused, invalid IDs become UUIDs, and LiteLLM diagnostics/upstream requests reuse
+the same ID. Correlation and sanitized access logs work even with OTel disabled. Native Uvicorn
+access lines are suppressed to avoid logging raw paths/queries or duplicate access records.
+`ACCESS_LOG: false` disables the replacement access log. Existing app/deployment handlers are
+respected, the root/HTTP client log level is not enabled, and Uvicorn's console errors use JSON
+when configured. `LOG_FORMAT: "text"` selects the simpler development formatter.
+
+Set `RELEASE_TAG`, `GIT_BRANCH`, and `ENVIRONMENT` in deployment for release/branch/environment
+metadata. Traces/metrics carry `service.name`, `service.version`, and a worker-specific instance ID.
+Search the existing log UI for `service_name=axon-backend`, and trace/metric UIs for
+`service.name=axon-backend` (some backends normalize the label to `service_name`). The collector must
+already have a route to your trace/metric backend and the log agent must ingest the console JSON.
+
+FastAPI's separate native telemetry/automatic environment-based exporters are explicitly disabled
+so they cannot create a second pipeline or capture raw exception details.
+Providers and dependency wrappers start inside each worker's lifespan, before database/client
+initialization, and are flushed/closed after dependencies stop, including on failed startup.
+The event-loop task is cancelled on shutdown. Process-global OTel providers are not replaced;
+only one live backend application per worker owns the HTTPX/asyncpg wrappers. Restart the backend
+after configuration changes. Existing OTLP/HTTP configurations continue to work; set `PROTOCOL`
+explicitly when switching to the Vortex gRPC receiver.
 
 ### Storage architecture and S3 settings
 

@@ -4,6 +4,9 @@ import { createServer } from "node:http";
 import { resolveConfig } from "../src/config.ts";
 import { createOtelRuntime } from "../src/otel/runtime.ts";
 import { AgentTelemetryTracker } from "../src/tracker.ts";
+import { isolateTelemetryEnvironment } from "./helpers.ts";
+
+isolateTelemetryEnvironment();
 
 async function listen(server: ReturnType<typeof createServer>): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -25,7 +28,7 @@ async function close(server: ReturnType<typeof createServer>): Promise<void> {
   });
 }
 
-test("exports traces, metrics, and logs to managed OTLP HTTP endpoints", async () => {
+test("exports traces, metrics, and logs to environment-configured OTLP HTTP endpoints", async () => {
   const paths: string[] = [];
   const organizationHeaders: Array<string | undefined> = [];
   const server = createServer((request, response) => {
@@ -37,10 +40,6 @@ test("exports traces, metrics, and logs to managed OTLP HTTP endpoints", async (
     response.end();
   });
   const port = await listen(server);
-  const previousEndpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
-  const previousProtocol = process.env.OTEL_EXPORTER_OTLP_PROTOCOL;
-  const previousHeaders = process.env.OTEL_EXPORTER_OTLP_HEADERS;
-  const previousDiagnostics = process.env.PI_ORG_OTEL_DIAGNOSTICS;
   process.env.OTEL_EXPORTER_OTLP_ENDPOINT = `http://127.0.0.1:${port}`;
   process.env.OTEL_EXPORTER_OTLP_PROTOCOL = "http/protobuf";
   process.env.OTEL_EXPORTER_OTLP_HEADERS = "x-org-token=test";
@@ -79,19 +78,12 @@ test("exports traces, metrics, and logs to managed OTLP HTTP endpoints", async (
     assert.ok(paths.includes("/v1/logs"), `missing logs request: ${paths.join(", ")}`);
     assert.ok(organizationHeaders.every((value) => value === "test"));
   } finally {
-    if (previousEndpoint === undefined) delete process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
-    else process.env.OTEL_EXPORTER_OTLP_ENDPOINT = previousEndpoint;
-    if (previousProtocol === undefined) delete process.env.OTEL_EXPORTER_OTLP_PROTOCOL;
-    else process.env.OTEL_EXPORTER_OTLP_PROTOCOL = previousProtocol;
-    if (previousHeaders === undefined) delete process.env.OTEL_EXPORTER_OTLP_HEADERS;
-    else process.env.OTEL_EXPORTER_OTLP_HEADERS = previousHeaders;
-    if (previousDiagnostics === undefined) delete process.env.PI_ORG_OTEL_DIAGNOSTICS;
-    else process.env.PI_ORG_OTEL_DIAGNOSTICS = previousDiagnostics;
     await close(server);
   }
 });
 
 test("accepts the shortest allowed metric export interval", async () => {
+  process.env.OTEL_EXPORTER_OTLP_ENDPOINT = "http://127.0.0.1:9";
   const config = resolveConfig({
     OTEL_EXPORTER_OTLP_ENDPOINT: "http://127.0.0.1:9",
     OTEL_METRIC_EXPORT_INTERVAL: "1000",

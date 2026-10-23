@@ -42,7 +42,7 @@ def test_backend_otel_http_configuration_and_private_headers() -> None:
     assert settings.endpoint.endswith(":4318")
     assert settings.service_name == "backend"
     assert "private" not in repr(settings)
-    for value in ("grpc", "http/json"):
+    for value in ("http/json", "invalid"):
         with pytest.raises(ValueError):
             parse_backend_telemetry({**raw, "OPEN_TELEMETRY": {**raw["OPEN_TELEMETRY"], "PROTOCOL": value}})
     for rate in (-1, 2, float("nan"), True):

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { fetchClientConfig, parseClientConfig } from "../src/cli/client-config.ts";
+import { resolveConfig } from "../src/harnesses/pi/telemetry/src/config.ts";
 import { createTelemetryOverrides } from "../src/harnesses/pi/telemetry-environment.ts";
 import { createHarnessEnvironment } from "../src/launcher/environment.ts";
 import { takeProductEvents } from "../src/telemetry/product-events.ts";
@@ -11,6 +12,9 @@ const policy = {
   protocol: "http/protobuf" as const,
   traceSampleRatio: 0.25,
   metricExportIntervalMs: 20_000,
+  batchScheduleDelayMs: 30_000,
+  maxExportBatchSize: 1_024,
+  maxQueueSize: 8_192,
 };
 
 function fetcher(response: Response): typeof fetch {
@@ -143,6 +147,56 @@ describe("protected client config", () => {
       expect(parseClientConfig(payload)).toEqual({ schemaVersion: 1 });
   });
 
+  test("defaults omitted batch settings and accepts their bounded limits", () => {
+    expect(parseClientConfig({ schemaVersion: 1, telemetry: { enabled: true } }).telemetry).toEqual(
+      {
+        enabled: true,
+        endpoint: "/api/v1/otel",
+        protocol: "http/protobuf",
+        traceSampleRatio: 1,
+        metricExportIntervalMs: 10_000,
+        batchScheduleDelayMs: 1_000,
+        maxExportBatchSize: 256,
+        maxQueueSize: 2_048,
+      },
+    );
+    for (const batching of [
+      { batchScheduleDelayMs: 100, maxExportBatchSize: 1, maxQueueSize: 64 },
+      { batchScheduleDelayMs: 60_000, maxExportBatchSize: 4_096, maxQueueSize: 16_384 },
+    ]) {
+      const telemetry = { ...policy, ...batching };
+      expect(parseClientConfig({ schemaVersion: 1, telemetry }).telemetry).toEqual(telemetry);
+    }
+  });
+
+  test("rejects invalid batching without erasing other valid sections", () => {
+    for (const patch of [
+      { batchScheduleDelayMs: 99 },
+      { batchScheduleDelayMs: 60_001 },
+      { maxExportBatchSize: 0 },
+      { maxExportBatchSize: 4_097 },
+      { maxQueueSize: 63 },
+      { maxQueueSize: 16_385 },
+      { maxExportBatchSize: 1_024, maxQueueSize: 512 },
+      ...["batchScheduleDelayMs", "maxExportBatchSize", "maxQueueSize"].flatMap((key) =>
+        [null, true, "1024", 1000.5, Infinity, NaN].map((value) => ({ [key]: value })),
+      ),
+    ]) {
+      const invalid: string[] = [];
+      expect(
+        parseClientConfig(
+          {
+            schemaVersion: 1,
+            telemetry: { ...policy, ...patch },
+            pi: { codemodeEnabled: true, litellmMcpEnabled: false },
+          },
+          (section) => invalid.push(section),
+        ),
+      ).toEqual({ schemaVersion: 1, pi: { codemodeEnabled: true, litellmMcpEnabled: false } });
+      expect(invalid).toEqual(["telemetry"]);
+    }
+  });
+
   test("rejects every config destination except the fixed proxy path", () => {
     for (const endpoint of [
       "http://collector.test",
@@ -239,6 +293,12 @@ describe("Pi telemetry environment", () => {
       OTEL_EXPORTER_OTLP_LOGS_PROTOCOL: "grpc",
       OTEL_TRACES_SAMPLER: "always_on",
       OTEL_METRIC_EXPORT_INTERVAL: "1000",
+      OTEL_BSP_SCHEDULE_DELAY: "100",
+      OTEL_BLRP_SCHEDULE_DELAY: "200",
+      OTEL_BSP_MAX_EXPORT_BATCH_SIZE: "1",
+      OTEL_BLRP_MAX_EXPORT_BATCH_SIZE: "2",
+      OTEL_BSP_MAX_QUEUE_SIZE: "64",
+      OTEL_BLRP_MAX_QUEUE_SIZE: "128",
       PI_ORG_OTEL_ENABLED: "true",
       OTEL_SERVICE_NAME: "local-service",
     };
@@ -255,6 +315,18 @@ describe("Pi telemetry environment", () => {
     expect(child["OTEL_EXPORTER_OTLP_PROTOCOL"]).toBe("http/protobuf");
     expect(child["OTEL_TRACES_SAMPLER_ARG"]).toBe("0.25");
     expect(child["OTEL_METRIC_EXPORT_INTERVAL"]).toBe("20000");
+    for (const processor of ["BSP", "BLRP"]) {
+      expect(child[`OTEL_${processor}_SCHEDULE_DELAY`]).toBe("30000");
+      expect(child[`OTEL_${processor}_MAX_EXPORT_BATCH_SIZE`]).toBe("1024");
+      expect(child[`OTEL_${processor}_MAX_QUEUE_SIZE`]).toBe("8192");
+    }
+    expect(resolveConfig(child)).toMatchObject({
+      scheduledDelayMs: 30_000,
+      maxExportBatchSize: 1_024,
+      maxQueueSize: 8_192,
+    });
+    expect(environment.OTEL_BSP_SCHEDULE_DELAY).toBe("100");
+    expect(environment.OTEL_BLRP_SCHEDULE_DELAY).toBe("200");
     for (const name of [
       "OTEL_EXPORTER_OTLP_HEADERS",
       "OTEL_EXPORTER_OTLP_TRACES_HEADERS",
@@ -301,12 +373,20 @@ describe("Pi telemetry environment", () => {
     const environment = {
       OTEL_EXPORTER_OTLP_ENDPOINT: "https://old.test",
       OTEL_EXPORTER_OTLP_HEADERS: "authorization=env-key",
+      OTEL_BSP_SCHEDULE_DELAY: "5000",
+      OTEL_BLRP_SCHEDULE_DELAY: "10000",
+      OTEL_BSP_MAX_EXPORT_BATCH_SIZE: "512",
+      OTEL_BLRP_MAX_QUEUE_SIZE: "4096",
       PI_ORG_OTEL_MANAGED_ENDPOINT: "https://evil.test",
       PI_ORG_OTEL_MANAGED_HOME: "/tmp/evil",
     };
     const child = createHarnessEnvironment(environment, createTelemetryOverrides(environment));
     expect(child["OTEL_EXPORTER_OTLP_ENDPOINT"]).toBe("https://old.test");
     expect(child["OTEL_EXPORTER_OTLP_HEADERS"]).toBe("authorization=env-key");
+    expect(child["OTEL_BSP_SCHEDULE_DELAY"]).toBe("5000");
+    expect(child["OTEL_BLRP_SCHEDULE_DELAY"]).toBe("10000");
+    expect(child["OTEL_BSP_MAX_EXPORT_BATCH_SIZE"]).toBe("512");
+    expect(child["OTEL_BLRP_MAX_QUEUE_SIZE"]).toBe("4096");
     expect(child["PI_ORG_OTEL_MANAGED_ENDPOINT"]).toBeUndefined();
     expect(child["PI_ORG_OTEL_MANAGED_HOME"]).toBeUndefined();
   });

@@ -9,7 +9,7 @@ import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
 import type { AxonPaths } from "../../product/paths.ts";
 import { measureProductOperation } from "../../telemetry/product-events.ts";
 import { runAuthLogin } from "../commands/auth.ts";
-import { loadEncryptedSession } from "./session.ts";
+import { InvalidSessionContentError, loadEncryptedSession } from "./session.ts";
 
 export interface SessionPreflightOptions {
   readonly interactive: boolean;
@@ -27,7 +27,9 @@ async function ensureAxonSessionInternal(
   async function readSession(): Promise<string | undefined> {
     try {
       return await loadSession(paths);
-    } catch {
+    } catch (error) {
+      // Leave corrupt contents untouched until the user selects a repairing login.
+      if (error instanceof InvalidSessionContentError) return undefined;
       throw new LauncherError(
         "Saved Axon session could not be read safely",
         LAUNCHER_EXIT_STATUS.profileFailure,

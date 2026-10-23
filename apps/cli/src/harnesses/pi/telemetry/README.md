@@ -44,7 +44,8 @@ file. Loading it with `--extension` does not install packages or contact a regis
 
 The extension is loaded for every non-administrative `axon pi` invocation. It stays inert when a
 OTLP endpoint is absent. Authenticated online non-administrative Pi (including scripted launches)
-receives enablement/sampling/interval policy from CLI config, overriding local disablement and samplers.
+receives enablement/sampling/interval/batching policy from CLI config, overriding local disablement,
+samplers, and batch delay/size/queue settings for both Pi and launcher telemetry.
 There is no supported local opt-out of accepted managed enablement. Managed
 export always uses HTTP/protobuf to the pinned Axon backend proxy and reads the saved session
 for each batch; the backend replaces user identity with verified auth-service data. Configure

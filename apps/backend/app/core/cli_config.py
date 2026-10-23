@@ -20,6 +20,15 @@ class CliTelemetryConfig(BaseModel):
     metric_export_interval_ms: int = Field(
         default=10000, alias="metricExportIntervalMs", ge=1000, le=300000, strict=True
     )
+    batch_schedule_delay_ms: int = Field(default=1000, alias="batchScheduleDelayMs", ge=100, le=60000, strict=True)
+    max_export_batch_size: int = Field(default=256, alias="maxExportBatchSize", ge=1, le=4096, strict=True)
+    max_queue_size: int = Field(default=2048, alias="maxQueueSize", ge=64, le=16384, strict=True)
+
+    @model_validator(mode="after")
+    def validate_batch_capacity(self) -> "CliTelemetryConfig":
+        if self.max_export_batch_size > self.max_queue_size:
+            raise ValueError("Telemetry batch size must not exceed queue size")
+        return self
 
 
 class CliPiConfig(BaseModel):
@@ -319,6 +328,9 @@ def parse_cli_telemetry(raw: dict[str, object]) -> CliTelemetryConfig | None:
         "PROTOCOL": "protocol",
         "TRACE_SAMPLE_RATIO": "traceSampleRatio",
         "METRIC_EXPORT_INTERVAL_MS": "metricExportIntervalMs",
+        "BATCH_SCHEDULE_DELAY_MS": "batchScheduleDelayMs",
+        "MAX_EXPORT_BATCH_SIZE": "maxExportBatchSize",
+        "MAX_QUEUE_SIZE": "maxQueueSize",
     }
     if set(telemetry) - set(fields):
         raise ValueError("Unknown telemetry setting")

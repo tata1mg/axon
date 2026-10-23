@@ -31,24 +31,34 @@ export async function verifyEncryptedSession(
           signal: AbortSignal.timeout(10_000),
         },
       );
-      let status: SessionVerificationStatus;
+      let status: SessionVerificationStatus | undefined;
+      let invalidResponse = false;
       if (response.status === 401 || response.status === 403) {
         await response.body?.cancel();
         status = "NOT_VERIFIED";
       } else {
         if (!response.ok) throw new Error("Verification service is unavailable");
-        const payload: unknown = await response.json();
-        const value = (payload as { status?: unknown } | null)?.status;
-        if (value !== "VERIFIED" && value !== "NOT_VERIFIED" && value !== "EXPIRED") {
-          throw new Error("Invalid verification response");
+        try {
+          const payload: unknown = await response.json();
+          const value = (payload as { status?: unknown } | null)?.status;
+          if (value !== "VERIFIED" && value !== "NOT_VERIFIED" && value !== "EXPIRED") {
+            throw new Error("Invalid verification response");
+          }
+          status = value;
+        } catch {
+          // A broken body must not discard a rotation already issued by our backend.
+          // Preserve the safe header below, but still fail verification for this request.
+          invalidResponse = true;
         }
-        status = value;
       }
 
       if (paths) {
         const refreshedSession = response.headers.get("x-session-refresh-token");
         if (refreshedSession !== null) {
-          if (status !== "VERIFIED" || !isEncryptedSession(refreshedSession)) {
+          if (
+            (status !== undefined && status !== "VERIFIED") ||
+            !isEncryptedSession(refreshedSession)
+          ) {
             throw new Error("Invalid session refresh response");
           }
           let saved: boolean;
@@ -84,6 +94,9 @@ export async function verifyEncryptedSession(
         }
       }
 
+      if (invalidResponse || status === undefined) {
+        throw new Error("Invalid verification response");
+      }
       emitProductEvent({
         category: "auth",
         stage: "verify",

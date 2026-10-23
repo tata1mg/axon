@@ -65,6 +65,53 @@ describe("first-run preflight", () => {
     }
   });
 
+  for (const [name, content] of [
+    ["truncated JSON", '{"truncated'],
+    ["null JSON", "null"],
+    ["array JSON", "[]"],
+    ["invalid token", JSON.stringify({ extension_auth_token: "invalid token" })],
+    ["non-string token", JSON.stringify({ extension_auth_token: 123 })],
+    ["empty token", JSON.stringify({ extension_auth_token: "" })],
+  ] as const) {
+    test(`interactive onboarding repairs ${name} after login`, async () => {
+      const home = paths(`repair-${name}`);
+      await mkdir(home.sharedAuthDirectory, { recursive: true });
+      await Bun.write(home.sharedAuthFile, content);
+      let calls = 0;
+      await ensureAxonSession(home, {
+        interactive: true,
+        login: async () => {
+          calls++;
+          expect(await Bun.file(home.sharedAuthFile).text()).toBe(content);
+          await saveEncryptedSession(home, "repaired-session");
+          return true;
+        },
+      });
+      expect(calls).toBe(1);
+      expect(await loadEncryptedSession(home)).toBe("repaired-session");
+    });
+
+    test(`noninteractive/offline onboarding requires login for ${name} without modifying it`, async () => {
+      const home = paths(`no-repair-${name}`);
+      await mkdir(home.sharedAuthDirectory, { recursive: true });
+      await Bun.write(home.sharedAuthFile, content);
+      let calls = 0;
+      for (const options of [{ interactive: false }, { interactive: true, offline: true }]) {
+        await expect(
+          ensureAxonSession(home, {
+            ...options,
+            login: async () => {
+              calls++;
+              return true;
+            },
+          }),
+        ).rejects.toThrow("login is required");
+      }
+      expect(calls).toBe(0);
+      expect(await Bun.file(home.sharedAuthFile).text()).toBe(content);
+    });
+  }
+
   test("cancelled onboarding cannot continue", async () => {
     await expect(
       ensureAxonSession(paths("cancel"), { interactive: true, login: async () => false }),
@@ -84,6 +131,25 @@ describe("first-run preflight", () => {
       }),
     ).rejects.toThrow("could not be read safely");
   });
+
+  for (const code of ["EACCES", "EPERM", "EIO"]) {
+    test(`${code} storage errors do not trigger login`, async () => {
+      let calls = 0;
+      await expect(
+        ensureAxonSession(paths(`storage-${code}`), {
+          interactive: true,
+          loadSession: async () => {
+            throw Object.assign(new Error("private storage error"), { code });
+          },
+          login: async () => {
+            calls++;
+            return true;
+          },
+        }),
+      ).rejects.toThrow("could not be read safely");
+      expect(calls).toBe(0);
+    });
+  }
 
   test("Pi help/auth/admin bypass preflight; print/RPC/CI/offline do not prompt", async () => {
     const invocation = { ci: false, stdinIsTty: true, stdoutIsTty: true };

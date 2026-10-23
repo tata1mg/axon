@@ -209,6 +209,8 @@ export function createPiAdapter(): HarnessAdapter {
           ).toString(),
           PI_AXON_AUTH_RELAY_URL: relay.origin,
           PI_AXON_AUTH_RELAY_KEY: relay.capability,
+          // Display label only: Pi persists error text in session history.
+          PI_AXON_RELAY_LOG_FILE: relay.diagnosticsLogLabel,
           PI_AXON_CONFIG_REFRESH_ENABLED: String(!setup.offline),
         };
       } else {

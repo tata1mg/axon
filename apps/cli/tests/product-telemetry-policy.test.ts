@@ -18,6 +18,9 @@ const policy = {
   protocol: "http/protobuf" as const,
   traceSampleRatio: 1,
   metricExportIntervalMs: 10000,
+  batchScheduleDelayMs: 30_000,
+  maxExportBatchSize: 1_024,
+  maxQueueSize: 8_192,
 };
 
 for (const mode of [

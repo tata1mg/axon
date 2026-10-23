@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-import re
 from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable, Iterable
 from dataclasses import dataclass
 from time import monotonic
@@ -14,6 +13,8 @@ from fastapi import Request
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.clients.litellm.transport import LiteLLMTransport, validate_raw_path
+from app.observability.context import safe_identifier
+from app.observability.privacy import HTTP_METHODS
 
 LITELLM_MOUNT_PATH = "/litellm"
 
@@ -61,7 +62,6 @@ PROTECTED_RESPONSE_HEADERS = {
     b"x-request-id",
     b"x-session-refresh-token",
 }
-SAFE_IDENTIFIER = re.compile(r"^[A-Za-z0-9._:/-]{1,128}$")
 INVALID_PATH_BODY = b'{"detail":"Invalid LiteLLM request path"}'
 BAD_GATEWAY_BODY = b'{"detail":"LiteLLM upstream is unavailable"}'
 SERVICE_UNAVAILABLE_BODY = b'{"detail":"LiteLLM proxy is not ready"}'
@@ -177,7 +177,7 @@ class LiteLLMRequestLoggingMiddleware:
         )
         path = raw_path if raw_path in DIAGNOSTIC_PATHS else "<other>"
         method = str(scope.get("method", "GET"))
-        method = method if method in {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"} else "<other>"
+        method = method if method in HTTP_METHODS else "<other>"
         status: int | None = None
         completed = False
 
@@ -278,12 +278,6 @@ async def send_error(send: Send, status_code: int, body: bytes) -> None:
         }
     )
     await send({"type": "http.response.body", "body": body})
-
-
-def safe_identifier(value: str | None, fallback: str) -> str:
-    if value and SAFE_IDENTIFIER.fullmatch(value):
-        return value
-    return fallback
 
 
 async def validated_request_path(scope: Scope, send: Send, *, strip_mount_path: bool, mount_path: str) -> bytes | None:

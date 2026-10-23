@@ -6,20 +6,24 @@ from app.authentication import SessionRefreshResponseMiddleware
 from app.core.config import get_settings
 from app.core.logging import configure_application_logging
 from app.listeners import lifespan
+from app.observability import NATIVE_TELEMETRY_DISABLED
+from app.observability.middleware import BackendObservabilityMiddleware
 from app.proxies import mount_litellm_proxy, mount_litellm_ui_proxy
 from app.routers import ROUTERS
 from app.web import mount_frontend
 
-configure_application_logging()
 settings = get_settings()
+configure_application_logging(settings)
 app = FastAPI(
     title=settings.name,
     debug=settings.debug,
     lifespan=lifespan,
     description="Centralized management API for Axon CLI installations",
     version="0.1.6",
+    telemetry=NATIVE_TELEMETRY_DISABLED,
 )
 app.add_middleware(SessionRefreshResponseMiddleware)
+app.add_middleware(BackendObservabilityMiddleware, access_log=settings.access_log)
 for router in ROUTERS:
     app.include_router(router)
 mount_litellm_proxy(app)
