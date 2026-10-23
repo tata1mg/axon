@@ -1,0 +1,14 @@
+apps/cli/src/harnesses/pi/resources/extensions/session-backup.mjs
+  h_cbc19accedcd8a 2,6,17-18,23,28-29,52-53,56,58-62,64-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7625cb3ceb1a31fdc5c531ea569e6a903cb1c13f",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
