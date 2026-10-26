@@ -22,9 +22,9 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.sdk.trace.sampling import ParentBased, TraceIdRatioBased
-from opentelemetry.trace import StatusCode
 
 from app.core.cli_config import _proxy_headers, collector_url
+from app.observability.exceptions import record_safe_exception
 
 
 @dataclass(frozen=True, slots=True)
@@ -150,7 +150,7 @@ class ProductTelemetry:
     ) -> Iterator[ProductOperation]:
         started_at = time.monotonic()
         attributes = {**(identity or {}), "component": "backend", **values}
-        # Do not automatically record exception messages: upstream errors can contain prompts.
+        # Record bounded, redacted details ourselves instead of automatic raw tracebacks.
         with self.tracer.start_as_current_span(
             f"axon.recommender.{stage}",
             attributes=attributes,
@@ -160,8 +160,8 @@ class ProductTelemetry:
             try:
                 operation = ProductOperation()
                 yield operation
-            except Exception:
-                span.set_status(StatusCode.ERROR)
+            except Exception as exc:
+                record_safe_exception(span, exc)
                 self.event(stage, "failed", identity, duration=time.monotonic() - started_at, reason="unavailable")
                 raise
             else:

@@ -179,19 +179,19 @@ def test_caller_traceparent_cannot_force_sampling(parent_sampled: bool) -> None:
 
 
 @pytest.mark.parametrize("failure", ["exception", "stream", "cancel"])
-def test_streaming_failures_and_cancellation_are_content_free(failure: str) -> None:
+def test_streaming_exceptions_have_redacted_details_but_cancellation_is_not_an_error(failure: str) -> None:
     app, traces, metrics, exporter, reader = memory_app()
 
     @app.get("/fail")
     async def fail() -> StreamingResponse:
         if failure == "exception":
-            raise ValueError("secret-prompt")
+            raise ValueError("request failed token=secret-prompt")
         if failure == "cancel":
             raise asyncio.CancelledError()
 
         async def stream():  # noqa: ANN202 - async generator fixture
             yield b"first chunk"
-            raise ValueError("secret-prompt")
+            raise ValueError("request failed token=secret-prompt")
 
         return StreamingResponse(stream())
 
@@ -207,16 +207,47 @@ def test_streaming_failures_and_cancellation_are_content_free(failure: str) -> N
         asyncio.run(run())
         span = exporter.get_finished_spans()[0]
         assert span.status.status_code == (StatusCode.UNSET if failure == "cancel" else StatusCode.ERROR)
-        assert not span.events
-        assert "secret-prompt" not in repr(dict(span.attributes)) + repr(points(reader))
+        if failure == "cancel":
+            assert not span.events
+        else:
+            assert span.attributes["error.type"] == "ValueError"
+            assert span.status.description == "request failed token=[REDACTED]"
+            assert len(span.events) == 1
+            assert span.events[0].attributes["exception.type"] == "ValueError"
+            assert span.events[0].attributes["exception.message"] == span.status.description
+            assert "test_backend_observability.py" in span.events[0].attributes["exception.stacktrace"]
+        assert "secret-prompt" not in span.to_json() + repr(points(reader))
         assert not span.attributes["axon.response.completed"]
     finally:
         traces.shutdown()
         metrics.shutdown()
 
 
+def test_http_failure_without_exception_has_a_status_type_and_description() -> None:
+    app, traces, metrics, exporter, _ = memory_app()
+
+    @app.get("/unavailable", status_code=503)
+    async def unavailable() -> dict[str, bool]:
+        return {"ok": False}
+
+    async def run() -> None:
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://backend.test") as client:
+            assert (await client.get("/unavailable")).status_code == 503
+
+    try:
+        asyncio.run(run())
+        span = exporter.get_finished_spans()[0]
+        assert span.attributes["error.type"] == "503"
+        assert span.status.status_code == StatusCode.ERROR
+        assert span.status.description == "HTTP 503"
+        assert not span.events
+    finally:
+        traces.shutdown()
+        metrics.shutdown()
+
+
 @pytest.mark.parametrize("library", ["httpx", "asyncpg"])
-def test_dependency_exporter_strips_urls_sql_headers_and_exception_values(library: str) -> None:
+def test_dependency_exporter_redacts_exception_details_and_sanitizes_urls_sql_headers(library: str) -> None:
     exporter = InMemorySpanExporter()
     provider = TracerProvider()
     provider.add_span_processor(SimpleSpanProcessor(SafeSpanExporter(exporter)))
@@ -235,13 +266,21 @@ def test_dependency_exporter_strips_urls_sql_headers_and_exception_values(librar
                     "http.request.header.authorization": ["Bearer secret"],
                 },
             ):
-                raise ValueError("secret")
+                raise ValueError("upstream failed token=secret")
         span = exporter.get_finished_spans()[0]
         assert "secret" not in span.to_json()
-        assert "private" not in span.to_json()
-        assert span.status.description is None
-        assert span.events[0].attributes == {"exception.type": "ValueError"}
-        assert span.name == ("POSTGRESQL SELECT" if library == "asyncpg" else "GET")
+        if library == "httpx":
+            assert span.attributes["http.url"] == span.attributes["url.full"] == "https://host.test/private"
+            assert span.attributes["server.address"] == "host.test"
+        else:
+            assert "http.url" not in span.attributes
+            assert "url.full" not in span.attributes
+        assert span.attributes["error.type"] == "ValueError"
+        assert span.status.description == "upstream failed token=[REDACTED]"
+        assert span.events[0].attributes["exception.type"] == "ValueError"
+        assert span.events[0].attributes["exception.message"] == span.status.description
+        assert "test_backend_observability.py" in span.events[0].attributes["exception.stacktrace"]
+        assert span.name == ("POSTGRESQL SELECT" if library == "asyncpg" else "GET host.test")
     finally:
         provider.shutdown()
 

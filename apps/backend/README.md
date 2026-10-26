@@ -159,6 +159,13 @@ the longest non-streaming client budget: Pi web search (`stream: false`) allows 
 A timeout before response headers produces a sanitized 502; after headers it aborts the stream
 and releases the upstream connection, without attempting to send a second HTTP response.
 
+After the final upload frame, a disconnect watcher cancels and joins upstream forwarding when
+its downstream client leaves, including during pool/header waits or response streaming. Upload
+reads retain exclusive ownership of ASGI `receive()` until that final frame; no body read-ahead
+is introduced. Response closure (including HTTPX's automatic EOF close) and final resource cleanup
+finish before cancellation propagates, and cleanup failures do not replace an existing error.
+This does not impose a total-generation deadline or new upload/downstream-send timeouts.
+
 ### Provisioning users into an existing LiteLLM team
 
 With `IDENTITY_SYNC_ENABLED: true`, set `LITELLM.TEAM_ID` to an **existing LiteLLM team ID** and `TEAM_ROLE` to `"user"` (default) or `"admin"`. This assigns all provisioned Axon users to that team and binds their backend-only virtual keys to it. `TEAM_ROLE` is the **team membership role**, not the global LiteLLM user role, which remains `internal_user`. Grant `admin` only if those users should manage the team.
@@ -235,12 +242,45 @@ WARNING: app.proxies.litellm LiteLLM request request_id=8f96f2e7 method=GET path
   `duration_ms` covers the full request, including auth, provisioning, and streaming. `completed=false`
   distinguishes an interrupted stream even when HTTP 200 headers have already been sent.
 
-Diagnostics never include authorization headers, sessions, keys, query strings, bodies, email, or
-raw exception text/tracebacks. Only known static endpoint paths are logged; other paths become
-`<other>` so file IDs and arbitrary path content cannot leak. Exact upstream error bodies remain
-redacted because LiteLLM can include backend-only keys in them; use the correlated LiteLLM server
-logs for detailed policy denial reasons. If deployment logging is provided, enable INFO for the
-`app` namespace to see successful-request diagnostics.
+Diagnostics log the actual encoded proxy-relative pathname for both the API and browser dashboard
+proxies, including resource IDs and paths outside the static endpoint list. Query strings, headers
+(including authorization and cookies), bodies, and raw exception text/tracebacks are excluded.
+Resource identifiers and any other sensitive values embedded in pathnames are retained. Service
+span names and metric route labels still use low-cardinality route templates, not arbitrary path IDs.
+Exact upstream error bodies remain redacted because LiteLLM can include backend-only keys in them;
+use the correlated LiteLLM server logs for detailed policy denial reasons. If deployment logging is
+provided, enable INFO for the `app` namespace to see successful-request diagnostics.
+
+### LiteLLM lifecycle and pool-pressure diagnostics
+
+Each worker maintains bounded lifecycle diagnostics independently of telemetry export. Pool-timeout
+snapshots are WARNING logs, rate-limited to one per second per worker; every timeout is still counted.
+They include the request ID, PID, qualified exception/cause classes, active counts by phase, event
+counts and up to three oldest sampled requests. Startup logs record the configured origin/root,
+connection limits and timeouts without keys. Cleanup errors log only the resource and exception class.
+Completion diagnostics additionally expose `exception_class` and `cleanup_error_class`.
+
+With `OPEN_TELEMETRY.ENABLED` and `METRICS_ENABLED`, these worker-local metrics are exported:
+
+| Metric | Meaning |
+| --- | --- |
+| `axon.litellm.requests.active` | Exact application counts by `pool` and `phase` |
+| `axon.litellm.requests.sampled_oldest_age` | Oldest sampled active-request age, in seconds, by pool |
+| `axon.litellm.request.duration` | Full observed request lifetime, including cleanup |
+| `axon.litellm.phase.duration` | Time in preparation, awaiting headers, open response, cleanup, or buffered request |
+| `axon.litellm.events` | Pool timeouts, other transport failures, cancellations, disconnects and cleanup failures |
+
+Phases are application state, **not HTTPX connection occupancy**. `awaiting_headers` includes pool
+wait, connect, upload and header I/O, not exclusively acquisition. `open_response` covers manually
+streamed HTTP responses, including ordinary JSON/UI assets, not only SSE. Buffered management
+requests use `buffered_request` for their entire HTTP call. Counts include all observed requests;
+age/request-ID samples are limited to 128 active requests per worker and can omit older overflow
+requests. Metric labels use fixed route templates, pool/phase/event names and exception classes;
+correlation IDs appear only in logs/snapshots, never metric labels. No request/response content,
+credentials, headers, query strings or raw exception messages are added by this instrumentation.
+
+These diagnostics neither resize/reset pools nor retry requests. Existing event-loop monitoring
+remains separately controlled by `EVENT_LOOP_MONITORING`; no threadpool settings are changed.
 
 ## Serving the console frontend
 
@@ -590,8 +630,14 @@ set the following in the backend's private `config.json` (replace the collector 
   requests. Every request starts a new root trace: an incoming W3C `traceparent` is recorded only as
   a span link, so callers cannot choose trace IDs or force sampling. HTTPX propagates the backend's
   trace context downstream. HTTPX and asyncpg automatically create child spans for auth/LiteLLM HTTP
-  calls and PostgreSQL. Error spans retain status/type, not exception values. `SAMPLING_RATE` is 0–1
-  and applies to every request. This is head sampling, not Vortex's optional error promotion.
+  calls and PostgreSQL. Outgoing HTTP spans use names such as `GET auth-service.internal` and retain
+  sanitized `http.url` / `url.full` values (scheme, host, port, and path only). URL userinfo, query
+  strings, and fragments are removed; resource IDs or other sensitive values in paths are retained.
+  HTTP and database destination host/port attributes include both legacy `net.peer.*` and modern
+  `server.*` aliases so dependency views work with either semantic-convention mode. PostgreSQL
+  system/database names likewise retain both schema aliases; SQL and parameters remain excluded.
+  Instrumentation remains limited to HTTPX and asyncpg. `SAMPLING_RATE` is 0–1 and applies to every
+  request. This is head sampling, not Vortex's optional error promotion.
 - **Metrics:** `http.server.request.duration` (seconds, including full response streaming),
   `http.server.active_requests`, HTTPX client duration, and the existing `axon.recommender.*`
   instruments. Histograms expose request counts as well as latency. Route labels are templates,
@@ -601,11 +647,23 @@ set the following in the backend's private `config.json` (replace the collector 
   `blocking_events` match Vortex's instrument names. Intervals/thresholds are seconds (0.01–60).
   `max_lag` is the worst lag since the previous metric collection; `active_tasks` refreshes once a second.
   Utilization is a scheduling-lag estimate, **not CPU utilization**. No stack capture or py-spy is run.
-- **Privacy:** generic service spans/metrics never capture request/response bodies, credentials,
-  raw query strings, arbitrary path IDs, SQL text/parameters, or exception messages/stacktraces.
-  Dependency spans are sanitized again at export, including environment-enabled HTTP header capture.
-  Recommender operations retain their existing controlled metadata and verified identity attribution;
-  prompts are never recorded. See [product telemetry](../cli/src/harnesses/pi/telemetry/docs/product-telemetry.md).
+- **Exception details:** unhandled request exceptions and failed recommender operations record standard
+  `exception` events with the actual class, a redacted message (up to 1,024 characters), and stack-frame
+  locations (up to 20 frames / 4,096 characters). Source-code lines and locals are not recorded.
+  The span carries `error.type` and a redacted status description. Dependency exception events receive
+  the same filtering at export; missing/generic `error.type` values are populated from `exception.type`.
+  HTTP 5xx responses without exceptions use the status code and an `HTTP <status>` description instead
+  of inventing an exception. Intentional cancellations/disconnects remain non-error spans.
+- **Privacy:** generic service spans/metrics do not capture request/response bodies, headers, raw
+  query strings, URL userinfo/fragments, or SQL text/parameters. Incoming request spans and metric
+  route labels use templates, while outgoing HTTP trace URLs retain the full encoded path, including
+  resource IDs. Dependency attributes are filtered again at export, including environment-enabled
+  HTTP header capture. Exception text uses best-effort
+  redaction for URLs, authorization/cookies, credential fields, known token formats, emails, SQL,
+  and labeled payload/prompt fields; arbitrary unlabeled sensitive text cannot be guaranteed safe.
+  Do not include credentials or request content in exception messages. Recommender operations retain
+  their existing controlled metadata and verified identity attribution. See
+  [product telemetry](../cli/src/harnesses/pi/telemetry/docs/product-telemetry.md).
 
 **Logs** are JSON on the app's console stream, collected by the existing log agent; they are not
 sent through an OTel log exporter. Fields match Vortex: `version: "v2"`, `timestamp`, `loglevel`,

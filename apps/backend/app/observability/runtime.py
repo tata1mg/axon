@@ -12,6 +12,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.trace import Tracer
 
 from app.observability.event_loop import EventLoopMonitor
+from app.observability.litellm import LiteLLMDiagnostics
 
 if TYPE_CHECKING:
     from app.telemetry import BackendTelemetrySettings
@@ -22,6 +23,7 @@ class ServiceTelemetry:
     tracer: Tracer
     duration: Histogram
     active: UpDownCounter
+    litellm: LiteLLMDiagnostics
     instrumentors: list = field(default_factory=list)
     monitor: EventLoopMonitor | None = None
 
@@ -41,6 +43,7 @@ async def initialize_service_telemetry(
             explicit_bucket_boundaries_advisory=[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60],
         ),
         active=meter.create_up_down_counter("http.server.active_requests", unit="{request}"),
+        litellm=LiteLLMDiagnostics(meter if settings.metrics_enabled else None),
     )
     app.state.service_telemetry = runtime
     # These libraries install process-wide wrappers. Own them explicitly so a

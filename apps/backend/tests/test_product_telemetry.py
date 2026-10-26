@@ -1,4 +1,4 @@
-"""Product stats use controlled metadata and never serialize prompts/errors into OTel."""
+"""Product stats use controlled metadata and bounded, redacted exception details."""
 
 import asyncio
 from typing import Any
@@ -107,10 +107,14 @@ def test_recommender_assessment_ranking_metrics_and_traces_are_content_free(inva
     identity_client.ensure_identity.assert_awaited_once_with(verified_user())
     identity_client.authenticated_key.assert_not_awaited()
     spans = exporter.get_finished_spans()
-    assert not any(event.name == "exception" for span in spans for event in span.events)
-    assert "secret prompt" not in repr(spans)
+    exceptions = [event for span in spans for event in span.events if event.name == "exception"]
+    assert bool(exceptions) is invalid
+    assert "secret prompt" not in "".join(span.to_json() for span in spans)
     if invalid:
         assert spans[-1].status.status_code == StatusCode.ERROR
+        assert spans[-1].attributes["error.type"] == "ModelRecommendationError"
+        assert exceptions[-1].attributes["exception.type"] == "ModelRecommendationError"
+        assert exceptions[-1].attributes["exception.message"]
     observed = reader.get_metrics_data()
     points = [
         point

@@ -79,7 +79,8 @@ def configure_application_logging(settings: "Settings | None" = None) -> None:
 
     Never configure root/HTTPX INFO logging: URLs can carry credentials. Uvicorn
     access logging is replaced with our sanitized, streaming-aware ASGI access
-    log, so query strings and arbitrary path contents do not reach stdout.
+    log, which uses route templates rather than raw paths/queries. LiteLLM
+    request diagnostics separately retain encoded pathnames, but not queries.
     """
     logger = logging.getLogger("app")
     if settings is not None:

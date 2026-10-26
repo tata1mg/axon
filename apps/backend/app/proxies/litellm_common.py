@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import sys
 from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable, Iterable
 from dataclasses import dataclass
 from time import monotonic
@@ -14,7 +15,11 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.clients.litellm.transport import LiteLLMTransport, validate_raw_path
 from app.observability.context import safe_identifier
+from app.observability.litellm import LiteLLMDiagnostics, UpstreamObservation, exception_class
 from app.observability.privacy import HTTP_METHODS
+from app.proxies.disconnect import finish_cleanup, run_with_disconnect
+
+logger = logging.getLogger(__name__)
 
 LITELLM_MOUNT_PATH = "/litellm"
 
@@ -69,7 +74,8 @@ IDENTITY_SYNC_UNAVAILABLE_BODY = b'{"detail":"LiteLLM user/team synchronization 
 ACCESS_DENIED_BODY = b'{"detail":"LiteLLM access denied"}'
 UNAUTHORIZED_BODY = b'{"detail":"Authentication required"}'
 
-# Log only static endpoint names, never arbitrary path IDs, queries, or payloads.
+# Static endpoint names keep observability route templates/metrics low-cardinality.
+# Request diagnostics retain the actual encoded pathname, including resource IDs.
 DIAGNOSTIC_PATHS = frozenset(
     {
         "/",
@@ -109,6 +115,8 @@ class RequestDiagnostics:
     upstream_duration_ms: float | None = None
     credential_mode: str = "unresolved"
     error_type: str = "none"
+    error_class: str = "none"
+    cleanup_error_class: str = "none"
 
     def log_result(
         self, *, logger: logging.Logger, method: str, path: str, status: int | None, completed: bool, started: float
@@ -126,7 +134,7 @@ class RequestDiagnostics:
             level,
             "LiteLLM request request_id=%s method=%s path=%s stage=%s reason=%s "
             "upstream_status=%s status=%s credential_mode=%s upstream_duration_ms=%s "
-            "duration_ms=%.1f completed=%s error_type=%s",
+            "duration_ms=%.1f completed=%s error_type=%s exception_class=%s cleanup_error_class=%s",
             self.request_id,
             method,
             path,
@@ -139,6 +147,8 @@ class RequestDiagnostics:
             (monotonic() - started) * 1000,
             str(completed).lower(),
             self.error_type,
+            self.error_class,
+            self.cleanup_error_class,
         )
 
 
@@ -172,10 +182,10 @@ class LiteLLMRequestLoggingMiddleware:
         request = Request(scope)
         diagnostic = RequestDiagnostics(safe_identifier(request.headers.get("x-request-id"), str(uuid4())))
         request.state.litellm_request_diagnostics = diagnostic
-        raw_path = relative_raw_path(scope, strip_mount_path=self.strip_mount_path, mount_path=self.mount_path).decode(
+        # Preserve the encoded pathname for debugging; ASGI query_string stays excluded.
+        path = relative_raw_path(scope, strip_mount_path=self.strip_mount_path, mount_path=self.mount_path).decode(
             "ascii", errors="replace"
         )
-        path = raw_path if raw_path in DIAGNOSTIC_PATHS else "<other>"
         method = str(scope.get("method", "GET"))
         method = method if method in HTTP_METHODS else "<other>"
         status: int | None = None
@@ -420,6 +430,8 @@ async def _open_response(
     build_request: Callable[[str], Awaitable[UpstreamRequest]],
     limits: BodyLimits,
     content: AsyncIterator[bytes] | None,
+    observer: LiteLLMDiagnostics | None,
+    observation: UpstreamObservation | None,
 ) -> httpx.Response:
     """Build policy-specific credentials, then time only transport-to-headers I/O."""
     prepared = await build_request(request_id)
@@ -427,6 +439,8 @@ async def _open_response(
     if diagnostic is not None:
         diagnostic.stage = "upstream"
     started = monotonic()
+    if observer is not None and observation is not None:
+        observer.phase(observation, "awaiting_headers")
     try:
         return await transport.send_stream(
             str(scope.get("method", "GET")),
@@ -437,6 +451,10 @@ async def _open_response(
             write_timeout_seconds=limits.write_timeout_seconds,
         )
     except httpx.HTTPError as exc:
+        if diagnostic is not None:
+            diagnostic.error_class = exception_class(exc)
+        if observer is not None and observation is not None:
+            observer.failure(observation, exc)
         raise ForwardingError(
             502, BAD_GATEWAY_BODY, "upstream_transport_failed", error_type=type(exc).__name__
         ) from exc
@@ -459,7 +477,8 @@ def _record_failure(scope: Scope, reason: str, error_type: str = "none", upstrea
     if diagnostic is not None:
         diagnostic.reason = reason
         diagnostic.error_type = error_type
-        diagnostic.upstream_status = upstream_status
+        if upstream_status is not None:
+            diagnostic.upstream_status = upstream_status
 
 
 async def _send_failure(scope: Scope, send: Send, error: ForwardingError) -> None:
@@ -467,7 +486,7 @@ async def _send_failure(scope: Scope, send: Send, error: ForwardingError) -> Non
     await send_error(send, error.status, error.body)
 
 
-async def forward_stream(
+async def _forward_stream(
     scope: Scope,
     receive: Receive,
     send: Send,
@@ -476,7 +495,9 @@ async def forward_stream(
     *,
     build_request: Callable[[str], Awaitable[UpstreamRequest]],
     response_policy: Callable[[httpx.Response, str], ResponseHead],
-    limits: BodyLimits = BodyLimits(),
+    limits: BodyLimits,
+    observer: LiteLLMDiagnostics | None,
+    observation: UpstreamObservation | None,
 ) -> None:
     """Own receive/body iteration, timing, error mapping and upstream cleanup.
 
@@ -502,7 +523,9 @@ async def forward_stream(
                 _check_body_size(len(first.get("body", b"")), limits)
                 if first.get("body") or first.get("more_body", False):
                     content = request_body(first, receive, limits)
-                response = await _open_response(scope, transport, raw_path, request_id, build_request, limits, content)
+                response = await _open_response(
+                    scope, transport, raw_path, request_id, build_request, limits, content, observer, observation
+                )
         except _ClientDisconnectedError:
             _record_failure(scope, "client_disconnected")
             return
@@ -518,6 +541,9 @@ async def forward_stream(
                 ),
             )
             return
+        response.stream = _ResponseStream(response.stream, scope, observer, observation)
+        if observer is not None and observation is not None:
+            observer.phase(observation, "open_response")
         head = response_policy(response, request_id)
         if diagnostic is not None:
             diagnostic.upstream_status = response.status_code
@@ -526,9 +552,140 @@ async def forward_stream(
     except OSError:
         return
     finally:
+        if observer is not None and observation is not None:
+            observer.phase(observation, "closing")
+        await finish_cleanup(
+            _close_resources(scope, response, content, observer, propagating=sys.exception() is not None)
+        )
+
+
+def _cleanup_failure(scope: Scope, resource: str, error: BaseException, observer: LiteLLMDiagnostics | None) -> None:
+    diagnostic = get_diagnostics(scope)
+    if diagnostic is not None:
+        diagnostic.cleanup_error_class = exception_class(error)
+        if diagnostic.reason == "none":
+            diagnostic.reason = "cleanup_failed"
+    if observer is not None:
+        observer.event("streaming", "cleanup_failure", error)
+    logger.warning(
+        "LiteLLM cleanup failed request_id=%s resource=%s exception_class=%s",
+        diagnostic.request_id if diagnostic is not None else "none",
+        resource,
+        exception_class(error),
+    )
+
+
+class _ResponseStream(httpx.AsyncByteStream):
+    """Protect HTTPX's automatic EOF close as well as the explicit final close."""
+
+    def __init__(
+        self,
+        stream: httpx.AsyncByteStream,
+        scope: Scope,
+        observer: LiteLLMDiagnostics | None,
+        observation: UpstreamObservation | None,
+    ) -> None:
+        self.stream, self.scope = stream, scope
+        self.observer, self.observation = observer, observation
+
+    async def __aiter__(self) -> AsyncIterator[bytes]:
+        async for chunk in self.stream:
+            yield chunk
+
+    async def aclose(self) -> None:
+        if self.observer is not None and self.observation is not None:
+            self.observer.phase(self.observation, "closing")
         try:
-            if response is not None:
-                await response.aclose()
-        finally:
-            if content is not None:
-                await content.aclose()
+            await finish_cleanup(self.stream.aclose())
+        except Exception as exc:
+            _cleanup_failure(self.scope, "response", exc, self.observer)
+            raise
+
+
+async def _close_resources(
+    scope: Scope,
+    response: httpx.Response | None,
+    content: AsyncGenerator[bytes, None] | None,
+    observer: LiteLLMDiagnostics | None,
+    *,
+    propagating: bool,
+) -> None:
+    """Attempt both closes; a cleanup error must not mask an existing failure."""
+    failure: BaseException | None = None
+    for name, resource in (("response", response), ("upload", content)):
+        if resource is None:
+            continue
+        try:
+            await resource.aclose()
+        except (Exception, asyncio.CancelledError) as exc:  # noqa: BLE001 - attempt both resources before propagation
+            failure = failure or exc
+            # The response wrapper already observes ordinary close errors.
+            if (
+                isinstance(exc, asyncio.CancelledError)
+                or name != "response"
+                or response is None
+                or not isinstance(response.stream, _ResponseStream)
+            ):
+                _cleanup_failure(scope, name, exc, observer)
+    if failure is not None and not propagating:
+        raise failure
+
+
+async def forward_stream(
+    scope: Scope,
+    receive: Receive,
+    send: Send,
+    transport: LiteLLMTransport,
+    raw_path: bytes,
+    *,
+    build_request: Callable[[str], Awaitable[UpstreamRequest]],
+    response_policy: Callable[[httpx.Response, str], ResponseHead],
+    limits: BodyLimits = BodyLimits(),
+) -> None:
+    """Observe the full lifetime and cancel/join forwarding on downstream disconnect."""
+    diagnostic = get_diagnostics(scope)
+    candidate = getattr(transport, "diagnostics", None)
+    observer = candidate if isinstance(candidate, LiteLLMDiagnostics) else None
+    path = raw_path.decode("ascii", errors="replace")
+    observation = (
+        observer.begin(
+            "streaming",
+            path if path in DIAGNOSTIC_PATHS else "/{path}",
+            diagnostic.request_id if diagnostic is not None else None,
+        )
+        if observer is not None
+        else None
+    )
+
+    async def operate(receive_body: Receive) -> None:
+        await _forward_stream(
+            scope,
+            receive_body,
+            send,
+            transport,
+            raw_path,
+            build_request=build_request,
+            response_policy=response_policy,
+            limits=limits,
+            observer=observer,
+            observation=observation,
+        )
+
+    try:
+        await run_with_disconnect(operate, receive, lambda: _record_failure(scope, "client_disconnected"))
+    except asyncio.CancelledError as exc:
+        _record_failure(scope, "request_cancelled", "CancelledError")
+        if diagnostic is not None:
+            diagnostic.error_class = exception_class(exc)
+        raise
+    except httpx.HTTPError as exc:
+        if diagnostic is not None:
+            diagnostic.error_class = exception_class(exc)
+        if observer is not None and observation is not None:
+            observer.failure(observation, exc)
+        raise
+    finally:
+        if observer is not None and observation is not None:
+            if diagnostic is not None and diagnostic.reason in {"client_disconnected", "request_cancelled"}:
+                observer.event("streaming", diagnostic.reason)
+            observer.finish(observation)
