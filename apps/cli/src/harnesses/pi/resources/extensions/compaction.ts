@@ -144,14 +144,16 @@ async function summarize(
     (requestModel, context, options) => {
       // Resolve request-time auth through the chosen registered provider,
       // including LiteLLM's relay; never borrow another provider's credentials.
+      // Pi 1.4 leaves maxTokens unset; clamp explicit caps to the model limit too.
       const stream = ctx.modelRegistry.streamSimple(requestModel, context, {
         ...options,
         ...(config.maxOutputTokens === undefined
           ? {}
           : {
               maxTokens: Math.min(
-                options?.maxTokens ?? config.maxOutputTokens,
+                options?.maxTokens ?? Number.POSITIVE_INFINITY,
                 config.maxOutputTokens,
+                requestModel.maxTokens > 0 ? requestModel.maxTokens : Number.POSITIVE_INFINITY,
               ),
             }),
       });

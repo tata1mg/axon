@@ -135,6 +135,11 @@ class CliInstallSettings:
     releases_url: str
 
 
+CLI_RELEASE_TARGETS = ("darwin-arm64", "darwin-x64")
+# Launchers released before x64 support know only this target, so every version must ship it.
+DEFAULT_CLI_RELEASE_TARGET = "darwin-arm64"
+
+
 @dataclass(frozen=True, slots=True)
 class CliReleaseAsset:
     s3_key: str
@@ -153,7 +158,8 @@ class CliReleaseSettings:
     key_pair_id: str
     private_key: str = field(repr=False)
     latest_version: str
-    versions: dict[str, CliReleaseAsset]
+    # version -> release target -> asset
+    versions: dict[str, dict[str, CliReleaseAsset]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -178,6 +184,8 @@ class Settings:
     web_search: WebSearchSettings = field(default_factory=WebSearchSettings)
     model_recommender: ModelRecommenderSettings = field(default_factory=ModelRecommenderSettings)
     backend_telemetry: BackendTelemetrySettings | None = None
+    log_level: str = "INFO"
+    log_format: str = "json"
     cli_pi: CliPiConfig | None = None
     cli_compaction: CliCompactionConfig | None = None
     cli_model_recommender: CliModelRecommenderConfig | None = None
@@ -213,6 +221,16 @@ def _backend_telemetry_settings(raw_config: dict[str, Any]) -> BackendTelemetryS
         raise ConfigurationError("config.OPEN_TELEMETRY contains invalid settings") from None
 
 
+def _logging_settings(raw: dict[str, Any]) -> tuple[str, str]:
+    level = raw.get("LOG_LEVEL", "INFO")
+    format_ = raw.get("LOG_FORMAT", "json")
+    if not isinstance(level, str) or level not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
+        raise ConfigurationError("config.LOG_LEVEL must be DEBUG, INFO, WARNING, ERROR or CRITICAL")
+    if not isinstance(format_, str) or format_ not in {"json", "text"}:
+        raise ConfigurationError("config.LOG_FORMAT must be json or text")
+    return level, format_
+
+
 def _mapping(source: dict[str, Any], key: str, path: str) -> dict[str, Any]:
     value = source.get(key)
     if not isinstance(value, dict):
@@ -243,14 +261,17 @@ def _upstream_api_key(source: dict[str, Any], key: str, path: str) -> str:
     return value
 
 
-def _litellm_team_assignment(source: dict[str, Any]) -> tuple[str, str]:
+def _litellm_team_assignment(source: dict[str, Any]) -> tuple[str, str, bool]:
     team_id = _optional_string(source, "TEAM_ID", "config.LITELLM")
     if any(not 33 <= ord(character) <= 126 for character in team_id):
         raise ConfigurationError("config.LITELLM.TEAM_ID must contain only printable ASCII characters without spaces")
     team_role = _optional_string(source, "TEAM_ROLE", "config.LITELLM") if "TEAM_ROLE" in source else "user"
     if team_role not in {"user", "admin"}:
         raise ConfigurationError("config.LITELLM.TEAM_ROLE must be user or admin")
-    return team_id, team_role
+    identity_sync = _boolean(source, "IDENTITY_SYNC_ENABLED", "config.LITELLM", default=False)
+    if identity_sync and not team_id:
+        raise ConfigurationError("config.LITELLM.TEAM_ID is required when IDENTITY_SYNC_ENABLED is true")
+    return team_id, team_role, identity_sync
 
 
 def _integer(
@@ -340,26 +361,45 @@ SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 S3_KEY_PATTERN = re.compile(r"^[A-Za-z0-9!_./+~=()\-]+$")
 
 
-def _release_assets(config: dict[str, Any], prefix: str) -> dict[str, CliReleaseAsset]:
+def _release_asset(value: dict[str, Any], path: str, prefix: str, version: str, target: str) -> CliReleaseAsset:
+    key = _string(value, "s3_key", path)
+    if (
+        not key.startswith(f"{prefix}{version}/")
+        or not key.endswith(f"/axon-{target}.gz")
+        or not S3_KEY_PATTERN.fullmatch(key)
+        or any(segment in {"", ".", ".."} for segment in key.split("/"))
+    ):
+        raise ConfigurationError(f"{path}.s3_key must be a safe versioned key under {prefix}")
+    archive_hash = _string(value, "archive_sha256", path)
+    binary_hash = _string(value, "binary_sha256", path)
+    if not SHA256_PATTERN.fullmatch(archive_hash) or not SHA256_PATTERN.fullmatch(binary_hash):
+        raise ConfigurationError(f"{path} requires lowercase 64-character SHA-256 hashes")
+    return CliReleaseAsset(key, archive_hash, binary_hash)
+
+
+def _release_assets(config: dict[str, Any], prefix: str) -> dict[str, dict[str, CliReleaseAsset]]:
     versions_config = _mapping(config, "VERSIONS", "config.CLI_RELEASES")
-    versions: dict[str, CliReleaseAsset] = {}
+    versions: dict[str, dict[str, CliReleaseAsset]] = {}
     for version, value in versions_config.items():
         if not isinstance(version, str) or not SEMVER_PATTERN.fullmatch(version) or not isinstance(value, dict):
             raise ConfigurationError("config.CLI_RELEASES.VERSIONS requires semantic-version objects")
         path = f"config.CLI_RELEASES.VERSIONS.{version}"
-        key = _string(value, "s3_key", path)
-        if (
-            not key.startswith(f"{prefix}{version}/")
-            or not key.endswith("/axon-darwin-arm64.gz")
-            or not S3_KEY_PATTERN.fullmatch(key)
-            or any(segment in {"", ".", ".."} for segment in key.split("/"))
-        ):
-            raise ConfigurationError(f"{path}.s3_key must be a safe versioned key under {prefix}")
-        archive_hash = _string(value, "archive_sha256", path)
-        binary_hash = _string(value, "binary_sha256", path)
-        if not SHA256_PATTERN.fullmatch(archive_hash) or not SHA256_PATTERN.fullmatch(binary_hash):
-            raise ConfigurationError(f"{path} requires lowercase 64-character SHA-256 hashes")
-        versions[version] = CliReleaseAsset(key, archive_hash, binary_hash)
+        if "s3_key" in value:
+            # A flat entry predates x64 support and describes only the darwin-arm64 archive.
+            target = DEFAULT_CLI_RELEASE_TARGET
+            versions[version] = {target: _release_asset(value, path, prefix, version, target)}
+            continue
+        unsupported = sorted(set(value) - set(CLI_RELEASE_TARGETS))
+        if unsupported:
+            raise ConfigurationError(f"{path} has unsupported release targets: {', '.join(unsupported)}")
+        if DEFAULT_CLI_RELEASE_TARGET not in value:
+            raise ConfigurationError(f"{path} requires a {DEFAULT_CLI_RELEASE_TARGET} release")
+        assets: dict[str, CliReleaseAsset] = {}
+        for target, target_value in value.items():
+            if not isinstance(target_value, dict):
+                raise ConfigurationError(f"{path}.{target} must be an object")
+            assets[target] = _release_asset(target_value, f"{path}.{target}", prefix, version, target)
+        versions[version] = assets
     return versions
 
 
@@ -546,7 +586,7 @@ def get_settings() -> Settings:
         minimum=pool_min_size,
     )
 
-    litellm_team_id, litellm_team_role = _litellm_team_assignment(litellm_config)
+    litellm_team_id, litellm_team_role, litellm_identity_sync = _litellm_team_assignment(litellm_config)
 
     litellm = LiteLLMSettings(
         api_key=_upstream_api_key(litellm_config, "API_KEY", "config.LITELLM"),
@@ -554,7 +594,7 @@ def get_settings() -> Settings:
         decision_max_concurrency=_integer(litellm_config, "DECISION_MAX_CONCURRENCY", "config.LITELLM", default=10),
         team_id=litellm_team_id,
         team_role=litellm_team_role,
-        identity_sync_enabled=_boolean(litellm_config, "IDENTITY_SYNC_ENABLED", "config.LITELLM", default=False),
+        identity_sync_enabled=litellm_identity_sync,
         ui_enabled=_boolean(litellm_config, "UI_ENABLED", "config.LITELLM", default=False),
         ui_body_idle_timeout_seconds=_integer(
             litellm_config, "UI_BODY_IDLE_TIMEOUT_SECONDS", "config.LITELLM", default=30
@@ -656,6 +696,7 @@ def get_settings() -> Settings:
     web_search = _web_search(raw_config)
     terminal_permissions = _terminal_permissions(raw_config)
     backend_telemetry = _backend_telemetry_settings(raw_config)
+    log_level, log_format = _logging_settings(raw_config)
 
     return Settings(
         name=_string(raw_config, "NAME", "config"),
@@ -684,4 +725,6 @@ def get_settings() -> Settings:
         terminal_permissions=terminal_permissions,
         sandbox=_sandbox(raw_config),
         backend_telemetry=backend_telemetry,
+        log_level=log_level,
+        log_format=log_format,
     )

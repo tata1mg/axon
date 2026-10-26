@@ -528,6 +528,14 @@ function registerSandboxFileTools(pi: ExtensionAPI): void {
 }
 
 export default function axonExtension(pi: ExtensionAPI): void {
+  pi.on("before_agent_start", (event) => {
+    event.systemPromptOptions.sections["axon"] =
+      "You are running through Axon Pi, not Pi directly. " +
+      "Use PI_CODING_AGENT_DIR (normally ~/.axon/pi), not ~/.pi/agent, for user-level configuration: " +
+      "MCP servers in mcp.json, skills in skills/, and extensions in extensions/. " +
+      "Project-local configuration still uses .pi/.";
+  });
+
   registerSandboxFileTools(pi);
   let stopRecovery: (() => void) | undefined;
   let sandboxEditorOpen = false;
@@ -543,6 +551,30 @@ export default function axonExtension(pi: ExtensionAPI): void {
     if (typeof data !== "string" || !Object.hasOwn(TERMINAL_LABELS, data)) return;
     terminalState = data as TerminalHeaderState;
     refreshHeader?.();
+  });
+  // Replace opaque transport errors through Pi's normal message pipeline, never
+  // console/stderr. Keep stopReason/content/usage intact so retries still work.
+  pi.on("message_end", (event) => {
+    const message = event.message;
+    const logFile = process.env["PI_AXON_RELAY_LOG_FILE"];
+    if (
+      !logFile ||
+      authRelayConfiguration() === undefined ||
+      message.role !== "assistant" ||
+      message.provider !== "litellm" ||
+      message.stopReason !== "error" ||
+      !/^(?:terminated|fetch failed|The socket connection was closed unexpectedly[^\n]*)$/i.test(
+        message.errorMessage ?? "",
+      )
+    ) {
+      return;
+    }
+    return {
+      message: {
+        ...message,
+        errorMessage: `Connection error: the connection to Axon AI Gateway was interrupted. Retry if needed. Relay diagnostics: ${logFile.replace(/\p{Cc}/gu, "?")}`,
+      },
+    };
   });
   pi.on("session_start", (_event, ctx) => {
     stopRecovery?.();

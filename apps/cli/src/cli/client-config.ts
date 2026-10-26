@@ -8,13 +8,21 @@ import { emitProductEvent } from "../telemetry/product-events.ts";
 export const CLIENT_CONFIG_TIMEOUT_MS = 700;
 const MAX_CONFIG_BYTES = 16 * 1024;
 
-const telemetrySchema = z.object({
-  enabled: z.boolean(),
-  endpoint: z.literal("/api/v1/otel").default("/api/v1/otel"),
-  protocol: z.literal("http/protobuf").default("http/protobuf"),
-  traceSampleRatio: z.number().finite().min(0).max(1).default(1),
-  metricExportIntervalMs: z.number().int().min(1_000).max(300_000).default(10_000),
-});
+const telemetrySchema = z
+  .object({
+    enabled: z.boolean(),
+    endpoint: z.literal("/api/v1/otel").default("/api/v1/otel"),
+    protocol: z.literal("http/protobuf").default("http/protobuf"),
+    traceSampleRatio: z.number().finite().min(0).max(1).default(1),
+    metricExportIntervalMs: z.number().int().min(1_000).max(300_000).default(10_000),
+    batchScheduleDelayMs: z.number().int().min(100).max(60_000).default(1_000),
+    maxExportBatchSize: z.number().int().min(1).max(4_096).default(256),
+    maxQueueSize: z.number().int().min(64).max(16_384).default(2_048),
+  })
+  .refine(
+    (telemetry) => telemetry.maxExportBatchSize <= telemetry.maxQueueSize,
+    "Telemetry batch size must not exceed queue size",
+  );
 const webSearchSchema = z.strictObject({
   enabled: z.boolean(),
   model: z.string().min(1).max(256),
@@ -82,6 +90,7 @@ const piSchema = z
   .strictObject({
     codemodeEnabled: z.boolean(),
     litellmMcpEnabled: z.boolean(),
+    showCacheMissNotices: z.boolean().optional(),
     defaultProvider: piDefaultText,
     defaultModel: piDefaultText,
   })

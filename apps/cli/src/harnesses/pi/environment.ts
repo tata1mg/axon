@@ -7,6 +7,8 @@ import type { AxonPaths } from "../../product/paths.ts";
 const PI_PROCESS_OVERRIDES = Object.freeze({
   PI_SKIP_VERSION_CHECK: "1",
   PI_AXON_CLI_VERSION: BUILD_INFO.version,
+  // Only a live managed relay can supply a diagnostic destination.
+  PI_AXON_RELAY_LOG_FILE: undefined,
   // PI_* markers survive the launcher's final Axon-control-variable filter.
   PI_AXON_BACKUP_SERVICE_ORIGIN: BUILD_INFO.serviceOrigin,
   PI_MODEL_RECOMMENDER_URL: resolveServiceUrl(

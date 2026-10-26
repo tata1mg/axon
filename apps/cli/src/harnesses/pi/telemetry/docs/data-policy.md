@@ -3,7 +3,7 @@
 ## Managed policy and user notice
 
 On authenticated online non-administrative Axon/Pi launches, including scripted modes, accepted backend
-organization telemetry policy controls enablement, sampling, and interval. A backend enable policy
+organization telemetry policy controls enablement, sampling, interval, and log/trace batching. A backend enable policy
 has **no supported local opt-out** via `PI_ORG_OTEL_ENABLED`, samplers, exporters, CLI flags, or Pi
 settings. The decision applies to both Pi and launcher product observations, including buffered startup
 events and shutdown flushing. It is separate from upstream Pi's `PI_TELEMETRY`. Backend disablement
@@ -18,7 +18,7 @@ notify users before relying on the new precedence; older clients retain local ma
 
 Every record carries `user.id` and `pi.identity.source`. In **environment fallback**, raw effective Git email is used for both `user.id` and `user.email` when available; otherwise `user.id` is a random installation UUID and `user.email` is absent. No name is automatically read from Git.
 
-In **managed proxy mode**, the extension does not read Git email. It sends a placeholder identity (`user.id=managed`, `pi.identity.source=axon_auth`), and the backend overwrites resource and record/datapoint identity with verified auth-service data before forwarding. `user.id` is the authenticated user ID when present, otherwise verified email; `user.email`, optional `user.name`, and `axon.user_team_id` come from that same authenticated session. Client-supplied `user.*` and `enduser.*` attributes are removed, including identity fields on span events/links and metric exemplars. Missing verified identity fails closed.
+In **managed proxy mode**, the extension does not read Git email. It sends a placeholder identity (`user.id=managed`, `pi.identity.source=axon_auth`), and the backend overwrites resource and record/datapoint identity with verified auth-service data before forwarding. `user.id` is the required authenticated user ID; `user.email`, optional `user.name`, and `axon.user_id` come from that same authenticated session. Client-supplied `user.*` and `enduser.*` attributes are removed, including identity fields on span events/links and metric exemplars. Missing verified identity fails closed.
 
 The saved session is used only as the backend request Authorization header, never as an OTEL attribute. Exporter response rotation is compare-and-swap persisted without overwriting newer logins. Verified email/name are personal data: restrict collector access and retention. Authentication establishes attribution, not the truth of caller-supplied usage/cost measurements.
 

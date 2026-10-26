@@ -20,6 +20,15 @@ class CliTelemetryConfig(BaseModel):
     metric_export_interval_ms: int = Field(
         default=10000, alias="metricExportIntervalMs", ge=1000, le=300000, strict=True
     )
+    batch_schedule_delay_ms: int = Field(default=1000, alias="batchScheduleDelayMs", ge=100, le=60000, strict=True)
+    max_export_batch_size: int = Field(default=256, alias="maxExportBatchSize", ge=1, le=4096, strict=True)
+    max_queue_size: int = Field(default=2048, alias="maxQueueSize", ge=64, le=16384, strict=True)
+
+    @model_validator(mode="after")
+    def validate_batch_capacity(self) -> "CliTelemetryConfig":
+        if self.max_export_batch_size > self.max_queue_size:
+            raise ValueError("Telemetry batch size must not exceed queue size")
+        return self
 
 
 class CliPiConfig(BaseModel):
@@ -27,6 +36,7 @@ class CliPiConfig(BaseModel):
 
     codemode_enabled: bool = Field(alias="codemodeEnabled", strict=True)
     litellm_mcp_enabled: bool = Field(alias="litellmMcpEnabled", strict=True)
+    show_cache_miss_notices: bool = Field(default=True, alias="showCacheMissNotices", strict=True)
     # Pi only uses a saved default when both are set, so they are managed as a pair.
     default_provider: str | None = Field(default=None, alias="defaultProvider", strict=True, max_length=256)
     default_model: str | None = Field(default=None, alias="defaultModel", strict=True, max_length=256)
@@ -65,6 +75,7 @@ def parse_cli_pi(raw: dict[str, object]) -> CliPiConfig | None:
     if not isinstance(pi, dict) or set(pi) - {
         "CODEMODE_ENABLED",
         "LITELLM_MCP_ENABLED",
+        "SHOW_CACHE_MISS_NOTICES",
         "DEFAULT_PROVIDER",
         "DEFAULT_MODEL",
     }:
@@ -73,6 +84,7 @@ def parse_cli_pi(raw: dict[str, object]) -> CliPiConfig | None:
         {
             "codemodeEnabled": pi.get("CODEMODE_ENABLED"),
             "litellmMcpEnabled": pi.get("LITELLM_MCP_ENABLED"),
+            "showCacheMissNotices": pi.get("SHOW_CACHE_MISS_NOTICES", True),
             "defaultProvider": pi.get("DEFAULT_PROVIDER"),
             "defaultModel": pi.get("DEFAULT_MODEL"),
         }
@@ -316,6 +328,9 @@ def parse_cli_telemetry(raw: dict[str, object]) -> CliTelemetryConfig | None:
         "PROTOCOL": "protocol",
         "TRACE_SAMPLE_RATIO": "traceSampleRatio",
         "METRIC_EXPORT_INTERVAL_MS": "metricExportIntervalMs",
+        "BATCH_SCHEDULE_DELAY_MS": "batchScheduleDelayMs",
+        "MAX_EXPORT_BATCH_SIZE": "maxExportBatchSize",
+        "MAX_QUEUE_SIZE": "maxQueueSize",
     }
     if set(telemetry) - set(fields):
         raise ValueError("Unknown telemetry setting")

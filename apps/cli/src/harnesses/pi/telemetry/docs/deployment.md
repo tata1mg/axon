@@ -34,7 +34,17 @@ not sums of nested/subagent executions.
 
 The CLI fetches authenticated `/api/v1/cli/config` before authenticated online non-administrative Pi launches (including scripted/CI/print/RPC/JSON). Configure `CLI_CLIENT_CONFIG.TELEMETRY`, private `PROXY.UPSTREAM_URL`/`HEADERS`, and the collector origin in `ALLOWED_TELEMETRY_ORIGINS`; see [backend setup](../../../../../../backend/README.md#cli-client-configuration). Managed config advertises only `/api/v1/otel`, resolved against the CLI’s compiled service origin, and `http/protobuf`. The extension makes no config request itself.
 
-Managed enablement/sampling/interval policy takes priority over all local disable values, samplers, and exporter destinations. There is no supported local managed-telemetry opt-out. This applies to the Pi extension and launcher product telemetry, including buffered startup events and shutdown flushing. Offline Pi disables export and skips config; administrative/help invocations retain their fetch exemptions. Unavailable or absent policy uses Pi environment fallback; launcher events remain managed-only. An explicit disabled policy prevents export instead of falling back. Conflicting per-signal endpoints/protocols and inherited collector headers/TLS identity overrides are cleared for managed export.
+Managed enablement/sampling/interval/batching policy takes priority over all local disable values, samplers, and exporter destinations. There is no supported local managed-telemetry opt-out. This applies to the Pi extension and launcher product telemetry, including buffered startup events and shutdown flushing. Offline Pi disables export and skips config; administrative/help invocations retain their fetch exemptions. Unavailable or absent policy uses Pi environment fallback; launcher events remain managed-only. An explicit disabled policy prevents export instead of falling back. Conflicting per-signal endpoints/protocols and inherited collector headers/TLS identity overrides are cleared for managed export.
+
+Set `CLI_CLIENT_CONFIG.TELEMETRY.BATCH_SCHEDULE_DELAY_MS`, `MAX_EXPORT_BATCH_SIZE`, and
+`MAX_QUEUE_SIZE` to control both Pi and launcher log/trace batches centrally. Defaults are 1000 ms,
+256 records, and 2048 queued records; allowed ranges are 100–60000 ms, 1–4096, and 64–16384.
+Batch size must not exceed queue size. Managed values replace inherited `OTEL_BSP_*` and
+`OTEL_BLRP_*` delay/size settings for both signals. The batch-size cap also applies to metric
+exports, while `METRIC_EXPORT_INTERVAL_MS` independently controls their interval. For fewer
+requests, start with 30000 ms delay, 1024-record batches, 8192-record queues, and 60000 ms metrics.
+Full batches and shutdown can export before the delay. Restart backend workers and relaunch clients
+to apply policy changes; longer buffering increases crash-loss exposure.
 
 Managed exporters always POST protobuf to the pinned backend’s `/api/v1/otel/v1/{traces,metrics,logs}`. They read the shared Axon session safely for each batch, refuse redirects, and persist bounded response refresh tokens using the same compare-and-swap writer as CLI config. Retryable failures get bounded retries honoring Retry-After; auth failures are not retried or made interactive. No session is placed in OTEL attributes or config JSON. Export remains best-effort and bounded.
 
@@ -92,7 +102,7 @@ fail closed rather than silently changing transport.
 The collector should:
 
 - accept OTLP traces, metrics, and logs;
-- retain `user.id`, `user.email`, optional `user.name`, `axon.user_team_id`, `pi.identity.source`, and `pi.version` resource attributes;
+- retain `user.id`, `user.email`, optional `user.name`, `axon.user_id`, `pi.identity.source`, and `pi.version` resource attributes;
 - retain `pi.repo.slug` where per-repository dashboards are wanted;
 - apply access controls appropriate for raw employee email and private repository names;
 - transform resource attributes into metric labels only if the metrics backend requires it;
@@ -116,7 +126,8 @@ headers into AI gateway requests.
 
 Missing endpoint configuration disables telemetry silently. Runtime failures do not block Pi.
 Export queues are memory-only and bounded; data can be dropped during collector outages. Queue and
-batch sizes follow the standard `OTEL_BSP_*` / `OTEL_BLRP_*` variables within bounded ranges.
+batch sizes follow backend policy in managed mode; without policy, Pi retains the standard
+`OTEL_BSP_*` / `OTEL_BLRP_*` variables within bounded ranges.
 `PI_ORG_OTEL_DIAGNOSTICS=false` suppresses rate-limited local stderr diagnostics; diagnostics are
 never written while Pi renders the TUI.
 

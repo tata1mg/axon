@@ -2,7 +2,7 @@ import { LauncherError } from "../../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
 import type { AxonPaths } from "../../product/paths.ts";
 import { runAuthLogin } from "../commands/auth.ts";
-import { loadEncryptedSession } from "./session.ts";
+import { InvalidSessionContentError, loadEncryptedSession } from "./session.ts";
 import { verifyEncryptedSession } from "./verification.ts";
 
 export async function ensureAuthenticatedSession(
@@ -23,8 +23,15 @@ export async function ensureAuthenticatedSession(
   let encryptedSession: string | undefined;
   try {
     encryptedSession = await loadEncryptedSession(paths);
-  } catch {
-    console.error("Your saved Axon session could not be read safely.");
+  } catch (error) {
+    // Login can repair corrupt contents, but not unsafe entries or storage failures.
+    if (!(error instanceof InvalidSessionContentError)) {
+      throw new LauncherError(
+        "Your saved Axon session could not be read safely",
+        LAUNCHER_EXIT_STATUS.profileFailure,
+        { remediation: "Check the shared authentication file and its permissions, then retry." },
+      );
+    }
   }
 
   if (encryptedSession !== undefined) {

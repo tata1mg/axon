@@ -61,7 +61,10 @@ in memory for the invocation; shutdown does not refetch an absent policy.
 There is no automatic auth attached to an arbitrary environment collector.
 
 Launcher observations buffer at most 128 content-free events in memory before initialization.
-After activation they export live, with remaining records flushed at command/harness completion.
+After activation they enter log/trace batches using the same backend-managed delay, batch size,
+and queue size as Pi (`BATCH_SCHEDULE_DELAY_MS`, `MAX_EXPORT_BATCH_SIZE`, `MAX_QUEUE_SIZE`).
+Inherited local batch tuning cannot override managed policy. Full batches export early; remaining
+records flush at command/harness completion.
 Config fetch has the existing 700 ms deadline; export shutdown waiting is bounded to two seconds.
 Failures preserve the command's original outcome. Events are not persisted to a disk spool.
 

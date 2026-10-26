@@ -115,6 +115,7 @@ function setup(policy: unknown, failure?: "auth" | "missing" | "empty" | "timeou
     finds,
     model,
     nativeSettings,
+    preparation,
     compactions: () => compactions,
     setIdle: (value: boolean) => {
       idle = value;
@@ -146,6 +147,53 @@ test("managed model/output/timeout environment is consumed by the pinned Pi comp
   expect(fixture.requests[0]?.maxTokens).toBe(1234);
   expect(fixture.requests[0]?.signal.aborted).toBe(false);
   expect(fixture.nativeSettings.compaction.enabled).toBe(true);
+});
+
+test.each([10000, 50000])(
+  "summary cap %d respects the selected model's output limit without a native cap",
+  async (maxOutputTokens) => {
+    const fixture = setup({ model: "litellm/team/summary", maxOutputTokens });
+    for (const reason of ["manual", "threshold", "overflow"] as const) {
+      const result = (await fixture.compact(reason)) as { compaction?: { summary: string } };
+      expect(result.compaction?.summary).toContain("safe summary");
+    }
+    expect(fixture.requests).toHaveLength(3);
+    for (const request of fixture.requests) {
+      expect(request.maxTokens).toBe(Math.min(maxOutputTokens, fixture.model.maxTokens));
+    }
+    expect(fixture.model.maxTokens).toBe(10000);
+  },
+);
+
+test("split-turn history and prefix summaries both respect the model output limit", async () => {
+  const fixture = setup({ maxOutputTokens: 50000 });
+  fixture.preparation.isSplitTurn = true;
+  fixture.preparation.turnPrefixMessages = [
+    { role: "user", content: "start of the split turn", timestamp: 2 },
+  ];
+  const result = (await fixture.compact("manual")) as { compaction?: { summary: string } };
+  expect(result.compaction?.summary).toContain("safe summary");
+  expect(fixture.requests).toHaveLength(2);
+  for (const request of fixture.requests) {
+    expect(request.maxTokens).toBe(fixture.model.maxTokens);
+  }
+});
+
+test.each([0, -1])("unknown model output limit %d preserves the explicit cap", async (limit) => {
+  const fixture = setup({ maxOutputTokens: 50000 });
+  fixture.model.maxTokens = limit;
+  await fixture.compact("manual");
+  expect(fixture.requests[0]?.maxTokens).toBe(50000);
+});
+
+test("uncapped custom summaries preserve native Pi output selection independently of reserveTokens", async () => {
+  const fixture = setup({ model: "litellm/team/summary" });
+  fixture.nativeSettings.compaction.reserveTokens = 100;
+  const result = (await fixture.compact("manual")) as { compaction?: { summary: string } };
+  expect(result.compaction?.summary).toContain("safe summary");
+  expect(fixture.requests).toHaveLength(1);
+  expect(fixture.requests[0]?.maxTokens).toBeUndefined();
+  expect(fixture.model.maxTokens).toBe(10000);
 });
 
 test("false bypasses overrides without disabling native compaction; true alone invents no overrides", async () => {

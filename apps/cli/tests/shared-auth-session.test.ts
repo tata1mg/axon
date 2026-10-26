@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
+  InvalidSessionContentError,
   loadEncryptedSession,
   refreshEncryptedSession,
   SESSION_FILE_NAME,
@@ -49,6 +50,28 @@ test("reads DeputyDev's exact extension token, never the separate CLI token", as
   expect(await loadEncryptedSession(first)).toBe("existing-deputydev-token");
   await Bun.write(first.sharedAuthFile, JSON.stringify({ cli_auth_token: "different-cli-token" }));
   expect(await loadEncryptedSession(first)).toBeUndefined();
+});
+
+test("strict loads classify corrupt contents without exposing them or silently repairing them", async () => {
+  const { first } = await fixture();
+  await mkdir(first.sharedAuthDirectory);
+  for (const content of [
+    '{"private-session-content',
+    "null",
+    "[]",
+    JSON.stringify({ extension_auth_token: "private invalid token" }),
+  ]) {
+    await Bun.write(first.sharedAuthFile, content);
+    let caught: unknown;
+    try {
+      await loadEncryptedSession(first);
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(InvalidSessionContentError);
+    expect(String(caught)).not.toContain("private");
+    expect(await Bun.file(first.sharedAuthFile).text()).toBe(content);
+  }
 });
 
 test("login and rotation update the same DeputyDev file while preserving unrelated keys", async () => {

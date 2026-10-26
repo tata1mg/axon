@@ -1,6 +1,6 @@
 [project]
 name = "axon-backend"
-version = "0.1.6"
+version = "0.1.9"
 description = "Centralized management API for Axon CLI installations"
 authors = [{ name = "1mg Backend Team", email = "backend-team@1mg.com" }]
 readme = "README.md"
@@ -16,6 +16,9 @@ dependencies = [
     "opentelemetry-exporter-otlp-proto-http==1.45.1",
     "tortoise-orm>=0.25.1",
     "uvicorn[standard]>=0.35.0",
+    "opentelemetry-exporter-otlp-proto-grpc==1.45.1",
+    "opentelemetry-instrumentation-httpx==0.66b1",
+    "opentelemetry-instrumentation-asyncpg==0.66b1",
 ]
 
 [dependency-groups]

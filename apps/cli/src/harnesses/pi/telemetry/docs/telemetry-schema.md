@@ -1,6 +1,6 @@
 # Telemetry schema
 
-Schema version: 4 (GenAI development conventions, pinned Pi 1.3.0 lifecycle attribution).
+Schema version: 4 (GenAI development conventions, pinned Pi 1.4.0 lifecycle attribution).
 
 This schema adopts the supplied development conventions; their names are not a promise of stable upstream semantics.
 
@@ -14,7 +14,7 @@ This schema adopts the supplied development conventions; their names are not a p
 | `user.id` | Managed: auth user ID or verified email; env fallback: Git email or installation UUID |
 | `user.email` | Managed: verified auth email; env fallback: raw effective Git email when available |
 | `user.name` | Optional verified auth-service name, managed mode only |
-| `axon.user_team_id` | Authenticated user-team membership ID, managed mode only |
+| `axon.user_id` | Authenticated user ID, managed mode only |
 | `pi.identity.source` | `axon_auth`, `git_email`, or `installation_id` |
 | `pi.extension.name` | `pi-org-telemetry` |
 | `pi.extension.version` | Extension version |

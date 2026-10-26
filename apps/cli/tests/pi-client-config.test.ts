@@ -30,6 +30,7 @@ let launchPreferences: Record<string, unknown> = {
 let productBodies: Buffer[] = [];
 let codemodeEnabled: boolean | undefined = true;
 let litellmMcpEnabled = true;
+let showCacheMissNotices: boolean | undefined;
 const projectRoot = resolve(import.meta.dir, "..");
 const terminalPolicy = {
   yoloMode: false,
@@ -74,7 +75,7 @@ beforeAll(async () => {
             schemaVersion: 1,
             ...(codemodeEnabled === undefined
               ? {}
-              : { pi: { codemodeEnabled, litellmMcpEnabled } }),
+              : { pi: { codemodeEnabled, litellmMcpEnabled, showCacheMissNotices } }),
             ...launchPreferences,
             terminalPermissions: terminalPolicy,
             webSearch: {
@@ -96,6 +97,9 @@ beforeAll(async () => {
               protocol: "http/protobuf",
               traceSampleRatio: 0.5,
               metricExportIntervalMs: 15000,
+              batchScheduleDelayMs: 30000,
+              maxExportBatchSize: 1024,
+              maxQueueSize: 8192,
             },
           },
           {
@@ -176,6 +180,12 @@ async function launchSpec(
       OTEL_EXPORTER_OTLP_ENDPOINT: "https://env.example.test",
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "https://env.example.test/v1/traces",
       OTEL_EXPORTER_OTLP_HEADERS: "authorization=env-secret",
+      OTEL_BSP_SCHEDULE_DELAY: "100",
+      OTEL_BLRP_SCHEDULE_DELAY: "200",
+      OTEL_BSP_MAX_EXPORT_BATCH_SIZE: "1",
+      OTEL_BLRP_MAX_EXPORT_BATCH_SIZE: "2",
+      OTEL_BSP_MAX_QUEUE_SIZE: "64",
+      OTEL_BLRP_MAX_QUEUE_SIZE: "128",
       PI_ORG_OTEL_ENABLED: options.disabled ? "false" : "true",
       PI_WEB_SEARCH_ENABLED: options.searchDisabled ? "false" : "true",
       PI_WEB_SEARCH_MODEL: "local-search",
@@ -223,6 +233,11 @@ describe("real Pi adapter client config integration", () => {
     expect(environment["OTEL_EXPORTER_OTLP_PROTOCOL"]).toBe("http/protobuf");
     expect(environment["PI_ORG_OTEL_MANAGED_ENDPOINT"]).toBe(`${server.url.origin}/api/v1/otel`);
     expect(environment["PI_ORG_OTEL_MANAGED_HOME"]).toBe(root);
+    for (const processor of ["BSP", "BLRP"]) {
+      expect(environment[`OTEL_${processor}_SCHEDULE_DELAY`]).toBe("30000");
+      expect(environment[`OTEL_${processor}_MAX_EXPORT_BATCH_SIZE`]).toBe("1024");
+      expect(environment[`OTEL_${processor}_MAX_QUEUE_SIZE`]).toBe("8192");
+    }
     expect(environment["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"]).toBeUndefined();
     expect(environment["OTEL_EXPORTER_OTLP_HEADERS"]).toBeUndefined();
     const capability = environment["PI_AXON_AUTH_RELAY_KEY"];
@@ -250,6 +265,7 @@ describe("real Pi adapter client config integration", () => {
     expect(await loadEncryptedSession(paths)).toBe("rotated-token");
     const settings = await Bun.file(join(paths.pi, "settings.json")).json();
     expect(settings.defaultTools).toEqual(["+codemode"]);
+    expect(settings.showCacheMissNotices).toBe(true);
     expect(settings.litellm.mcp.enabled).toBe(true);
     expect(settings.codemode).toBeUndefined();
     expect(settings.packages).toEqual(
@@ -318,6 +334,20 @@ describe("real Pi adapter client config integration", () => {
     } finally {
       codemodeEnabled = true;
       litellmMcpEnabled = true;
+    }
+  });
+
+  test("backend cache notice changes reach Pi settings on subsequent launches", async () => {
+    const settingsPath = join(root, "pi", "settings.json");
+    try {
+      for (const enabled of [false, true]) {
+        showCacheMissNotices = enabled;
+        await launchSpec();
+        const settings = await Bun.file(settingsPath).json();
+        expect(settings.showCacheMissNotices).toBe(enabled);
+      }
+    } finally {
+      showCacheMissNotices = undefined;
     }
   });
 

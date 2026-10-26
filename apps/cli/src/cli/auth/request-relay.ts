@@ -8,10 +8,17 @@ import { createSandboxConfigurationRelay } from "../../sandbox/configuration-rel
 import { createBackupRelay } from "../../sessions/relay.ts";
 import { emitProductEvent } from "../../telemetry/product-events.ts";
 import { fetchClientConfig } from "../client-config.ts";
+import {
+  createRelayDiagnostics,
+  observeRelayResponse,
+  type RelayRequestDiagnostics,
+} from "./relay-diagnostics.ts";
 import { loadEncryptedSession, refreshEncryptedSession } from "./session.ts";
 import { createSessionRecovery, type SessionRecovery } from "./session-recovery.ts";
 import { type SessionVerificationStatus, verifyEncryptedSession } from "./verification.ts";
 import { waitForAuthWork } from "./wait-for-auth.ts";
+
+const MAX_RELAY_REQUEST_BODY_BYTES = 50 * 1024 * 1024;
 
 const REMOVED_REQUEST_HEADERS = [
   "authorization",
@@ -44,6 +51,9 @@ const REMOVED_RESPONSE_HEADERS = [
 export interface AuthenticatedRequestRelay {
   readonly origin: string;
   readonly capability: string;
+  readonly diagnosticsLogFile: string;
+  /** Home-relative location shown to users; never the absolute path. */
+  readonly diagnosticsLogLabel: string;
   dispose(): void;
 }
 
@@ -128,7 +138,7 @@ function createRelaySession(paths: AxonPaths): RelaySession {
     // Concurrent rejections of one credential share a single verification round trip.
     let verification = verifications.get(encryptedSession);
     if (verification === undefined) {
-      verification = verifyEncryptedSession(encryptedSession).finally(() =>
+      verification = verifyEncryptedSession(encryptedSession, paths).finally(() =>
         verifications.delete(encryptedSession),
       );
       verifications.set(encryptedSession, verification);
@@ -166,7 +176,9 @@ function createRelaySession(paths: AxonPaths): RelaySession {
       for (const candidate of siblings.filter((token) => token !== rejectedSession)) {
         // Try each lost rotation at most once so a stale family cannot loop.
         siblings.splice(siblings.indexOf(candidate), 1);
-        if ((await verify(candidate)) !== "VERIFIED") continue;
+        // This credential is not the live saved session yet. A read-only probe
+        // must not adopt or verify some other credential via the shared file.
+        if ((await verifyEncryptedSession(candidate)) !== "VERIFIED") continue;
         // Conditional persistence: never replace a credential another login already changed.
         const adopted = await serialized(() =>
           refreshEncryptedSession(paths, rejectedSession, candidate),
@@ -184,11 +196,13 @@ async function forwardManagedRequest(
   url: URL,
   session: RelaySession,
   recovery: SessionRecovery,
+  diagnostic: RelayRequestDiagnostics,
+  logLabel: string,
 ): Promise<Response> {
   // Only the bounded request body is replayable. Successful response/SSE bodies stay streaming.
   const body =
     request.method === "GET" || request.method === "HEAD" ? undefined : await request.arrayBuffer();
-  if (body !== undefined && body.byteLength > 10 * 1024 * 1024) {
+  if (body !== undefined && body.byteLength > MAX_RELAY_REQUEST_BODY_BYTES) {
     return relayError(413, "Axon request is too large.");
   }
   // Recommendations have their own short-lived picker. Recover on the ensuing model
@@ -206,8 +220,12 @@ async function forwardManagedRequest(
     try {
       // Never cache the real credential in Pi's environment or in this relay.
       encryptedSession = await session.load(request.signal);
-    } catch {
-      // An explicitly selected login can repair invalid saved session data.
+    } catch (error) {
+      await diagnostic.failure("session_load", error);
+      return relayError(
+        503,
+        "Your saved Axon session could not be read safely. Check the shared authentication file and its permissions, then retry.",
+      );
     }
     if (encryptedSession === undefined) {
       if (attempt === 0 && supportsRecovery && (await recovery.recover(request.signal))) continue;
@@ -218,6 +236,7 @@ async function forwardManagedRequest(
     for (const name of REMOVED_REQUEST_HEADERS) headers.delete(name);
     headers.set("Authorization", `Bearer ${encryptedSession}`);
     headers.set("X-Harness-Id", "pi");
+    headers.set("X-Request-Id", diagnostic.requestId);
 
     let upstream: Response;
     try {
@@ -232,8 +251,12 @@ async function forwardManagedRequest(
           signal: request.signal,
         },
       );
-    } catch {
-      return relayError(502, "Axon is temporarily unavailable. Check connectivity and retry.");
+    } catch (error) {
+      await diagnostic.failure("upstream_fetch", error);
+      return relayError(
+        502,
+        `Connection error contacting Axon. Check connectivity and retry. Relay diagnostics: ${logLabel} (request ${diagnostic.requestId}).`,
+      );
     }
 
     const refreshedSession = upstream.headers.get("x-session-refresh-token");
@@ -250,7 +273,8 @@ async function forwardManagedRequest(
             ? {}
             : { reason: outcome === "superseded" ? "conflict" : "account_changed" }),
         });
-      } catch {
+      } catch (error) {
+        await diagnostic.failure("session_refresh", error, upstream.status);
         emitProductEvent({
           category: "auth",
           stage: "refresh",
@@ -286,17 +310,21 @@ async function forwardManagedRequest(
         }
         // The saved rotation may have lost to a concurrent sibling the auth service kept.
         if (attempt === 0 && (await session.adoptLostRotation(encryptedSession))) continue;
-      } catch {
+      } catch (error) {
+        await diagnostic.failure("session_verify", error, upstream.status);
         return relayError(503, "Could not verify your Axon session. Check connectivity and retry.");
       }
       if (attempt === 0 && (await recovery.recover(request.signal))) continue;
       return loginRequired();
     }
 
+    if (upstream.status >= 500) {
+      await diagnostic.failure("upstream_response", undefined, upstream.status);
+    }
     const responseHeaders = new Headers(upstream.headers);
     for (const name of REMOVED_RESPONSE_HEADERS) responseHeaders.delete(name);
     responseHeaders.set("Cache-Control", "no-store");
-    return new Response(upstream.body, {
+    return new Response(observeRelayResponse(upstream.body, diagnostic, upstream.status), {
       status: upstream.status,
       statusText: upstream.statusText,
       headers: responseHeaders,
@@ -363,6 +391,7 @@ export function startAuthenticatedRequestRelay(
   const capability = `${crypto.randomUUID()}${crypto.randomUUID()}`;
   const recovery = createSessionRecovery(paths);
   const session = createRelaySession(paths);
+  const diagnostics = createRelayDiagnostics(paths);
   const backupRelay = createBackupRelay(paths, options.cwd ?? process.cwd());
   const sandboxConfiguration = options.allowSandboxConfiguration
     ? createSandboxConfigurationRelay(paths, options.cwd ?? process.cwd())
@@ -372,7 +401,7 @@ export function startAuthenticatedRequestRelay(
     port: 0,
     development: false,
     idleTimeout: 0,
-    maxRequestBodySize: 10 * 1024 * 1024,
+    maxRequestBodySize: MAX_RELAY_REQUEST_BODY_BYTES,
     error() {
       return relayError(503, "Axon could not process this request safely");
     },
@@ -417,7 +446,14 @@ export function startAuthenticatedRequestRelay(
       if (!allowed) return relayError(404, "Axon endpoint is not available");
 
       try {
-        return await forwardManagedRequest(request, url, session, recovery);
+        return await forwardManagedRequest(
+          request,
+          url,
+          session,
+          recovery,
+          diagnostics.start(request, url),
+          diagnostics.logLabel,
+        );
       } catch {
         // Do not let Bun's development error page disclose request headers or locals.
         return relayError(503, "Axon could not process this request safely");
@@ -428,6 +464,8 @@ export function startAuthenticatedRequestRelay(
   return Object.freeze({
     origin: server.url.origin,
     capability,
+    diagnosticsLogFile: diagnostics.logFile,
+    diagnosticsLogLabel: diagnostics.logLabel,
     dispose: () => {
       sandboxConfiguration?.dispose();
       recovery.dispose();

@@ -1,3 +1,10 @@
+import {
+  isReleaseTarget,
+  LEGACY_CHECKSUMS_TARGET,
+  RELEASE_TARGETS,
+  type ReleaseTarget,
+} from "../src/product/release-targets.ts";
+
 const NUMERIC_IDENTIFIER = "(?:0|[1-9][0-9]*)";
 const NON_NUMERIC_IDENTIFIER = "(?:[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)";
 const PRERELEASE_IDENTIFIER = `(?:${NUMERIC_IDENTIFIER}|${NON_NUMERIC_IDENTIFIER})`;
@@ -30,6 +37,24 @@ export function requireEnvironmentVariable(name: string): string {
     throw new Error(`${name} must be set`);
   }
   return value;
+}
+
+/** S3 releases default to all targets; arm64 is required by the backend and legacy clients. */
+export function resolveS3ReleaseTargets(value: string | undefined): readonly ReleaseTarget[] {
+  if (value === undefined) return RELEASE_TARGETS;
+  const requested = value.split(",").map((target) => target.trim());
+  if (requested.some((target) => !isReleaseTarget(target))) {
+    throw new Error(
+      `RELEASE_TARGETS must be a comma-separated list of ${RELEASE_TARGETS.join(", ")}`,
+    );
+  }
+  if (new Set(requested).size !== requested.length) {
+    throw new Error("RELEASE_TARGETS must not contain duplicates");
+  }
+  if (!requested.includes(LEGACY_CHECKSUMS_TARGET)) {
+    throw new Error(`RELEASE_TARGETS must include ${LEGACY_CHECKSUMS_TARGET}`);
+  }
+  return RELEASE_TARGETS.filter((target) => requested.includes(target));
 }
 
 export async function readPackageVersion(packageJsonPath: string): Promise<string> {

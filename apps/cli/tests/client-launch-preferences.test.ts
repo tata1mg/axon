@@ -14,6 +14,9 @@ const telemetry = {
   protocol: "http/protobuf",
   traceSampleRatio: 1,
   metricExportIntervalMs: 10000,
+  batchScheduleDelayMs: 30_000,
+  maxExportBatchSize: 1_024,
+  maxQueueSize: 8_192,
 } as const;
 
 describe("shared Python/JavaScript launch preference contract", () => {

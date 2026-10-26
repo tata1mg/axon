@@ -30,6 +30,9 @@ POLICY = {
     "protocol": "http/protobuf",
     "traceSampleRatio": 0.25,
     "metricExportIntervalMs": 20000,
+    "batchScheduleDelayMs": 30000,
+    "maxExportBatchSize": 1024,
+    "maxQueueSize": 8192,
 }
 
 
@@ -42,7 +45,7 @@ def test_config_uses_session_guard_and_only_allowlisted_fields(monkeypatch: pyte
             return AuthDataResponse.model_validate(
                 {
                     "auth_data": {
-                        "user_team_id": 12,
+                        "user_id": 12,
                         "session_refresh_token": "rotated-secret",
                         "private": "not-public",
                     },
@@ -87,6 +90,7 @@ def test_config_uses_session_guard_and_only_allowlisted_fields(monkeypatch: pyte
         "pi": {
             "codemodeEnabled": True,
             "litellmMcpEnabled": True,
+            "showCacheMissNotices": True,
             "defaultProvider": "litellm",
             "defaultModel": "openai/gpt-6.1-sol",
         },
@@ -145,6 +149,9 @@ def settings_raw() -> dict:
                 "PROTOCOL": "http/protobuf",
                 "TRACE_SAMPLE_RATIO": 0.25,
                 "METRIC_EXPORT_INTERVAL_MS": 20000,
+                "BATCH_SCHEDULE_DELAY_MS": 30000,
+                "MAX_EXPORT_BATCH_SIZE": 1024,
+                "MAX_QUEUE_SIZE": 8192,
             },
         },
     }
@@ -172,6 +179,21 @@ def test_telemetry_source_is_explicit_and_optional() -> None:
         {"TRACE_SAMPLE_RATIO": float("nan")},
         {"TRACE_SAMPLE_RATIO": True},
         {"METRIC_EXPORT_INTERVAL_MS": 1},
+        {"BATCH_SCHEDULE_DELAY_MS": 99},
+        {"BATCH_SCHEDULE_DELAY_MS": 60001},
+        {"BATCH_SCHEDULE_DELAY_MS": "30000"},
+        {"BATCH_SCHEDULE_DELAY_MS": True},
+        {"BATCH_SCHEDULE_DELAY_MS": 1000.5},
+        {"MAX_EXPORT_BATCH_SIZE": 0},
+        {"MAX_EXPORT_BATCH_SIZE": 4097},
+        {"MAX_EXPORT_BATCH_SIZE": None},
+        {"MAX_EXPORT_BATCH_SIZE": True},
+        {"MAX_EXPORT_BATCH_SIZE": "1024"},
+        {"MAX_QUEUE_SIZE": 63},
+        {"MAX_QUEUE_SIZE": 16385},
+        {"MAX_QUEUE_SIZE": False},
+        {"MAX_QUEUE_SIZE": "8192"},
+        {"MAX_EXPORT_BATCH_SIZE": 1024, "MAX_QUEUE_SIZE": 512},
         {"PROTOCOL": "http/json"},
         {"HEADERS": "secret"},
         {"ENABLED": "true"},
@@ -182,6 +204,26 @@ def test_rejects_unsafe_or_unbounded_policy(patch: dict) -> None:
     raw["CLI_CLIENT_CONFIG"]["TELEMETRY"].update(patch)
     with pytest.raises(ValueError):
         parse_cli_telemetry(raw)
+
+
+def test_telemetry_batch_defaults_match_the_runtime() -> None:
+    config = CliTelemetryConfig.model_validate({"enabled": True})
+    assert config.batch_schedule_delay_ms == 1000
+    assert config.max_export_batch_size == 256
+    assert config.max_queue_size == 2048
+
+
+@pytest.mark.parametrize("delay,batch,queue", [(100, 1, 64), (60000, 4096, 16384)])
+def test_telemetry_accepts_batch_boundaries(delay: int, batch: int, queue: int) -> None:
+    raw = settings_raw()
+    raw["CLI_CLIENT_CONFIG"]["TELEMETRY"].update(
+        {"BATCH_SCHEDULE_DELAY_MS": delay, "MAX_EXPORT_BATCH_SIZE": batch, "MAX_QUEUE_SIZE": queue}
+    )
+    config = parse_cli_telemetry(raw)
+    assert config is not None
+    assert config.batch_schedule_delay_ms == delay
+    assert config.max_export_batch_size == batch
+    assert config.max_queue_size == queue
 
 
 def test_private_collector_does_not_become_the_public_endpoint() -> None:
@@ -204,6 +246,9 @@ def test_template_has_explicit_disabled_telemetry_defaults() -> None:
         "PROTOCOL": "http/protobuf",
         "TRACE_SAMPLE_RATIO": 1.0,
         "METRIC_EXPORT_INTERVAL_MS": 10000,
+        "BATCH_SCHEDULE_DELAY_MS": 1000,
+        "MAX_EXPORT_BATCH_SIZE": 256,
+        "MAX_QUEUE_SIZE": 2048,
     }
     telemetry = parse_cli_telemetry(raw)
     assert telemetry is not None
@@ -215,6 +260,7 @@ def test_settings_loader_and_template_are_synchronized(tmp_path: Path, monkeypat
     assert raw["CLI_CLIENT_CONFIG"]["PI"] == {
         "CODEMODE_ENABLED": True,
         "LITELLM_MCP_ENABLED": True,
+        "SHOW_CACHE_MISS_NOTICES": True,
         "DEFAULT_PROVIDER": "",
         "DEFAULT_MODEL": "",
     }
@@ -228,6 +274,7 @@ def test_settings_loader_and_template_are_synchronized(tmp_path: Path, monkeypat
         assert get_settings().cli_pi.model_dump(by_alias=True, exclude_none=True) == {
             "codemodeEnabled": True,
             "litellmMcpEnabled": True,
+            "showCacheMissNotices": True,
         }
         raw["CLI_CLIENT_CONFIG"]["TELEMETRY"]["ENDPOINT"] = "https://collector.example.test?token=private"
         (tmp_path / "config.json").write_text(json.dumps(raw))
@@ -258,7 +305,45 @@ def test_pi_defaults_are_explicit_and_optional() -> None:
             assert defaults.model_dump(by_alias=True, exclude_none=True) == {
                 "codemodeEnabled": codemode_enabled,
                 "litellmMcpEnabled": litellm_mcp_enabled,
+                "showCacheMissNotices": True,
             }
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+def test_pi_cache_notice_defaults_project_explicit_booleans(enabled: bool) -> None:
+    defaults = parse_cli_pi(
+        {
+            "CLI_CLIENT_CONFIG": {
+                "PI": {
+                    "CODEMODE_ENABLED": True,
+                    "LITELLM_MCP_ENABLED": False,
+                    "SHOW_CACHE_MISS_NOTICES": enabled,
+                }
+            }
+        }
+    )
+    assert defaults is not None
+    assert defaults.model_dump(by_alias=True, exclude_none=True) == {
+        "codemodeEnabled": True,
+        "litellmMcpEnabled": False,
+        "showCacheMissNotices": enabled,
+    }
+
+
+@pytest.mark.parametrize("value", [None, "true", 0, 1, [], {}])
+def test_pi_cache_notice_defaults_reject_non_booleans(value: object) -> None:
+    with pytest.raises(ValueError):
+        parse_cli_pi(
+            {
+                "CLI_CLIENT_CONFIG": {
+                    "PI": {
+                        "CODEMODE_ENABLED": True,
+                        "LITELLM_MCP_ENABLED": False,
+                        "SHOW_CACHE_MISS_NOTICES": value,
+                    }
+                }
+            }
+        )
 
 
 def test_pi_default_model_is_managed_only_when_set() -> None:
@@ -271,6 +356,7 @@ def test_pi_default_model_is_managed_only_when_set() -> None:
         assert defaults.model_dump(by_alias=True, exclude_none=True) == {
             "codemodeEnabled": True,
             "litellmMcpEnabled": False,
+            "showCacheMissNotices": True,
         }
     defaults = parse_cli_pi(
         {"CLI_CLIENT_CONFIG": {"PI": {**base, "DEFAULT_PROVIDER": "litellm", "DEFAULT_MODEL": "openai/gpt-6.1-sol"}}}
@@ -279,6 +365,7 @@ def test_pi_default_model_is_managed_only_when_set() -> None:
     assert defaults.model_dump(by_alias=True, exclude_none=True) == {
         "codemodeEnabled": True,
         "litellmMcpEnabled": False,
+        "showCacheMissNotices": True,
         "defaultProvider": "litellm",
         "defaultModel": "openai/gpt-6.1-sol",
     }

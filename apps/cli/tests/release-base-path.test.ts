@@ -5,22 +5,27 @@ import { join } from "node:path";
 
 // Exercise the real release scripts in isolation. Stub only native build/sign tools
 // and remote HTTP: no production build, upload, browser, or network side effects.
-test("release compilation, preparation and publication preserve the production base path", async () => {
-  const root = await mkdtemp(join(tmpdir(), "axon-release-base-"));
-  const prepare = new URL("../scripts/prepare-s3-release.ts", import.meta.url).href;
-  const publish = new URL("../scripts/publish-s3-release.ts", import.meta.url).href;
-  const manifest = await Bun.file(new URL("../package.json", import.meta.url)).json();
-  await Bun.write(join(root, "package.json"), JSON.stringify({ ...manifest, version: "0.2.0" }));
-  await Bun.write(
-    join(root, "pi-version.json"),
-    Bun.file(new URL("../pi-version.json", import.meta.url)),
-  );
-  const child = Bun.spawn(
-    [
-      process.execPath,
-      "--no-env-file",
-      "--eval",
-      `
+test.each([
+  { label: "default targets", selection: undefined, targets: ["darwin-arm64", "darwin-x64"] },
+  { label: "arm64 only", selection: "darwin-arm64", targets: ["darwin-arm64"] },
+])(
+  "release compilation, preparation and publication preserve the production base path ($label)",
+  async ({ selection, targets }) => {
+    const root = await mkdtemp(join(tmpdir(), "axon-release-base-"));
+    const prepare = new URL("../scripts/prepare-s3-release.ts", import.meta.url).href;
+    const publish = new URL("../scripts/publish-s3-release.ts", import.meta.url).href;
+    const manifest = await Bun.file(new URL("../package.json", import.meta.url)).json();
+    await Bun.write(join(root, "package.json"), JSON.stringify({ ...manifest, version: "0.2.0" }));
+    await Bun.write(
+      join(root, "pi-version.json"),
+      Bun.file(new URL("../pi-version.json", import.meta.url)),
+    );
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        "--no-env-file",
+        "--eval",
+        `
       import assert from "node:assert/strict";
       import { mkdirSync, writeFileSync } from "node:fs";
       import { dirname } from "node:path";
@@ -28,101 +33,143 @@ test("release compilation, preparation and publication preserve the production b
       Object.defineProperty(process, "arch", { value: "arm64" });
       const spawn = Bun.spawn;
       let compiledBase;
+      const compiledTargets = [];
       Bun.spawn = (argv, options) => {
         if (argv[1] === "build" && argv.includes("--compile")) {
           compiledBase = argv.find(arg => arg.startsWith("BUILD_SERVICE_ORIGIN="));
+          compiledTargets.push(argv.find(arg => arg.startsWith("--target=")));
           const output = argv[argv.indexOf("--outfile") + 1];
           mkdirSync(dirname(output), { recursive: true });
           writeFileSync(output, "#!/bin/sh\\nprintf '%s\\\\n' '0.2.0'\\n", { mode: 0o755 });
           writeFileSync(output + ".map", "{}");
           return spawn([process.execPath, "--eval", ""], options);
         }
-        if (argv[0] === "lipo")
-          return spawn([process.execPath, "--eval", "console.log('arm64')"], options);
+        if (argv[0] === "lipo") {
+          const arch = argv[2].endsWith("x64") ? "x86_64" : "arm64";
+          return spawn([process.execPath, "--eval", "console.log('" + arch + "')"], options);
+        }
         if (argv[0] === "codesign") return spawn([process.execPath, "--eval", ""], options);
         return spawn(argv, options);
       };
+      const targets = ${JSON.stringify(targets)};
       // Re-preparing over a larger artifact must not retain its trailing bytes.
       mkdirSync("release", { recursive: true });
       writeFileSync("release/axon-darwin-arm64.gz", Buffer.alloc(1024 * 1024, 0xff));
       const { prepareS3Release } = await import(${JSON.stringify(prepare)});
       await prepareS3Release();
-      const gzipCheck = spawn(["gzip", "-t", "release/axon-darwin-arm64.gz"], {
-        stdout: "pipe", stderr: "pipe",
-      });
-      assert.equal(await gzipCheck.exited, 0, "prepared archive must have no trailing garbage");
+      assert.deepEqual(compiledTargets, targets.map(target => "--target=bun-" + target));
       assert.equal(compiledBase, 'BUILD_SERVICE_ORIGIN="https://deputydev.ai/axon"');
       const config = await Bun.file("release/cli-release-config.json").json();
-      const entry = config["0.2.0"];
-      assert.equal(entry.s3_key, "axon-prod/cli/releases/0.2.0/axon-darwin-arm64.gz");
       const metadata = await Bun.file("release/release-metadata.json").json();
+      assert.deepEqual(Object.keys(config["0.2.0"]), targets);
+      assert.deepEqual(Object.keys(metadata.targets), targets);
       const base = "https://deputydev.ai/axon/api/v1/cli/releases";
-      assert.equal(metadata.assetUrl, base + "/0.2.0/axon-darwin-arm64.gz");
-      const bytes = await Bun.file("release/axon-darwin-arm64.gz").arrayBuffer();
-      assert.equal(new Bun.CryptoHasher("sha256").update(bytes).digest("hex"), entry.archive_sha256);
-      const checksums = await Bun.file("release/checksums.txt").text();
-      const calls = [];
-      globalThis.fetch = async (input, init) => {
-        const request = new Request(input, init);
-        calls.push([request.method, request.url]);
-        if (request.url === base + "/0.2.0/checksums.txt") return new Response(checksums);
-        if (request.url === base + "/uploads/presign") {
-          assert.equal(request.method, "POST");
-          assert.equal(request.headers.get("authorization"), "Bearer synthetic-upload-secret");
-          assert.deepEqual(await request.json(), { version: "0.2.0" });
-          return Response.json({ url: "https://storage.example.test/upload", headers: {
-            "If-None-Match": "*", "Content-Type": "application/gzip",
-          } });
-        }
-        if (request.url === "https://storage.example.test/upload") {
-          assert.equal(request.method, "PUT");
-          assert.equal(request.headers.get("if-none-match"), "*");
-          assert.equal(new Bun.CryptoHasher("sha256").update(await request.arrayBuffer()).digest("hex"), entry.archive_sha256);
-          return new Response(null);
-        }
-        if (request.url === metadata.assetUrl)
-          return new Response(null, { status: 302, headers: { location: "https://cdn.example.test/archive" } });
-        if (request.url === "https://cdn.example.test/archive") return new Response(bytes);
-        throw new Error("Unexpected release request: " + request.url);
-      };
+      const archives = {};
+      for (const target of targets) {
+        const archive = "release/axon-" + target + ".gz";
+        const gzipCheck = spawn(["gzip", "-t", archive], { stdout: "pipe", stderr: "pipe" });
+        assert.equal(await gzipCheck.exited, 0, "prepared archive must have no trailing garbage");
+        const entry = config["0.2.0"][target];
+        assert.equal(entry.s3_key, "axon-prod/cli/releases/0.2.0/axon-" + target + ".gz");
+        assert.equal(metadata.targets[target].assetUrl, base + "/0.2.0/axon-" + target + ".gz");
+        const bytes = await Bun.file(archive).arrayBuffer();
+        const hash = new Bun.CryptoHasher("sha256").update(bytes).digest("hex");
+        assert.equal(hash, entry.archive_sha256);
+        assert.match(await Bun.file("release/checksums-" + target + ".txt").text(), new RegExp("^" + hash + "  axon-" + target + "\\.gz\\n"));
+        archives[target] = { bytes, hash };
+      }
+      // Installed pre-x64 launchers keep reading arm64 hashes from checksums.txt.
+      assert.equal(
+        await Bun.file("release/checksums.txt").text(),
+        await Bun.file("release/checksums-darwin-arm64.txt").text(),
+      );
       const { publishS3Release } = await import(${JSON.stringify(publish)});
-      await publishS3Release();
-      assert.deepEqual(calls, [
-        ["GET", base + "/0.2.0/checksums.txt"],
-        ["POST", base + "/uploads/presign"],
-        ["PUT", "https://storage.example.test/upload"],
-        ["GET", metadata.assetUrl],
-        ["GET", "https://cdn.example.test/archive"],
-      ]);
+      for (const existing of [false, true]) {
+        const calls = [];
+        let uploading;
+        globalThis.fetch = async (input, init) => {
+          const request = new Request(input, init);
+          calls.push([request.method, request.url]);
+          const checksumFile = request.url.startsWith(base + "/0.2.0/checksums")
+            ? request.url.slice((base + "/0.2.0/").length) : undefined;
+          if (checksumFile) return new Response(await Bun.file("release/" + checksumFile).text());
+          if (request.url === base + "/uploads/presign") {
+            assert.equal(request.method, "POST");
+            assert.equal(request.headers.get("authorization"), "Bearer synthetic-upload-secret");
+            const body = await request.json();
+            assert.equal(body.version, "0.2.0");
+            assert.ok(targets.includes(body.target), "only selected targets may be uploaded");
+            uploading = body.target;
+            return Response.json({ url: "https://storage.example.test/upload", headers: {
+              "If-None-Match": "*", "Content-Type": "application/gzip",
+            } });
+          }
+          if (request.url === "https://storage.example.test/upload") {
+            assert.equal(request.method, "PUT");
+            assert.equal(request.headers.get("if-none-match"), "*");
+            assert.equal(new Bun.CryptoHasher("sha256").update(await request.arrayBuffer()).digest("hex"), archives[uploading].hash);
+            // A resumed publication finds keys stored by an earlier run.
+            return new Response(null, { status: existing ? 412 : 200 });
+          }
+          for (const target of targets) {
+            if (request.url === metadata.targets[target].assetUrl)
+              return new Response(null, { status: 302, headers: { location: "https://cdn.example.test/" + target } });
+            if (request.url === "https://cdn.example.test/" + target) return new Response(archives[target].bytes);
+          }
+          throw new Error("Unexpected release request: " + request.url);
+        };
+        await publishS3Release();
+        assert.deepEqual(calls, [
+          ...targets.map(target => ["GET", base + "/0.2.0/checksums-" + target + ".txt"]),
+          ["GET", base + "/0.2.0/checksums.txt"],
+          ...targets.flatMap(target => [
+            ["POST", base + "/uploads/presign"],
+            ["PUT", "https://storage.example.test/upload"],
+            ["GET", metadata.targets[target].assetUrl],
+            ["GET", "https://cdn.example.test/" + target],
+          ]),
+        ]);
+      }
+      // A changed selection must fail before any checksum request, presign, or upload.
+      if (targets.length === 1) delete process.env.RELEASE_TARGETS;
+      else process.env.RELEASE_TARGETS = "darwin-arm64";
+      let mismatchRequests = 0;
+      globalThis.fetch = async () => {
+        mismatchRequests++;
+        throw new Error("mismatched targets must not perform network work");
+      };
+      await assert.rejects(publishS3Release(), /prepared release targets do not match RELEASE_TARGETS/);
+      assert.equal(mismatchRequests, 0);
       `,
-    ],
-    {
-      cwd: root,
-      env: {
-        ...process.env,
-        RELEASE_VERSION: "0.2.0",
-        BUILD_COMMIT: "a".repeat(40),
-        AXON_SERVICE_ORIGIN: "https://deputydev.ai/axon",
-        RELEASE_KEY_PREFIX: "axon-prod/cli/releases/",
-        CLI_UPLOAD_AUTH_KEY: "synthetic-upload-secret",
-        RELEASE_BINARY_PATH: "",
-        BUILD_TARGET: "darwin-arm64",
+      ],
+      {
+        cwd: root,
+        env: {
+          ...process.env,
+          RELEASE_VERSION: "0.2.0",
+          BUILD_COMMIT: "a".repeat(40),
+          AXON_SERVICE_ORIGIN: "https://deputydev.ai/axon",
+          RELEASE_KEY_PREFIX: "axon-prod/cli/releases/",
+          CLI_UPLOAD_AUTH_KEY: "synthetic-upload-secret",
+          RELEASE_BINARY_PATH: "",
+          RELEASE_TARGETS: selection,
+        },
+        stdout: "pipe",
+        stderr: "pipe",
       },
-      stdout: "pipe",
-      stderr: "pipe",
-    },
-  );
-  try {
-    const [status, stdout, stderr] = await Promise.all([
-      child.exited,
-      new Response(child.stdout).text(),
-      new Response(child.stderr).text(),
-    ]);
-    expect({ status, stderr }).toEqual({ status: 0, stderr: "" });
-    expect(stdout).toContain("Published and verified axon 0.2.0");
-  } finally {
-    child.kill();
-    await child.exited;
-    await rm(root, { recursive: true, force: true });
-  }
-});
+    );
+    try {
+      const [status, stdout, stderr] = await Promise.all([
+        child.exited,
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+      ]);
+      expect({ status, stderr }).toEqual({ status: 0, stderr: "" });
+      expect(stdout).toContain("Published and verified axon 0.2.0");
+    } finally {
+      child.kill();
+      await child.exited;
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);

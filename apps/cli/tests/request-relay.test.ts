@@ -84,6 +84,168 @@ async function runRelayScript(
   }
 }
 
+test("upstream connection failures produce a normal gateway error and private correlated diagnostics", async () => {
+  await runRelayScript(`
+    let requestId;
+    upstream = async request => {
+      requestId = request.headers.get("x-request-id");
+      throw Object.assign(new TypeError("private-secret https://private.test?key=secret"), { code: "ECONNRESET" });
+    };
+    const response = await send("/litellm/v1/chat/completions?key=query-secret");
+    assert.equal(response.status, 502);
+    const payload = await response.json();
+    assert.match(payload.error.message, /Connection error contacting Axon/);
+    assert.equal(relay.diagnosticsLogLabel, "~/logs/relay.log");
+    assert.ok(payload.error.message.includes(relay.diagnosticsLogLabel));
+    // Error text is persisted in Pi sessions/backups; never expose the home directory.
+    assert.ok(!payload.error.message.includes(paths.home));
+    assert.ok(payload.error.message.includes(requestId));
+    assert.ok(!JSON.stringify(payload).includes("secret"));
+    const log = await Bun.file(relay.diagnosticsLogFile).text();
+    assert.ok(!log.includes("secret"));
+    const record = JSON.parse(log.trim());
+    assert.equal(record.requestId, requestId);
+    assert.equal(record.stage, "upstream_fetch");
+    assert.equal(record.errorCode, "ECONNRESET");
+  `);
+});
+
+test("native mid-stream socket resets are silent on stderr but still fail the client", async () => {
+  await runRelayScript(`
+    const net = await import("node:net");
+    const chunk = 'data: {"choices":[{"delta":{"content":"partial"}}]}\\n\\n';
+    const raw = net.createServer(socket => {
+      socket.once("data", () => {
+        socket.write("HTTP/1.1 200 OK\\r\\nContent-Type: text/event-stream\\r\\nTransfer-Encoding: chunked\\r\\n\\r\\n");
+        socket.write(Buffer.byteLength(chunk).toString(16) + "\\r\\n" + chunk + "\\r\\n");
+        setTimeout(() => socket.destroy(), 100);
+      });
+    });
+    await new Promise(resolve => raw.listen(0, "127.0.0.1", resolve));
+    let requestId;
+    upstream = async request => {
+      requestId = request.headers.get("x-request-id");
+      return actualFetch("http://127.0.0.1:" + raw.address().port);
+    };
+    try {
+      // Use Node, like the actual Pi runtime, to exercise the full HTTP failure.
+      const script = 'const r = await fetch(' + JSON.stringify(relay.origin + "/litellm/v1/chat/completions") + ', {method:"POST",headers:{authorization:' + JSON.stringify("Bearer " + relay.capability) + '},body:"{}"}); if(r.status!==200) process.exit(2); try { await r.text(); process.exit(3); } catch(e) { if(e.message!=="terminated") throw e; }';
+      const client = Bun.spawn(["node", "--input-type=module", "-e", script], { stdout: "pipe", stderr: "pipe" });
+      const [exitCode, stdout, stderr] = await Promise.all([
+        client.exited, new Response(client.stdout).text(), new Response(client.stderr).text(),
+      ]);
+      assert.deepEqual({ exitCode, stdout, stderr }, { exitCode: 0, stdout: "", stderr: "" });
+      const log = await Bun.file(relay.diagnosticsLogFile).text();
+      const record = JSON.parse(log.trim());
+      assert.equal(record.stage, "upstream_stream");
+      assert.equal(record.status, 200);
+      assert.equal(record.requestId, requestId);
+      assert.equal(record.errorCode, "ECONNRESET");
+      assert.equal(record.bytesReceived, Buffer.byteLength(chunk));
+      assert.ok(!log.includes("partial"));
+      assert.ok(!log.includes(relay.capability));
+    } finally { await new Promise(resolve => raw.close(resolve)); }
+  `);
+});
+
+test("real Pi renders a friendly connection error and still retries the interrupted model request", async () => {
+  await runRelayScript(`
+    const sdk = await import("@earendil-works/pi-coding-agent");
+    const { default: axonExtension } = await import("./src/harnesses/pi/resources/extensions/axon.ts");
+    process.env.PI_AXON_AUTH_RELAY_URL = relay.origin;
+    process.env.PI_AXON_AUTH_RELAY_KEY = relay.capability;
+    process.env.PI_AXON_RELAY_LOG_FILE = relay.diagnosticsLogLabel;
+    let calls = 0;
+    upstream = async () => {
+      calls++;
+      const data = text => 'data: ' + JSON.stringify({ id: "test", choices: [{ index: 0, delta: { role: "assistant", content: text }, finish_reason: null }] }) + '\\n\\n';
+      if (calls === 1) return new Response(new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode(data("partial")));
+          setTimeout(() => controller.error(Object.assign(new TypeError("private-secret"), { code: "ECONNRESET" })), 50);
+        },
+      }), { headers: { "content-type": "text/event-stream" } });
+      return new Response(data("recovered") + 'data: {"id":"test","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\\n\\ndata: [DONE]\\n\\n', { headers: { "content-type": "text/event-stream" } });
+    };
+    const model = {
+      id: "relay-test", name: "Relay Test", provider: "litellm", api: "openai-completions",
+      baseUrl: relay.origin + "/litellm/v1", reasoning: false, input: ["text"],
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 128000, maxTokens: 8192,
+    };
+    const settingsManager = sdk.SettingsManager.inMemory({
+      compaction: { enabled: false }, retry: { enabled: true, maxRetries: 1, baseDelayMs: 1 },
+    });
+    const resourceLoader = new sdk.DefaultResourceLoader({
+      cwd: paths.home, agentDir: paths.pi, settingsManager,
+      noExtensions: true, noSkills: true, noThemes: true, noPromptTemplates: true, noContextFiles: true,
+      extensionFactories: [axonExtension, pi => pi.registerProvider("litellm", {
+        baseUrl: model.baseUrl, apiKey: relay.capability, api: model.api, models: [model],
+      })],
+    });
+    await resourceLoader.reload();
+    const { session: piSession } = await sdk.createAgentSession({
+      cwd: paths.home, agentDir: paths.pi, model, settingsManager, resourceLoader, tools: [],
+      sessionManager: sdk.SessionManager.inMemory(paths.home),
+    });
+    const failures = [];
+    piSession.subscribe(event => {
+      if (event.type === "message_end" && event.message.role === "assistant" && event.message.stopReason === "error")
+        failures.push(event.message.errorMessage);
+    });
+    try {
+      await piSession.bindExtensions({});
+      await piSession.prompt("test prompt");
+      assert.equal(calls, 2);
+      assert.equal(piSession.getLastAssistantText(), "recovered");
+      assert.equal(failures.length, 1);
+      assert.match(failures[0], /Connection error:/);
+      assert.ok(failures[0].includes(relay.diagnosticsLogLabel));
+      assert.ok(!failures[0].includes(paths.home));
+      assert.ok(!failures[0].includes("private-secret"));
+      assert.equal(JSON.parse((await Bun.file(relay.diagnosticsLogFile).text()).trim()).stage, "upstream_stream");
+    } finally { piSession.dispose(); }
+  `);
+});
+
+test("observed successful responses remain byte-exact streams, not buffered bodies", async () => {
+  await runRelayScript(`
+    const release = Promise.withResolvers();
+    const first = new Uint8Array([0, 1, 255]);
+    const second = new Uint8Array([2, 3, 254]);
+    upstream = async () => new Response(new ReadableStream({
+      async start(controller) {
+        controller.enqueue(first);
+        await release.promise;
+        controller.enqueue(second);
+        controller.close();
+      },
+    }), { headers: { "content-type": "application/octet-stream", "x-litellm-response-cost": "0.03" } });
+    const response = await bounded(send("/litellm/binary"));
+    assert.equal(response.headers.get("x-litellm-response-cost"), "0.03");
+    const reader = response.body.getReader();
+    try { assert.deepEqual((await bounded(reader.read())).value, first); }
+    finally { release.resolve(); }
+    assert.deepEqual((await reader.read()).value, second);
+    assert.equal((await reader.read()).done, true);
+    assert.equal(await Bun.file(relay.diagnosticsLogFile).exists(), false);
+  `);
+});
+
+test("upstream HTTP failures log status without inspecting or changing the error body", async () => {
+  await runRelayScript(`
+    const body = '{"error":{"message":"upstream-private-secret"}}';
+    upstream = async () => new Response(body, { status: 503, headers: { "content-type": "application/json" } });
+    const response = await send("/litellm/v1/chat/completions");
+    assert.equal(response.status, 503);
+    assert.equal(await response.text(), body);
+    const log = await Bun.file(relay.diagnosticsLogFile).text();
+    const record = JSON.parse(log.trim());
+    assert.equal(record.stage, "upstream_response");
+    assert.equal(record.status, 503);
+    assert.ok(!log.includes("private-secret"));
+  `);
+});
+
 test("deployment base paths reach auth, config, backups and upstream relay requests without changing local URLs", async () => {
   await runRelayScript(
     `
@@ -99,7 +261,7 @@ test("deployment base paths reach auth, config, backups and upstream relay reque
       if (url.pathname === "/axon/api/v1/cli/config")
         return Response.json({ schemaVersion: 1 });
       if (url.pathname === "/axon/api/v1/sessions/status")
-        return Response.json({ enabled: true, owner_user_team_id: "1" });
+        return Response.json({ enabled: true, owner_user_id: "1" });
       return Response.json({ path: url.pathname + url.search });
     };
     const { BUILD_INFO } = await import("./src/build-info.ts");
@@ -204,6 +366,38 @@ test("pinned LiteLLM image discovery and generation use the authenticated relay 
     false,
     "/axon",
   );
+});
+
+test("relay forwards request bodies up to 50 MiB and rejects larger bodies before upstream", async () => {
+  await runRelayScript(`
+    const limit = 50 * 1024 * 1024;
+    // A valid JSON object padded with whitespace to exercise the exact byte boundary.
+    const payload = new Uint8Array(limit + 1).fill(32);
+    payload[0] = 123;
+    payload[1] = 125;
+    let calls = 0;
+    upstream = async (request) => {
+      calls += 1;
+      assert.equal(new URL(request.url).pathname, "/litellm/v1/chat/completions");
+      assert.equal(request.headers.get("authorization"), "Bearer initial-session");
+      const body = new Uint8Array(await request.arrayBuffer());
+      assert.equal(body.byteLength, limit);
+      assert.deepEqual(body, payload.subarray(0, limit));
+      return Response.json({ forwarded: true });
+    };
+    const sendPayload = (body) => actualFetch(relay.origin + "/litellm/v1/chat/completions", {
+      method: "POST",
+      headers: { authorization: "Bearer " + relay.capability, "content-type": "application/json" },
+      body,
+    });
+    const accepted = await sendPayload(payload.subarray(0, limit));
+    assert.equal(accepted.status, 200);
+    assert.deepEqual(await accepted.json(), { forwarded: true });
+    const rejected = await sendPayload(payload);
+    assert.equal(rejected.status, 413);
+    await rejected.arrayBuffer();
+    assert.equal(calls, 1);
+  `);
 });
 
 test("browser login starts and polls under the deployment base path", async () => {
@@ -435,6 +629,51 @@ test("requests wait only during persistence and a cancelled waiter does not canc
   );
 });
 
+test("a rejected expired session is refreshed before offering browser login", async () => {
+  await runRelayScript(`
+    const seen = [];
+    upstream = async request => {
+      const url = new URL(request.url);
+      const token = request.headers.get("authorization");
+      seen.push([url.pathname, token]);
+      if (url.pathname === "/api/v1/auth/verify-auth-token") {
+        assert.equal(url.searchParams.get("refresh_expired"), "true");
+        return Response.json({ status: "VERIFIED" }, {
+          headers: { "x-session-refresh-token": "recovered-session" },
+        });
+      }
+      return token === "Bearer initial-session"
+        ? new Response(null, { status: 401 })
+        : Response.json({ ok: true });
+    };
+    const response = await bounded(send("/litellm/v1/chat/completions"));
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { ok: true });
+    assert.equal(await sessions.loadEncryptedSession(paths), "recovered-session");
+    assert.deepEqual(seen, [
+      ["/litellm/v1/chat/completions", "Bearer initial-session"],
+      ["/api/v1/auth/verify-auth-token", "Bearer initial-session"],
+      ["/litellm/v1/chat/completions", "Bearer recovered-session"],
+    ]);
+  `);
+});
+
+test("session read failures return storage errors, not browser login requests", async () => {
+  await runRelayScript(`
+    await Bun.write(paths.sharedAuthFile, "corrupt-json");
+    const response = await send("/litellm/v1/chat/completions");
+    assert.equal(response.status, 503);
+    assert.match((await response.json()).error.message, /session could not be read safely/);
+    const status = await actualFetch(relay.origin + "/_axon/auth/status", {
+      headers: { authorization: "Bearer " + relay.capability },
+    });
+    assert.equal((await status.json()).recovery, null);
+    const log = await Bun.file(relay.diagnosticsLogFile).text();
+    assert.equal(JSON.parse(log.trim()).stage, "session_load");
+    assert.ok(!log.includes("corrupt-json"));
+  `);
+});
+
 test("failed persistence fails its request without poisoning subsequent requests", async () => {
   await runRelayScript(
     `
@@ -443,6 +682,11 @@ test("failed persistence fails its request without poisoning subsequent requests
         return Response.json({}, { headers: { "x-session-refresh-token": "new-session" } });
       };
       assert.equal((await send("/litellm/first")).status, 503);
+      const log = await Bun.file(relay.diagnosticsLogFile).text();
+      const record = JSON.parse(log.trim());
+      assert.equal(record.stage, "session_refresh");
+      assert.equal(record.errorCode, "EACCES");
+      assert.ok(!log.includes("private-session"));
       assert.equal(await sessions.loadEncryptedSession(paths), "initial-session");
       assert.equal((await bounded(send("/litellm/second"))).status, 200);
       assert.equal(await sessions.loadEncryptedSession(paths), "new-session");
@@ -453,7 +697,7 @@ test("failed persistence fails its request without poisoning subsequent requests
       mock.module("./src/cli/auth/session.ts", () => ({
         ...sessions,
         refreshEncryptedSession: async (...args) => {
-          if (attempts++ === 0) throw new Error("Save failed");
+          if (attempts++ === 0) throw Object.assign(new Error("private-session"), { code: "EACCES" });
           return originalRefresh(...args);
         },
       }));
@@ -472,6 +716,10 @@ test("a saved rotation rejected in favour of a concurrent sibling adopts the sib
         const token = request.headers.get("authorization");
         seen.push([path, token]);
         if (path === "/api/v1/auth/verify-auth-token") {
+          // Saved credentials opt into refresh, but an unsaved sibling must be
+          // probed without accidentally verifying/replacing the live credential.
+          assert.equal(new URL(request.url).searchParams.get("refresh_expired"),
+            token === "Bearer lost-rotation" ? null : "true");
           // The auth service kept only the later rotation of initial-session.
           return token === "Bearer lost-rotation"
             ? Response.json({ status: "VERIFIED" })
@@ -565,7 +813,7 @@ test("refreshes Pi defaults through the pinned config API and safely rotates the
       assert.equal(request.headers.get("authorization"), calls++ === 0
         ? "Bearer initial-session" : "Bearer rotated-session");
       return Response.json({ schemaVersion: 1, pi: {
-        codemodeEnabled: !enabled, litellmMcpEnabled: enabled
+        codemodeEnabled: !enabled, litellmMcpEnabled: enabled, showCacheMissNotices: enabled
       } }, { headers: { "x-session-refresh-token": "rotated-session" } });
     };
     for (enabled of [true, false]) {
@@ -575,6 +823,7 @@ test("refreshes Pi defaults through the pinned config API and safely rotates the
       assert.equal(response.headers.get("x-session-refresh-token"), null);
       const settings = await Bun.file(settingsPath).json();
       assert.deepEqual(settings.defaultTools, ["read", enabled ? "-codemode" : "+codemode"]);
+      assert.equal(settings.showCacheMissNotices, enabled);
       assert.deepEqual(settings.litellm, {
         ...initial.litellm, mcp: { ...initial.litellm.mcp, enabled }
       });
