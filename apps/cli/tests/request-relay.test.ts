@@ -110,6 +110,30 @@ test("upstream connection failures produce a normal gateway error and private co
   `);
 });
 
+test("GET failures log the actual endpoint pathname without query strings", async () => {
+  await runRelayScript(`
+    upstream = async request => {
+      const url = new URL(request.url);
+      assert.equal(request.method, "GET");
+      assert.equal(url.pathname, "/litellm/mcp");
+      assert.equal(url.searchParams.get("key"), "query-secret");
+      throw Object.assign(new TypeError("error-secret"), { code: "ECONNRESET" });
+    };
+    const response = await actualFetch(relay.origin + "/litellm/mcp?key=query-secret", {
+      headers: { authorization: "Bearer " + relay.capability },
+    });
+    assert.equal(response.status, 502);
+    const log = await Bun.file(relay.diagnosticsLogFile).text();
+    const record = JSON.parse(log.trim());
+    assert.equal(record.endpoint, "/litellm/mcp");
+    assert.equal(record.method, "GET");
+    assert.equal(record.stage, "upstream_fetch");
+    assert.equal(record.errorCode, "ECONNRESET");
+    assert.ok(!log.includes("secret"));
+    assert.ok(!log.includes(relay.capability));
+  `);
+});
+
 test("native mid-stream socket resets are silent on stderr but still fail the client", async () => {
   await runRelayScript(`
     const net = await import("node:net");

@@ -231,9 +231,10 @@ and base64 images. The limit is currently hardcoded; responses and SSE remain st
 Relay connection/stream failures and upstream HTTP 5xx responses write sanitized JSON-line diagnostics
 to `${AXON_HOME}/logs/relay.log` (default `~/.axon/logs/relay.log`). The log rotates at **1 MiB**, retaining
 one backup, `relay.log.1`; files are owner-only (`0600`). Records contain timestamps, a generated
-`cliSessionId` UUID shared by all requests from one CLI launch, generated request IDs, allowlisted
-endpoint names, failure stage, status, duration, byte counts, and allowlisted error
-types/codes—not credentials, headers, query strings, request/response bodies, or exception messages/stacks.
+`cliSessionId` UUID shared by all requests from one CLI launch, generated request IDs, full endpoint
+pathnames (including resource IDs), failure stage, status, duration, byte counts, and allowlisted error
+types/codes. Headers, query strings, URL fragments, request/response bodies, and exception messages/stacks
+are excluded. Resource identifiers and any other sensitive values embedded in pathnames are retained.
 The CLI session ID changes on each launch, even when resuming a saved conversation, and is unrelated
 to authentication credentials. To follow one launch across log rotation, use:
 

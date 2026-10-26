@@ -1,6 +1,7 @@
 """Per-application LiteLLM integration startup and shutdown."""
 
 import logging
+import os
 
 from fastapi import FastAPI
 
@@ -20,7 +21,8 @@ logger = logging.getLogger(__name__)
 async def initialize_litellm_proxy(app: FastAPI) -> None:
     """Compose streaming proxy and buffered consumers over isolated HTTP pools."""
     settings = get_settings()
-    transport = LiteLLMTransport(settings.litellm)
+    runtime = getattr(app.state, "service_telemetry", None)
+    transport = LiteLLMTransport(settings.litellm, diagnostics=getattr(runtime, "litellm", None))
     try:
         identity = LiteLLMIdentityClient(settings.litellm, transport)
         decisions = LiteLLMDecisionClient(settings.litellm, transport)
@@ -30,7 +32,22 @@ async def initialize_litellm_proxy(app: FastAPI) -> None:
     except BaseException:
         await transport.aclose()
         raise
-    logger.info("LiteLLM integration initialized")
+    config = settings.litellm
+    logger.info(
+        "LiteLLM integration initialized pid=%s upstream_origin=%s upstream_root=%s "
+        "streaming_max_connections=%s management_max_connections=%s keepalive_max=%s keepalive_expiry_s=%s "
+        "connect_timeout_s=%s read_timeout_s=%s pool_timeout_s=%s",
+        os.getpid(),
+        config.upstream_url,
+        config.upstream_root_path,
+        config.max_connections,
+        config.management_max_connections,
+        config.max_keepalive_connections,
+        config.keepalive_expiry_seconds,
+        config.connect_timeout_seconds,
+        config.read_timeout_seconds,
+        config.pool_timeout_seconds,
+    )
 
 
 async def close_litellm_proxy(app: FastAPI) -> None:

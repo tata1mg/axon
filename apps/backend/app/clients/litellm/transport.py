@@ -1,5 +1,6 @@
 """Application-owned LiteLLM HTTP pools, fixed-origin URLs, and upstream I/O."""
 
+import asyncio
 from collections.abc import AsyncIterator, Iterable
 from http.cookiejar import Cookie, CookieJar, DefaultCookiePolicy
 from typing import Any
@@ -9,9 +10,25 @@ from urllib.request import Request as CookieRequest
 import httpx
 
 from app.core.config import LiteLLMSettings
+from app.observability.context import REQUEST_ID
+from app.observability.litellm import LiteLLMDiagnostics
 
 MAX_RAW_PATH_BYTES = 8192
 MAX_PATH_DECODE_LAYERS = 4
+_MANAGEMENT_PATHS = frozenset(
+    {
+        "/user/info",
+        "/user/list",
+        "/user/new",
+        "/user/update",
+        "/team/info",
+        "/team/member_add",
+        "/key/info",
+        "/key/generate",
+        "/key/update",
+        "/v1/systemone",
+    }
+)
 
 
 def validate_raw_path(raw_path: bytes) -> None:
@@ -51,8 +68,10 @@ class LiteLLMTransport:
         *,
         client: httpx.AsyncClient | None = None,
         management_client: httpx.AsyncClient | None = None,
+        diagnostics: LiteLLMDiagnostics | None = None,
     ) -> None:
         self.settings = settings
+        self.diagnostics = diagnostics if diagnostics is not None else LiteLLMDiagnostics()
         self._stream_timeout = httpx.Timeout(
             connect=settings.connect_timeout_seconds,
             read=settings.read_timeout_seconds,
@@ -107,15 +126,29 @@ class LiteLLMTransport:
         payload: dict[str, Any] | None = None,
     ) -> httpx.Response:
         """Buffered upstream request; identity and decision policy belong to their clients."""
-        return await self._management_client.request(
-            method,
-            self.upstream_url(path.encode("ascii")),
-            headers={"Authorization": f"Bearer {api_key}"},
-            params=params,
-            json=payload,
-            timeout=httpx.Timeout(timeout_seconds),
-            follow_redirects=False,
+        # Callers supply fixed internal management routes, not public resource paths.
+        observation = self.diagnostics.begin(
+            "management", path if path in _MANAGEMENT_PATHS else "/{path}", REQUEST_ID.get()
         )
+        self.diagnostics.phase(observation, "buffered_request")
+        try:
+            return await self._management_client.request(
+                method,
+                self.upstream_url(path.encode("ascii")),
+                headers={"Authorization": f"Bearer {api_key}"},
+                params=params,
+                json=payload,
+                timeout=httpx.Timeout(timeout_seconds),
+                follow_redirects=False,
+            )
+        except httpx.HTTPError as exc:
+            self.diagnostics.failure(observation, exc)
+            raise
+        except asyncio.CancelledError:
+            self.diagnostics.event("management", "request_cancelled")
+            raise
+        finally:
+            self.diagnostics.finish(observation)
 
     async def send_stream(
         self,
