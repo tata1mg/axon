@@ -4,10 +4,7 @@ import { BUILD_INFO } from "../../build-info.ts";
 import { applyPiDefaults } from "../../harnesses/pi/settings-defaults.ts";
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../../product/endpoints.ts";
 import type { AxonPaths } from "../../product/paths.ts";
-import {
-  createSandboxConfigurationRelay,
-  type SandboxRestartSession,
-} from "../../sandbox/configuration-relay.ts";
+import { createSandboxConfigurationRelay } from "../../sandbox/configuration-relay.ts";
 import { createBackupRelay } from "../../sessions/relay.ts";
 import { emitProductEvent } from "../../telemetry/product-events.ts";
 import { fetchClientConfig } from "../client-config.ts";
@@ -47,7 +44,6 @@ const REMOVED_RESPONSE_HEADERS = [
 export interface AuthenticatedRequestRelay {
   readonly origin: string;
   readonly capability: string;
-  takeSandboxRestart?(): Promise<SandboxRestartSession | undefined>;
   dispose(): void;
 }
 
@@ -360,6 +356,7 @@ export function startAuthenticatedRequestRelay(
     readonly allowPiConfigRefresh?: boolean;
     readonly allowTelemetry?: boolean;
     readonly allowSandboxConfiguration?: boolean;
+    readonly sandboxOperation?: (request: Request) => Promise<Response>;
     readonly cwd?: string;
   } = {},
 ): AuthenticatedRequestRelay {
@@ -387,6 +384,11 @@ export function startAuthenticatedRequestRelay(
       // Control calls never wait for authentication work so Pi can approve a pending login.
       const controlResponse = await recovery.handle(request, url);
       if (controlResponse !== undefined) return controlResponse;
+      if (url.pathname === "/_axon/sandbox/execute") {
+        if (!options.sandboxOperation || request.method !== "POST" || url.search !== "")
+          return relayError(404, "Axon endpoint is not available");
+        return options.sandboxOperation(request);
+      }
       if (url.pathname.startsWith("/_axon/sandbox/")) {
         if (!sandboxConfiguration) return relayError(404, "Axon endpoint is not available");
         return sandboxConfiguration.handle(request, url);
@@ -426,7 +428,6 @@ export function startAuthenticatedRequestRelay(
   return Object.freeze({
     origin: server.url.origin,
     capability,
-    takeSandboxRestart: async () => sandboxConfiguration?.takeRestart(),
     dispose: () => {
       sandboxConfiguration?.dispose();
       recovery.dispose();

@@ -8,6 +8,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 
 import { type CommandWords, parseCommands } from "../../terminal-permissions/command-parser.ts";
+import { createSandboxShellOperations } from "./axon.ts";
 
 /**
  * Standard auto-runs supported commands unless the model or policy requests review.
@@ -286,9 +287,11 @@ function registerShellTools(pi: ExtensionAPI): void {
         const shellPath = configuredPath?.startsWith("~/")
           ? join(homedir(), configuredPath.slice(2))
           : configuredPath;
+        const operations = createSandboxShellOperations(shellPath);
         const executionTool =
           shell === "bash"
             ? createBashToolDefinition(ctx.cwd, {
+                ...(operations ? { operations } : {}),
                 ...(shellPath ? { shellPath } : {}),
                 ...(settings.shellCommandPrefix
                   ? { commandPrefix: settings.shellCommandPrefix }
@@ -552,7 +555,12 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
     const reason = await authorize(event.command, "bash", event.cwd, ctx, "user_bash");
     // Throwing blocks user-bash instead of falling through to Pi's native execution.
     if (reason !== undefined) throw new Error(reason);
-    return undefined;
+    const configuredPath = pi.getSettings().shellPath;
+    const shellPath = configuredPath?.startsWith("~/")
+      ? join(homedir(), configuredPath.slice(2))
+      : configuredPath;
+    const operations = createSandboxShellOperations(shellPath);
+    return operations ? { operations } : undefined;
   });
 
   pi.on("session_shutdown", () => {

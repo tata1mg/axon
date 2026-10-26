@@ -33,15 +33,9 @@ export async function launchRegisteredHarness(
       "Offline Pi launches are disabled: fresh backend sandbox authorization is required",
     );
   }
-  let nextArguments = userArguments;
-  while (true) {
-    nextArguments = await withSandboxSession(
-      { cwd, environment: inheritedEnvironment, paths },
-      (context) => launchSandboxedHarness(registration, nextArguments, Date.now(), context),
-    );
-    // The previous session has fully closed. Never reuse its authorization, profile or relays.
-    console.error("axon: restarting with your saved sandbox permissions…");
-  }
+  return withSandboxSession({ cwd, environment: inheritedEnvironment, paths }, (context) =>
+    launchSandboxedHarness(registration, userArguments, Date.now(), context),
+  );
 }
 
 async function launchSandboxedHarness(
@@ -49,7 +43,7 @@ async function launchSandboxedHarness(
   userArguments: readonly string[],
   startedAt: number,
   sandboxedContext: LaunchContext & { readonly sandbox: SandboxSession },
-): Promise<readonly string[]> {
+): Promise<never> {
   const { cwd, environment: inheritedEnvironment, paths } = sandboxedContext;
   const adapter = await loadHarnessAdapter(registration.id);
   const executable =

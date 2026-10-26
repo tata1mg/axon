@@ -4,9 +4,7 @@ import { homedir } from "node:os";
 import { dirname, isAbsolute, join, parse, relative, resolve } from "node:path";
 import { z } from "zod";
 
-import { withFileLock } from "../launcher/file-lock.ts";
 import type { AxonPaths } from "../product/paths.ts";
-import { atomicJson, readJson } from "../sessions/files.ts";
 import { type SandboxPolicy, sandboxFailure } from "./policy.ts";
 
 const PROTECTED_HOME_PATHS = [
@@ -44,6 +42,39 @@ export const filesystemPreferencesSchema = z.strictObject({
   denyPaths: pathList,
 });
 export type FilesystemPreferences = z.infer<typeof filesystemPreferencesSchema>;
+
+// Parent-owned memory only: never read legacy profiles or share grants with another Axon process.
+const invocationPreferences = new Map<string, FilesystemPreferences>();
+const preferenceListeners = new Map<string, Set<() => void>>();
+const preferenceRevisions = new Map<string, number>();
+
+export function filesystemPreferencesRevision(paths: AxonPaths): number {
+  return preferenceRevisions.get(paths.home) ?? 0;
+}
+
+export function watchFilesystemPreferences(paths: AxonPaths, changed: () => void): () => void {
+  let listeners = preferenceListeners.get(paths.home);
+  if (!listeners) {
+    listeners = new Set();
+    preferenceListeners.set(paths.home, listeners);
+  }
+  listeners.add(changed);
+  return () => {
+    listeners.delete(changed);
+    if (!listeners.size) preferenceListeners.delete(paths.home);
+  };
+}
+
+function commitFilesystemPreferences(
+  paths: AxonPaths,
+  key: string,
+  preferences: FilesystemPreferences,
+): void {
+  // Revoke active operations before publishing the new permissions.
+  for (const changed of preferenceListeners.get(paths.home) ?? []) changed();
+  invocationPreferences.set(key, structuredClone(preferences));
+  preferenceRevisions.set(paths.home, filesystemPreferencesRevision(paths) + 1);
+}
 
 export function isWithin(root: string, path: string): boolean {
   const difference = relative(root, path);
@@ -86,7 +117,7 @@ export async function readFilesystemPreferences(
   paths: AxonPaths,
   cwd: string,
 ): Promise<FilesystemPreferences> {
-  const value = await readJson(await filesystemPreferencesPath(paths, cwd));
+  const value = invocationPreferences.get(await filesystemPreferencesPath(paths, cwd));
   if (value === undefined) {
     return {
       schemaVersion: 1,
@@ -231,7 +262,7 @@ export async function editFilesystemPreferences(
   return validateFilesystemPreferences(paths, cwd, next, policy);
 }
 
-/** Save a reviewed draft atomically; never silently overwrite edits from a second terminal. */
+/** Commit a reviewed draft to this process only; never overwrite a stale editor's changes. */
 export async function saveFilesystemPreferences(
   paths: AxonPaths,
   cwd: string,
@@ -240,18 +271,15 @@ export async function saveFilesystemPreferences(
   policy?: SandboxPolicy,
 ): Promise<FilesystemPreferences> {
   const destination = await filesystemPreferencesPath(paths, cwd);
-  return withFileLock(`${destination}.lock`, async () => {
-    if (
-      expected &&
-      JSON.stringify(await readFilesystemPreferences(paths, cwd)) !== JSON.stringify(expected)
-    )
-      throw sandboxFailure(
-        "Filesystem permissions changed in another terminal; reopen the editor before saving",
-      );
-    const validated = await validateFilesystemPreferences(paths, cwd, preferences, policy);
-    await atomicJson(destination, validated);
-    return validated;
-  });
+  const revision = filesystemPreferencesRevision(paths);
+  const current = await readFilesystemPreferences(paths, cwd);
+  if (expected && JSON.stringify(current) !== JSON.stringify(expected))
+    throw sandboxFailure("Filesystem permissions changed; reopen the editor before saving");
+  const validated = await validateFilesystemPreferences(paths, cwd, preferences, policy);
+  if (filesystemPreferencesRevision(paths) !== revision)
+    throw sandboxFailure("Filesystem permissions changed; reopen the editor before saving");
+  commitFilesystemPreferences(paths, destination, validated);
+  return validated;
 }
 
 export async function updateFilesystemPreferences(
@@ -260,10 +288,7 @@ export async function updateFilesystemPreferences(
   operation: FilesystemOperation,
   value: string | readonly string[],
 ): Promise<void> {
-  const destination = await filesystemPreferencesPath(paths, cwd);
-  await withFileLock(`${destination}.lock`, async () => {
-    const preferences = await readFilesystemPreferences(paths, cwd);
-    const updated = await editFilesystemPreferences(paths, cwd, preferences, operation, value);
-    await atomicJson(destination, updated);
-  });
+  const preferences = await readFilesystemPreferences(paths, cwd);
+  const updated = await editFilesystemPreferences(paths, cwd, preferences, operation, value);
+  await saveFilesystemPreferences(paths, cwd, updated, preferences);
 }

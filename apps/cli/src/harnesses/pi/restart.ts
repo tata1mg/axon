@@ -1,4 +1,7 @@
-import type { SandboxRestartSession } from "../../sandbox/configuration-relay.ts";
+interface PiResumeSession {
+  readonly sessionId: string;
+  readonly sessionFile?: string;
+}
 
 // Mirror the pinned Pi CLI's value consumption so option values cannot become prompts.
 const VALUE_OPTIONS = new Set([
@@ -54,7 +57,7 @@ const SESSION_SWITCHES = new Set(["--continue", "-c", "--resume", "-r"]);
 /** Retain launch options, not startup messages/files, and resume exactly the current session. */
 export function piRestartArguments(
   original: readonly string[],
-  session: SandboxRestartSession,
+  session: PiResumeSession,
 ): readonly string[] {
   const retained: string[] = [];
   for (let index = 0; index < original.length; index++) {

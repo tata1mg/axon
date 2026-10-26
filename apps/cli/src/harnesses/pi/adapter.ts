@@ -9,6 +9,8 @@ import type { EnvironmentOverrides } from "../../launcher/environment.ts";
 import { LauncherError } from "../../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
 import { PRODUCT_IDENTITY } from "../../product/identity.ts";
+import { createSandboxOperations } from "../../sandbox/operations.ts";
+import { sandboxFailure } from "../../sandbox/policy.ts";
 import { closeProductTelemetry, initializeProductTelemetry } from "../../telemetry/client.ts";
 import { createPiEnvironment } from "./environment.ts";
 import {
@@ -22,7 +24,6 @@ import {
   createModelRecommenderOverrides,
 } from "./launch-preferences-environment.ts";
 import { invalidateStalePiRelayModels } from "./model-cache.ts";
-import { piRestartArguments } from "./restart.ts";
 import {
   applyPiDefaults,
   applyPiProviderDefaults,
@@ -154,7 +155,14 @@ export function createPiAdapter(): HarnessAdapter {
             }
           }
         }
+        if (!context.sandbox) throw sandboxFailure("An Axon-owned sandbox is required");
         relay = startAuthenticatedRequestRelay(context.paths, {
+          sandboxOperation: createSandboxOperations(context.sandbox, {
+            executable: context.executable,
+            arguments: [],
+            environment: context.environment,
+            cwd: context.cwd,
+          }),
           allowPiConfigRefresh: !setup.offline,
           allowTelemetry: config?.telemetry?.enabled === true,
           allowSandboxConfiguration: setup.invocationKind === "interactive",
@@ -219,6 +227,7 @@ export function createPiAdapter(): HarnessAdapter {
           PI_AXON_AUTH_RELAY_URL: relay.origin,
           PI_AXON_AUTH_RELAY_KEY: relay.capability,
           PI_AXON_CONFIG_REFRESH_ENABLED: String(!setup.offline),
+          PI_AXON_SANDBOX_OPERATIONS: "1",
         };
       } else {
         // Administration is exempt even if spawning it produces startup observations.
@@ -270,10 +279,6 @@ export function createPiAdapter(): HarnessAdapter {
         ...(relay === undefined
           ? {}
           : {
-              restartArguments: async () => {
-                const session = await relay.takeSandboxRestart?.();
-                return session ? piRestartArguments(userArguments, session) : undefined;
-              },
               dispose: () => {
                 relay.dispose();
                 void closeProductTelemetry();

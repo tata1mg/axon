@@ -1,10 +1,18 @@
 import { homedir } from "node:os";
 import {
   type AppKeybinding,
+  type BashOperations,
+  createEditToolDefinition,
+  createFindToolDefinition,
+  createGrepToolDefinition,
+  createLsToolDefinition,
+  createReadToolDefinition,
+  createWriteToolDefinition,
   type ExtensionAPI,
   type ExtensionContext,
   keyText,
   type Theme,
+  type ToolDefinition,
   VERSION,
 } from "@earendil-works/pi-coding-agent";
 import { Text, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
@@ -444,7 +452,83 @@ function watchSessionRecovery(ctx: ExtensionContext): () => void {
   };
 }
 
+async function requestSandboxOperation(
+  tool: string,
+  input: unknown,
+  cwd: string,
+  signal?: AbortSignal,
+): Promise<unknown> {
+  const config = authRelayConfiguration();
+  if (!config) throw new Error("The parent-owned sandbox operation relay is unavailable");
+  const response = await fetch(new URL("/_axon/sandbox/execute", config.origin), {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.capability}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ tool, input, cwd }),
+    ...(signal ? { signal } : {}),
+    redirect: "error",
+    cache: "no-store",
+  });
+  const result: unknown = await response.json();
+  if (!response.ok) {
+    const error = result as { error?: unknown } | null;
+    throw new Error(typeof error?.error === "string" ? error.error : "Sandbox operation failed");
+  }
+  return result;
+}
+
+/** Shared by the bundled terminal guard; approvals still run before any shell operation. */
+export function createSandboxShellOperations(shellPath?: string): BashOperations | undefined {
+  if (process.env["PI_AXON_SANDBOX_OPERATIONS"] !== "1") return undefined;
+  return {
+    async exec(command, cwd, options) {
+      const result = (await requestSandboxOperation(
+        "shell",
+        {
+          command,
+          ...(shellPath ? { shellPath } : {}),
+          ...(options.timeout === undefined ? {} : { timeout: options.timeout }),
+        },
+        cwd,
+        options.signal,
+      )) as { exitCode: number; stdout: string; stderr: string };
+      options.onData(Buffer.from(result.stdout));
+      options.onData(Buffer.from(result.stderr));
+      return { exitCode: result.exitCode };
+    },
+  };
+}
+
+function registerSandboxFileTools(pi: ExtensionAPI): void {
+  if (process.env["PI_AXON_SANDBOX_OPERATIONS"] !== "1") return;
+  function register<TParams extends ToolDefinition["parameters"], TDetails>(
+    nativeTool: ToolDefinition<TParams, TDetails>,
+  ): void {
+    pi.registerTool({
+      ...nativeTool,
+      defaultActive: false,
+      async execute(_toolCallId, parameters, signal, _onUpdate, ctx) {
+        return (await requestSandboxOperation(
+          nativeTool.name,
+          parameters,
+          ctx.cwd,
+          signal,
+        )) as Awaited<ReturnType<typeof nativeTool.execute>>;
+      },
+    });
+  }
+  register(createReadToolDefinition(process.cwd()));
+  register(createWriteToolDefinition(process.cwd()));
+  register(createEditToolDefinition(process.cwd()));
+  register(createGrepToolDefinition(process.cwd()));
+  register(createFindToolDefinition(process.cwd()));
+  register(createLsToolDefinition(process.cwd()));
+}
+
 export default function axonExtension(pi: ExtensionAPI): void {
+  registerSandboxFileTools(pi);
   let stopRecovery: (() => void) | undefined;
   let sandboxEditorOpen = false;
   let backupState: BackupHeaderState | undefined;
@@ -500,8 +584,7 @@ export default function axonExtension(pi: ExtensionAPI): void {
   });
 
   pi.registerCommand("sandbox", {
-    description:
-      "Edit filesystem access; saving automatically restarts Axon and resumes this session",
+    description: "Edit temporary filesystem access; apply immediately without restarting your chat",
     handler: async (args, ctx) => {
       if (args.trim()) {
         ctx.ui.notify(
@@ -513,7 +596,7 @@ export default function axonExtension(pi: ExtensionAPI): void {
       const config = authRelayConfiguration();
       if (ctx.mode !== "tui" || config === undefined) {
         ctx.ui.notify(
-          "Open an interactive Axon session or run axon sandbox in your terminal.",
+          "Open an interactive Axon session to edit temporary sandbox permissions.",
           "warning",
         );
         return;
@@ -523,27 +606,16 @@ export default function axonExtension(pi: ExtensionAPI): void {
         ctx.ui.notify("Wait for the current turn to finish, then run /sandbox.", "warning");
         return;
       }
-      const sessionFile = ctx.sessionManager.getSessionFile();
-      const sessionId = ctx.sessionManager.getSessionId();
-      if (
-        !sessionFile &&
-        !(await ctx.ui.confirm(
-          "Session is not persisted",
-          "Saving sandbox settings restarts Axon with a fresh chat because this session is in memory only. Continue?",
-        ))
-      )
-        return;
       sandboxEditorOpen = true;
-      let restarting = false;
       // Do not let a background login dialog compete with the parent-owned terminal editor.
       stopRecovery?.();
       stopRecovery = undefined;
       try {
-        const outcome = await ctx.ui.custom<{ opened: boolean; restart: boolean }>(
+        const outcome = await ctx.ui.custom<{ opened: boolean; saved: boolean }>(
           async (tui, _theme, _keybindings, done) => {
             // Release stdin and terminal protocols before Axon takes over the same terminal.
             tui.stop();
-            let outcome = { opened: false, restart: false };
+            let outcome = { opened: false, saved: false };
             try {
               process.stdout.write("\x1b[2J\x1b[H");
               const response = await fetch(new URL("/_axon/sandbox/configure", config.origin), {
@@ -552,16 +624,16 @@ export default function axonExtension(pi: ExtensionAPI): void {
                   Authorization: `Bearer ${config.capability}`,
                   "Content-Type": "application/json",
                 },
-                body: JSON.stringify({ sessionId, sessionFile }),
+                body: JSON.stringify({}),
                 redirect: "error",
                 cache: "no-store",
               });
               if (!response.ok) throw new Error("Sandbox editor unavailable");
               const result: unknown = await response.json();
-              const payload = result as { opened?: unknown; restart?: unknown } | null;
+              const payload = result as { opened?: unknown; saved?: unknown } | null;
               if (typeof payload?.opened !== "boolean")
                 throw new Error("Invalid sandbox editor response");
-              outcome = { opened: payload.opened, restart: payload.restart === true };
+              outcome = { opened: payload.opened, saved: payload.saved === true };
             } finally {
               // Restore the chat even if the relay fails or the user cancels the editor.
               tui.start();
@@ -571,14 +643,11 @@ export default function axonExtension(pi: ExtensionAPI): void {
             return { render: () => [], invalidate: () => {} };
           },
         );
-        if (outcome.restart) {
-          restarting = true;
+        if (outcome.saved) {
           ctx.ui.notify(
-            "Sandbox permissions saved. Restarting Axon and resuming this session…",
+            "Sandbox permissions applied immediately for this Axon run. Your chat is unchanged; restarting Axon resets permissions.",
             "info",
           );
-          // Native shutdown flushes the session and extension backups before the parent relaunches.
-          ctx.shutdown();
           return;
         }
         ctx.ui.notify(
@@ -588,14 +657,13 @@ export default function axonExtension(pi: ExtensionAPI): void {
           "info",
         );
       } catch {
-        restarting = false;
         ctx.ui.notify(
-          "Could not complete sandbox configuration. If permissions were saved, restart Axon to apply them.",
+          "Could not complete sandbox configuration. Run /sandbox again to review the current permissions.",
           "warning",
         );
       } finally {
         sandboxEditorOpen = false;
-        if (!restarting) stopRecovery = watchSessionRecovery(ctx);
+        stopRecovery = watchSessionRecovery(ctx);
       }
     },
   });

@@ -5,6 +5,7 @@ import type {
   SandboxCommandResult,
   SandboxSession,
 } from "../launcher/contracts.ts";
+import { filesystemPreferencesRevision, watchFilesystemPreferences } from "./filesystem.ts";
 import { createSandboxLaunchSpec, createSandboxResources } from "./launch.ts";
 import {
   assertSandboxSupported,
@@ -12,6 +13,34 @@ import {
   type SandboxAuthorization,
   sandboxFailure,
 } from "./policy.ts";
+
+async function readCommandOutput(stream: ReadableStream<Uint8Array> | undefined): Promise<string> {
+  if (!stream) return "";
+  const reader = stream.getReader();
+  const maximumBytes = 16 * 1024 * 1024;
+  const chunks: Uint8Array[] = [];
+  let retainedBytes = 0;
+  let truncated = false;
+  try {
+    while (true) {
+      const item = await reader.read();
+      if (item.done) break;
+      const remaining = maximumBytes - retainedBytes;
+      if (item.value.byteLength > remaining) truncated = true;
+      if (remaining > 0) {
+        const chunk = item.value.subarray(0, remaining);
+        chunks.push(chunk);
+        retainedBytes += chunk.byteLength;
+      }
+      // Drain even after truncation so a full pipe cannot deadlock the child.
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return (
+    Buffer.concat(chunks).toString("utf8") + (truncated ? "\n[Axon output limit reached]" : "")
+  );
+}
 
 /** One authorization, runtime verification, baseline and proxy for the whole Axon invocation. */
 export async function createSandboxSession(
@@ -23,6 +52,11 @@ export async function createSandboxSession(
   const resources = await createSandboxResources(context.paths, context.environment, authorization);
   const profiles = new Map<string, Promise<LaunchSpec>>();
   const activeCommands = new Set<() => void>();
+  const activeOperations = new Set<() => void>();
+  const stopWatching = watchFilesystemPreferences(context.paths, () => {
+    for (const stop of activeOperations) stop();
+    profiles.clear();
+  });
   let disposed = false;
 
   const assertActive = (): void => {
@@ -34,6 +68,7 @@ export async function createSandboxSession(
     disposed = true;
     for (const stop of activeCommands) stop();
     activeCommands.clear();
+    stopWatching();
     resources.dispose();
     clearTimeout(expiry);
   };
@@ -66,28 +101,33 @@ export async function createSandboxSession(
     },
     async run(specification, options) {
       assertActive();
+      options.signal?.throwIfAborted();
+      const revision = filesystemPreferencesRevision(context.paths);
       const writePaths = [...new Set(options.writePaths ?? [])].sort();
       // Probes/package administration never need a project's cwd or its configuration.
       // npm ci alone keeps its explicitly writable staging directory as cwd.
       const command = {
         ...specification,
         cwd:
-          options.purpose === "provision" && writePaths.includes(specification.cwd)
+          options.purpose === "operation" ||
+          (options.purpose === "provision" && writePaths.includes(specification.cwd))
             ? specification.cwd
             : resources.temporary,
       };
-      // Concurrent probes share in-flight profile generation and compilation.
+      // Concurrent commands share compilation, but operation profiles are scoped to a settings revision.
       const key = JSON.stringify([
         options.purpose,
         command.cwd,
         specification.environment["PATH"],
         specification.environment["PI_CODING_AGENT_DIR"],
         writePaths,
+        options.purpose === "operation" ? revision : undefined,
       ]);
       let pending = profiles.get(key);
       if (!pending) {
         pending = createSandboxLaunchSpec(command, context.paths, authorization, {
           purpose: options.purpose,
+          ...(options.purpose === "operation" ? { project: context.cwd } : {}),
           writePaths,
           resources,
         });
@@ -95,6 +135,12 @@ export async function createSandboxSession(
       }
       const wrapped = await pending;
       assertActive();
+      options.signal?.throwIfAborted();
+      if (
+        options.purpose === "operation" &&
+        revision !== filesystemPreferencesRevision(context.paths)
+      )
+        throw sandboxFailure("Sandbox settings changed; retry the operation");
       const profile = wrapped.arguments[1];
       if (!profile) throw sandboxFailure("Missing sandbox command profile");
       const child = Bun.spawn(
@@ -104,7 +150,7 @@ export async function createSandboxSession(
           env: wrapped.environment,
           // Noninteractive helpers get their own process group, not the TUI's foreground group.
           detached: true,
-          stdin: "ignore",
+          stdin: options.stdin === undefined ? "ignore" : new TextEncoder().encode(options.stdin),
           stdout: options.inheritOutput ? "inherit" : "pipe",
           stderr: options.inheritOutput ? "inherit" : "pipe",
           timeout: Math.max(
@@ -124,6 +170,8 @@ export async function createSandboxSession(
       };
       const stop = (): void => signalGroup("SIGKILL");
       activeCommands.add(stop);
+      if (options.purpose === "operation") activeOperations.add(stop);
+      options.signal?.addEventListener("abort", stop, { once: true });
       const forwarding = new Map<NodeJS.Signals, () => void>();
       if (options.inheritOutput) {
         for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
@@ -137,15 +185,23 @@ export async function createSandboxSession(
         // provisioning permissions or keep stdout open after their parent exits.
         const exited = child.exited.finally(stop);
         const [stdout, stderr, exitCode] = await Promise.all([
-          child.stdout ? new Response(child.stdout).text() : Promise.resolve(""),
-          child.stderr ? new Response(child.stderr).text() : Promise.resolve(""),
+          readCommandOutput(child.stdout),
+          readCommandOutput(child.stderr),
           exited,
         ]);
         assertActive();
+        options.signal?.throwIfAborted();
+        if (
+          options.purpose === "operation" &&
+          revision !== filesystemPreferencesRevision(context.paths)
+        )
+          throw sandboxFailure("Sandbox settings changed; retry the operation");
         return { exitCode, signalCode: child.signalCode, stdout, stderr };
       } finally {
         stop();
         activeCommands.delete(stop);
+        activeOperations.delete(stop);
+        options.signal?.removeEventListener("abort", stop);
         for (const [signal, handler] of forwarding) process.off(signal, handler);
       }
     },

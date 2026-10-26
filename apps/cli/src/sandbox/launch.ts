@@ -116,7 +116,8 @@ export interface SandboxResources {
 }
 
 interface SandboxLaunchOptions {
-  readonly purpose?: "session" | "probe" | "provision";
+  readonly purpose?: "session" | "probe" | "provision" | "operation";
+  readonly project?: string;
   readonly writePaths?: readonly string[];
   readonly resources?: SandboxResources;
 }
@@ -185,22 +186,24 @@ export async function createSandboxLaunchSpec(
 ): Promise<LaunchSpec> {
   const { policy, expiresAt } = authorization;
   const purpose = options.purpose ?? "session";
+  const brokeredSession =
+    purpose === "session" && specification.environment["PI_AXON_SANDBOX_OPERATIONS"] === "1";
+  const projectAccess = purpose === "operation" || (purpose === "session" && !brokeredSession);
   if (Date.now() >= expiresAt) throw sandboxFailure("Sandbox authorization expired during startup");
   const project =
-    purpose === "session"
-      ? await validateFilesystemProject(paths, specification.cwd)
+    purpose === "session" || purpose === "operation"
+      ? await validateFilesystemProject(paths, options.project ?? specification.cwd)
       : await canonicalPath(specification.cwd);
   const home = await canonicalPath(homedir());
   // Provisioning never inherits user project grants or grants access to project contents.
-  const preferences =
-    purpose === "session"
-      ? await validateFilesystemPreferences(
-          paths,
-          project,
-          await readFilesystemPreferences(paths, project),
-          policy,
-        )
-      : { projectMode: "read-only" as const, readPaths: [], writePaths: [], denyPaths: [] };
+  const preferences = projectAccess
+    ? await validateFilesystemPreferences(
+        paths,
+        project,
+        await readFilesystemPreferences(paths, project),
+        policy,
+      )
+    : { projectMode: "read-only" as const, readPaths: [], writePaths: [], denyPaths: [] };
   if (
     (!policy.allowAdditionalReadPaths && preferences.readPaths.length > 0) ||
     (!policy.allowAdditionalWritePaths && preferences.writePaths.length > 0)
@@ -308,7 +311,7 @@ export async function createSandboxLaunchSpec(
     }
     rules.push(
       ...ancestorRules(project),
-      purpose === "session"
+      projectAccess
         ? pathRule(
             preferences.projectMode === "read-write"
               ? "allow file-read* file-write*"
@@ -339,8 +342,9 @@ export async function createSandboxLaunchSpec(
       const temporaryPattern = `^${escapedPath}\\.[0-9]+\\.[0-9]+\\.tmp$`;
       rules.push(`(allow file-read* file-write* (regex #${quoted(temporaryPattern)}))`);
     }
-    const repositories =
-      purpose === "session" ? [project, ...preferences.readPaths, ...preferences.writePaths] : [];
+    const repositories = projectAccess
+      ? [project, ...preferences.readPaths, ...preferences.writePaths]
+      : [];
     const metadata = [
       ...new Set(
         (
@@ -395,6 +399,7 @@ export async function createSandboxLaunchSpec(
       rules.push(pathRule("deny file-read* file-write*", await canonicalPath(path)));
     const deniedReadPaths = [
       ...protectedPaths,
+      ...(brokeredSession ? [project] : []),
       ...preferences.denyPaths,
       ...(purpose === "session"
         ? []

@@ -11,7 +11,6 @@ import {
   editFilesystemPreferences,
   type FilesystemOperation,
   type FilesystemPreferences,
-  filesystemPreferencesPath,
   PI_STATE_DIRECTORIES,
   PI_STATE_FILES,
   readFilesystemPreferences,
@@ -83,7 +82,7 @@ export function formatFilesystemPermissions(
     "Managed packages and Axon resources remain read-only.",
     policy
       ? `Backend ${policy.policyId}: extra reads ${policy.allowAdditionalReadPaths ? "allowed" : "blocked"}, extra writes ${policy.allowAdditionalWritePaths ? "allowed" : "blocked"}, Git ${policy.localGit}.`
-      : "Backend limits not loaded. Fresh authorization is still required when Pi starts.",
+      : "Backend limits not loaded. Fresh authorization is required before saving permissions.",
     ...(policy?.protectedPaths.length
       ? [
           "Backend-protected paths:",
@@ -91,7 +90,9 @@ export function formatFilesystemPermissions(
         ]
       : []),
     "Remote Git, network access and backend capabilities are not changed by this editor.",
-    "Changes take effect in a new Pi process; /sandbox restarts automatically after saving.",
+    "Permissions apply to new operations immediately; saving never restarts Axon or your chat.",
+    "These settings belong only to this Axon run and reset to defaults when Axon exits.",
+    "Other Axon processes and saved chat sessions do not inherit these permissions.",
   );
   return lines.join("\n");
 }
@@ -186,9 +187,9 @@ export async function runSandboxMenu(
   paths: AxonPaths,
   cwd: string,
   ui: SandboxMenuUI = prompts,
-  options: { readonly signal?: AbortSignal; readonly restartOnSave?: boolean } = {},
+  options: { readonly signal?: AbortSignal } = {},
 ): Promise<boolean> {
-  const { signal, restartOnSave = false } = options;
+  const { signal } = options;
   signal?.throwIfAborted();
   const cancellation = signal ? { signal } : {};
   const invocation = currentPiInvocationEnvironment();
@@ -198,7 +199,7 @@ export async function runSandboxMenu(
       LAUNCHER_EXIT_STATUS.usage,
       {
         remediation:
-          "Use axon sandbox show or sandbox allow-read/allow-write/deny/revoke/mode for scripts.",
+          "Start an interactive axon pi session and use /sandbox to edit temporary permissions.",
       },
     );
   }
@@ -243,7 +244,7 @@ export async function runSandboxMenu(
         },
         {
           value: "save",
-          label: restartOnSave ? "Review, save and restart Axon" : "Review, save and exit",
+          label: "Review, save for this Axon run and return",
         },
         { value: "discard", label: changed() ? "Discard changes and exit" : "Exit" },
       ],
@@ -375,17 +376,18 @@ export async function runSandboxMenu(
         ui.note(formatFilesystemPermissions(paths, project, draft, policy), "Review before saving");
         const save = await ui.confirm({
           ...cancellation,
-          message: restartOnSave
-            ? "Save these permissions and restart Axon now?"
-            : "Save these permissions for this project?",
+          message: "Apply these permissions now, until Axon exits?",
           initialValue: false,
         });
         if (cancelled(save)) return false;
         if (!save) continue;
         signal?.throwIfAborted();
-        await saveFilesystemPreferences(paths, project, draft, original, policy);
+        // A successful save must respect current backend restrictions, even if they were not previewed.
+        const currentPolicy = (await authorizeSandbox(paths)).policy;
+        signal?.throwIfAborted();
+        await saveFilesystemPreferences(paths, project, draft, original, currentPolicy);
         ui.outro(
-          `Saved ${formatHomePath(await filesystemPreferencesPath(paths, project))}. ${restartOnSave ? "Restarting Axon…" : "Restart Pi to apply."}`,
+          "Sandbox permissions applied for this Axon run. Your chat continues without restarting.",
         );
         return true;
       }

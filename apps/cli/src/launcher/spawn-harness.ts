@@ -7,11 +7,10 @@ import { exitLikeChild, LAUNCHER_EXIT_STATUS } from "./exit-status.ts";
 
 const FORWARDED_SIGNALS = ["SIGTERM", "SIGHUP"] as const;
 
-/** Returns new arguments only for a parent-approved restart; ordinary exits retain their status. */
-export async function spawnHarness(specification: LaunchSpec): Promise<readonly string[]> {
+/** Release sandbox resources, then preserve the child's exit or signal status without relaunching. */
+export async function spawnHarness(specification: LaunchSpec): Promise<never> {
   let subprocess: Bun.Subprocess<"inherit", "inherit", "inherit">;
   let spawnError: Error | undefined;
-  let stopping = false;
   const startedAt = Date.now();
 
   try {
@@ -56,7 +55,6 @@ export async function spawnHarness(specification: LaunchSpec): Promise<readonly 
   const forwardingHandlers = new Map<NodeJS.Signals, () => void>();
   for (const signal of FORWARDED_SIGNALS) {
     const forwardSignal = (): void => {
-      stopping = true;
       if (subprocess.exitCode === null && subprocess.signalCode === null) {
         subprocess.kill(signal);
       }
@@ -72,7 +70,6 @@ export async function spawnHarness(specification: LaunchSpec): Promise<readonly 
       ? undefined
       : setTimeout(
           () => {
-            stopping = true;
             console.error(
               "axon: backend sandbox authorization expired; restart axon pi to continue",
             );
@@ -105,16 +102,6 @@ export async function spawnHarness(specification: LaunchSpec): Promise<readonly 
       LAUNCHER_EXIT_STATUS.executableUnavailable,
       { cause: spawnError, remediation: "Run axon doctor for executable diagnostics." },
     );
-  }
-
-  if (
-    !stopping &&
-    subprocess.exitCode === 0 &&
-    subprocess.signalCode === null &&
-    (specification.expiresAt === undefined || Date.now() < specification.expiresAt)
-  ) {
-    const restartArguments = await specification.restartArguments?.();
-    if (restartArguments !== undefined) return restartArguments;
   }
 
   return exitLikeChild({

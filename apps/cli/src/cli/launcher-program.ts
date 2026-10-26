@@ -7,19 +7,14 @@ import { LauncherError } from "../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../launcher/exit-status.ts";
 import { PRODUCT_IDENTITY } from "../product/identity.ts";
 import { resolveAxonPaths } from "../product/paths.ts";
-import {
-  canonicalPath,
-  filesystemPreferencesPath,
-  readFilesystemPreferences,
-  updateFilesystemPreferences,
-} from "../sandbox/filesystem.ts";
+import { canonicalPath, readFilesystemPreferences } from "../sandbox/filesystem.ts";
 import { checkForUpdate, installUpdate } from "../updater/update.ts";
 import { ensureAxonSession } from "./auth/preflight.ts";
 import { type AuthLoginOptions, runAuthLogin, runAuthStatus } from "./commands/auth.ts";
 import { runDoctor } from "./commands/doctor.ts";
 import { printHarnesses } from "./commands/harnesses.ts";
 import { printPaths } from "./commands/paths.ts";
-import { formatFilesystemPermissions, runSandboxMenu } from "./commands/sandbox.ts";
+import { formatFilesystemPermissions } from "./commands/sandbox.ts";
 import { runSessions, runSessionsInteractive } from "./commands/sessions.ts";
 import { runSetup, type SetupOptions } from "./commands/setup.ts";
 import { runUninstall, type UninstallOptions } from "./commands/uninstall.ts";
@@ -55,20 +50,26 @@ function createLauncherProgram(): Command {
       printPaths(resolveAxonPaths());
     });
 
+  const configureSandbox = (): never => {
+    throw new LauncherError(
+      "Sandbox permissions are temporary and must be edited in the active Axon process",
+      LAUNCHER_EXIT_STATUS.usage,
+      {
+        remediation:
+          "Start axon pi, then use /sandbox. Changes apply immediately without restarting.",
+      },
+    );
+  };
   const sandbox = program
     .command("sandbox")
-    .description("configure filesystem access interactively; backend restrictions always apply")
-    .option("--project <directory>", "project whose permission profile to edit", process.cwd())
-    .action(async () => {
-      await runSandboxMenu(resolveAxonPaths(), sandbox.opts<{ project: string }>().project);
-    });
+    .description("inspect filesystem defaults; use /sandbox in Pi to edit temporary permissions")
+    .option("--project <directory>", "project whose default permissions to inspect", process.cwd())
+    .action(configureSandbox);
   sandbox
     .command("configure")
     .alias("config")
-    .description("browse and edit multi-repository filesystem grants interactively")
-    .action(async () => {
-      await runSandboxMenu(resolveAxonPaths(), sandbox.opts<{ project: string }>().project);
-    });
+    .description("use /sandbox inside Pi to edit temporary filesystem grants")
+    .action(configureSandbox);
   sandbox
     .command("show")
     .description("show essential Pi access and this project's filesystem grants")
@@ -81,7 +82,9 @@ function createLauncherProgram(): Command {
         console.log(JSON.stringify(preferences, null, 2));
         return;
       }
-      console.log(`Permissions: ${await filesystemPreferencesPath(paths, project)}`);
+      console.log(
+        "Default permissions for a new Axon run. Use /sandbox inside Pi to inspect or edit its live permissions.",
+      );
       console.log(formatFilesystemPermissions(paths, project, preferences));
     });
   for (const operation of ["allow-read", "allow-write", "deny", "revoke", "mode"] as const) {
@@ -93,17 +96,7 @@ function createLauncherProgram(): Command {
           : `${operation} a filesystem path`,
       )
       .argument(operation === "mode" ? "<read-only|read-write>" : "<paths...>")
-      .action(async (value: string | string[]) => {
-        await updateFilesystemPreferences(
-          resolveAxonPaths(),
-          sandbox.opts<{ project: string }>().project,
-          operation,
-          value,
-        );
-        console.log(
-          "Filesystem permissions saved. Restart Pi to apply; backend restrictions still take precedence.",
-        );
-      });
+      .action(configureSandbox);
   }
 
   const auth = program.command("auth").description("manage the local Axon session");

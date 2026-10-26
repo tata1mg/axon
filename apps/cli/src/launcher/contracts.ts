@@ -25,14 +25,14 @@ export interface LaunchSpec {
   readonly offline?: boolean;
   /** Backend-authorized session lease; no local setting may extend it. */
   readonly expiresAt?: number;
-  /** Parent-owned restart request, consumed only after a successful, graceful child exit. */
-  readonly restartArguments?: () => Promise<readonly string[] | undefined>;
   /** Release per-session resources before propagating the child's exit status. */
   readonly dispose?: () => void;
 }
 
 export interface SandboxCommandOptions {
-  readonly purpose: "probe" | "provision";
+  readonly purpose: "probe" | "provision" | "operation";
+  readonly signal?: AbortSignal;
+  readonly stdin?: string;
   readonly writePaths?: readonly string[];
   readonly inheritOutput?: boolean;
   readonly timeoutMs?: number;
