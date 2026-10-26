@@ -38,7 +38,7 @@ async function records(logFile: string) {
     .map((line) => JSON.parse(line));
 }
 
-test("logs allowlisted transport metadata, never URLs, headers, payloads, messages or stacks", async () => {
+test("logs transport metadata, never full URLs, headers, payloads, messages or stacks", async () => {
   const { logFile, cliSessionId, diagnostic } = setup();
   const error = Object.assign(new TypeError("https://private.test?key=error-secret"), {
     code: "ECONNRESET",
@@ -86,21 +86,29 @@ test("groups requests by CLI launch while keeping request IDs unique", async () 
   expect(new Set(entries.map((entry) => entry.requestId)).size).toBe(3);
 });
 
-test("does not log arbitrary path identifiers or untrusted exception names/codes", async () => {
-  const { logFile, diagnostic } = setup("/litellm/responses/private-response-secret?key=secret");
-  await diagnostic.failure(
-    "upstream_fetch",
-    Object.assign(new Error("secret"), {
-      name: "name-secret",
-      code: "code-secret",
-    }),
-  );
-  const [record] = await records(logFile);
-  expect(record.endpoint).toBe("<other>");
-  expect(record.errorType).toBe("unknown");
-  expect(record.errorCode).toBe("unknown");
-  expect(await readFile(logFile, "utf8")).not.toContain("secret");
-});
+test.each([
+  "/litellm/mcp",
+  "/litellm/responses/resp_abc123",
+  "/litellm/files/file_xyz789",
+  "/litellm/v1/models/",
+])(
+  "logs pathname %s, but not query strings, fragments or untrusted exception names/codes",
+  async (path) => {
+    const { logFile, diagnostic } = setup(`${path}?key=query-secret#fragment-secret`);
+    await diagnostic.failure(
+      "upstream_fetch",
+      Object.assign(new Error("secret"), {
+        name: "name-secret",
+        code: "code-secret",
+      }),
+    );
+    const [record] = await records(logFile);
+    expect(record.endpoint).toBe(path);
+    expect(record.errorType).toBe("unknown");
+    expect(record.errorCode).toBe("unknown");
+    expect(await readFile(logFile, "utf8")).not.toContain("secret");
+  },
+);
 
 test("extracts an allowlisted connection code from a wrapped fetch error", async () => {
   const { logFile, diagnostic } = setup();

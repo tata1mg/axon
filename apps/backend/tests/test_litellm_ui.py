@@ -374,6 +374,9 @@ def test_browser_streams_raw_body_and_closes_on_cancellation(settings: LiteLLMSe
         messages: list[Message] = []
 
         async def receive() -> Message:
+            if len(body_chunks) == 2:
+                # No more request frames; remain connected during response streaming.
+                await asyncio.Event().wait()
             assert len(body_chunks) == (0 if not body_chunks else 1)
             return next(request_chunks)
 

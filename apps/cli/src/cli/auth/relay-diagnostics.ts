@@ -8,19 +8,6 @@ import { PRODUCT_IDENTITY } from "../../product/identity.ts";
 import type { AxonPaths } from "../../product/paths.ts";
 
 const MAX_LOG_BYTES = 1024 * 1024;
-const DIAGNOSTIC_PATHS = new Set([
-  "/litellm/model/info",
-  "/litellm/models",
-  "/litellm/v1/models",
-  "/litellm/chat/completions",
-  "/litellm/v1/chat/completions",
-  "/litellm/responses",
-  "/litellm/v1/responses",
-  "/litellm/messages",
-  "/litellm/v1/messages",
-  "/litellm/v1/images/generations",
-  "/api/v1/model-recommendations",
-]);
 const ERROR_TYPES = new Set(["Error", "TypeError", "TimeoutError", "AbortError"]);
 const ERROR_CODES = new Set([
   "ECONNRESET",
@@ -184,7 +171,8 @@ export function createRelayDiagnostics(paths: AxonPaths): {
     start(request, url) {
       const requestId = crypto.randomUUID();
       const started = performance.now();
-      const endpoint = DIAGNOSTIC_PATHS.has(url.pathname) ? url.pathname : "<other>";
+      // Keep resource IDs for debugging, but never include query strings or fragments.
+      const endpoint = url.pathname;
       const method = /^(GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS)$/.test(request.method)
         ? request.method
         : "<other>";

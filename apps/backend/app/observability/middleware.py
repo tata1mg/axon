@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 
 from opentelemetry import trace
 from opentelemetry.context import Context
-from opentelemetry.trace import Link, Span, SpanKind, StatusCode
+from opentelemetry.trace import Link, Span, SpanKind, Status, StatusCode
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 from starlette.datastructures import Headers
 from starlette.requests import ClientDisconnect
@@ -18,6 +18,7 @@ from starlette.routing import BaseRoute, Match, Mount
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.observability.context import REQUEST_ID, bind_exception_correlation, request_id
+from app.observability.exceptions import record_safe_exception
 from app.observability.privacy import HTTP_METHODS
 from app.observability.runtime import ServiceTelemetry
 
@@ -75,6 +76,7 @@ class RequestObservation:
     status: int = 500
     completed: bool = False
     error_type: str | None = None
+    error_message: str | None = None
     cancelled: bool = False
 
     async def send(self, message: Message, send: Send) -> None:
@@ -105,7 +107,10 @@ class RequestObservation:
             if self.error_type:
                 span.set_attribute("error.type", self.error_type)
             if failed:
-                span.set_status(StatusCode.ERROR)
+                message = self.error_message or (f"HTTP {self.status}" if self.status >= 500 else "Response incomplete")
+                if not self.error_type:
+                    span.set_attribute("error.type", str(self.status) if self.status >= 500 else "response_incomplete")
+                span.set_status(Status(StatusCode.ERROR, message))
             self.runtime.duration.record(
                 duration,
                 {
@@ -210,6 +215,7 @@ class BackendObservabilityMiddleware:
                 except Exception as exc:
                     if not observation.cancelled:
                         observation.error_type = type(exc).__name__
+                        observation.error_message = record_safe_exception(span, exc)
                     context = span.get_span_context()
                     bind_exception_correlation(
                         exc,

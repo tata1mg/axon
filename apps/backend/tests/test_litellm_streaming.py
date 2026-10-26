@@ -120,17 +120,16 @@ def test_proxy_forwards_raw_chunks_and_closes_on_cancellation() -> None:
         app.state.litellm_identity_client = identity
         scope = verified_scope(app)
         messages: list[Message] = []
-        request_chunks = iter(
-            [
-                {"type": "http.request", "body": b"first ", "more_body": True},
-                {"type": "http.request", "body": b"second", "more_body": False},
-            ]
-        )
+        request_chunks: asyncio.Queue[Message] = asyncio.Queue()
+        request_chunks.put_nowait({"type": "http.request", "body": b"first ", "more_body": True})
+        request_chunks.put_nowait({"type": "http.request", "body": b"second", "more_body": False})
 
         async def receive() -> Message:
             nonlocal received
+            # A real server blocks after the final upload frame until disconnect.
+            message = await request_chunks.get()
             received += 1
-            return next(request_chunks)
+            return message
 
         async def send(message: Message) -> None:
             messages.append(message)

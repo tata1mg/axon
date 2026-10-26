@@ -1,6 +1,7 @@
 """LiteLLM diagnostics expose failure stages, not sessions, keys, or payloads."""
 
 import asyncio
+import json
 import logging
 from collections.abc import AsyncIterator
 from dataclasses import replace
@@ -17,8 +18,10 @@ from app.clients.auth_service import AuthenticatedUser, AuthServiceError
 from app.clients.litellm.identity import LiteLLMIdentityClient, LiteLLMIdentityError
 from app.clients.litellm.transport import LiteLLMTransport
 from app.core.config import LiteLLMSettings
+from app.core.logging import StructuredLoggingFormatter
 from app.proxies.litellm import LiteLLMProxy, mount_litellm_proxy
 from app.proxies.litellm_common import LiteLLMRequestLoggingMiddleware
+from app.proxies.litellm_ui import mount_litellm_ui_proxy
 
 LOGGER = "app.proxies.litellm"
 
@@ -64,11 +67,11 @@ async def request(app: FastAPI, path: str = "/litellm/key/info", request_id: str
         )
 
 
-def diagnostic_record(caplog: pytest.LogCaptureFixture) -> logging.LogRecord:
+def diagnostic_record(caplog: pytest.LogCaptureFixture, logger: str = LOGGER) -> logging.LogRecord:
     records = [
         record
         for record in caplog.records
-        if record.name == LOGGER and record.getMessage().startswith("LiteLLM request ")
+        if record.name == logger and record.getMessage().startswith("LiteLLM request ")
     ]
     assert len(records) == 1
     record = records[0]
@@ -187,10 +190,18 @@ def test_transport_failures_do_not_log_exception_urls(
 
 
 @pytest.mark.parametrize(
-    "path", ["/litellm", "/litellm/model/info", "/litellm/team/info", "/litellm/files/secret-path-id"]
+    ("path", "expected_path"),
+    [
+        ("/litellm", "/"),
+        ("/litellm/model/info", "/model/info"),
+        ("/litellm/team/info", "/team/info"),
+        ("/litellm/files/file_abc123", "/files/file_abc123"),
+        ("/litellm/responses/resp%2Fabc123", "/responses/resp%2Fabc123"),
+        ("/litellm/v1/images/generations", "/v1/images/generations"),
+    ],
 )
-def test_safe_paths_request_ids_and_configured_key_mode(
-    app: FastAPI, caplog: pytest.LogCaptureFixture, path: str
+def test_pathnames_request_ids_and_configured_key_mode(
+    app: FastAPI, caplog: pytest.LogCaptureFixture, path: str, expected_path: str
 ) -> None:
     caplog.set_level(logging.INFO, logger=LOGGER)
     identity = app.state.litellm_identity_client
@@ -203,10 +214,51 @@ def test_safe_paths_request_ids_and_configured_key_mode(
     message = record.getMessage()
     assert f"request_id={response.headers['x-request-id']}" in message
     assert "credential_mode=configured_key" in message
-    expected_path = {"/litellm": "/", "/litellm/model/info": "/model/info", "/litellm/team/info": "/team/info"}.get(
-        path, "<other>"
-    )
-    assert f"path={expected_path}" in message
+    assert f"path={expected_path} " in message
+
+
+@pytest.mark.parametrize("external_root", ["", "/axon"])
+@pytest.mark.parametrize("path", ["/ui/", "/files/file_abc123", "/responses/resp%2Fabc123"])
+def test_browser_get_failures_log_pathnames_in_service_json(
+    app: FastAPI, caplog: pytest.LogCaptureFixture, external_root: str, path: str
+) -> None:
+    browser_logger = "app.proxies.litellm_ui"
+    caplog.set_level(logging.INFO, logger=browser_logger)
+    app.root_path = external_root
+    app.state.litellm_transport.settings = app.state.litellm_identity_client.settings
+    app.state.litellm_transport.send_stream.return_value = httpx.Response(401, content=b"secret-upstream-body")
+    mount_litellm_ui_proxy(app)
+
+    async def run() -> httpx.Response:
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://backend.test") as client:
+            return await client.get(
+                f"{external_root}/litellm-admin{path}?key=secret-query-key",
+                headers={
+                    "authorization": "Bearer secret-browser-key",
+                    "cookie": "token=secret-browser-cookie",
+                    "x-request-id": "browser-request-id",
+                },
+            )
+
+    response = asyncio.run(run())
+    assert response.status_code == 401
+    assert response.headers["x-request-id"] == "browser-request-id"
+    record = diagnostic_record(caplog, logger=browser_logger)
+    assert record.levelno == logging.WARNING
+    payload = json.loads(StructuredLoggingFormatter("axon-backend", 3001).format(record))
+    assert payload["service_name"] == "axon-backend"
+    assert payload["loglevel"] == "WARNING"
+    message = payload["message"]
+    for field in (
+        "request_id=browser-request-id",
+        f"method=GET path={path} ",
+        "stage=upstream reason=upstream_http_error",
+        "upstream_status=401 status=401 credential_mode=browser",
+        "completed=true",
+    ):
+        assert field in message
+    assert "<other>" not in message
+    assert "secret" not in json.dumps(payload)
 
 
 @pytest.mark.parametrize("failure", ["upstream", "cancelled", "disconnected"])
