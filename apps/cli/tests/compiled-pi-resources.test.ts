@@ -49,6 +49,20 @@ test.each(["unminified", "minified"] as const)(
           configRequests++;
           return Response.json({
             schemaVersion: 1,
+            sandbox: {
+              schemaVersion: 1,
+              required: true,
+              engine: "safehouse",
+              policyId: "compiled-resource-fixture",
+              maxSessionSeconds: 60,
+              network: "relay-and-package-proxy",
+              remoteGit: false,
+              localGit: "read-only",
+              allowAdditionalReadPaths: true,
+              allowAdditionalWritePaths: true,
+              packageRegistryHosts: [],
+              protectedPaths: [],
+            },
             terminalPermissions: policy,
             compaction: { enabled: true, model: "litellm/summary", thresholdTokens: 80000 },
             modelRecommender: { enabled: true, autoSelectMs: 10000 },
@@ -65,35 +79,41 @@ test.each(["unminified", "minified"] as const)(
     });
     try {
       const executable = join(root, "axon");
-      const build = await output(
-        Bun.spawn(
-          [
-            process.execPath,
-            "build",
-            "src/index.ts",
-            "--compile",
-            "--format=esm",
-            "--bytecode",
-            ...(minify ? ["--minify"] : []),
-            "--sourcemap=external",
-            "--no-compile-autoload-dotenv",
-            "--no-compile-autoload-bunfig",
-            "--define",
-            'BUILD_VERSION="0.2.0"',
-            "--define",
-            'BUILD_KIND="dev"',
-            "--define",
-            `BUILD_SERVICE_ORIGIN=${JSON.stringify(service.url.origin)}`,
-            "--outfile",
-            executable,
-          ],
-          { cwd: projectRoot, stdin: "ignore", stdout: "pipe", stderr: "pipe" },
-        ),
-      );
-      expect({ status: build.status, stderr: build.status === 0 ? "" : build.stderr }).toEqual({
-        status: 0,
-        stderr: "",
+      const fixture = join(import.meta.dir, "fixtures", "launcher-sandbox.ts");
+      const build = await Bun.build({
+        entrypoints: [join(projectRoot, "src", "index.ts")],
+        compile: { outfile: executable, autoloadDotenv: false, autoloadBunfig: false },
+        format: "esm",
+        bytecode: true,
+        minify,
+        sourcemap: "external",
+        define: {
+          BUILD_VERSION: JSON.stringify("0.2.0"),
+          BUILD_KIND: JSON.stringify("dev"),
+          BUILD_SERVICE_ORIGIN: JSON.stringify(service.url.origin),
+        },
+        plugins: [
+          {
+            name: "compiled-resource-test-sandbox",
+            setup(builder) {
+              // Keep the actual entrypoint and asset loaders; substitute only the test boundary.
+              builder.onLoad({ filter: /\/src\/sandbox\/session\.ts$/ }, () => ({
+                contents: `export {
+                  createFixtureSandbox as createSandboxSession,
+                  withFixtureSandbox as withSandboxSession,
+                  runFixtureCommand as runSandboxCommand,
+                } from ${JSON.stringify(fixture)};`,
+                loader: "ts",
+                resolveDir: projectRoot,
+              }));
+            },
+          },
+        ],
       });
+      expect({
+        success: build.success,
+        errors: build.success ? [] : build.logs.map((entry) => entry.message),
+      }).toEqual({ success: true, errors: [] });
 
       await saveEncryptedSession(paths, "compiled-resource-fixture-session");
       const runtime = join(paths.piRuntime, PI_INSTALL_VERSION, "node_modules");
@@ -143,6 +163,7 @@ if (process.argv[2] === "--version") {
               HOME: root,
               AXON_HOME: paths.home,
               AXON_DEBUG: "1",
+              AXON_LAUNCHER_FIXTURE_ROOT: root,
               PI_ORG_OTEL_ENABLED: "false",
               OTEL_TRACES_SAMPLER: "always_off",
               PI_COMPACTION_ENABLED: "false",
@@ -180,7 +201,7 @@ if (process.argv[2] === "--version") {
       });
       expect(configRequests).toBe(1);
       expect(exported.some((body) => body.includes(Buffer.from("axon.startup.events")))).toBe(true);
-      // Actual compiled process teardown must preserve help/administrative exemptions.
+      // CLI help stays local; forwarded Pi administration still requires sandbox authorization.
       const before = configRequests;
       expect((await run(["--help"])).status).toBe(0);
       expect((await run(["pi", "--help"])).status).toBe(0);
@@ -188,7 +209,7 @@ if (process.argv[2] === "--version") {
       // This fixture has no cached verification lease; offline preflight stays local.
       expect(offline.status).toBe(123);
       expect(offline.stderr).toContain("Cannot verify your Axon session while offline");
-      expect(configRequests).toBe(before);
+      expect(configRequests).toBe(before + 1);
       expect(launched.arguments.slice(-2)).toEqual(["--print", "hello"]);
       const runtimeDirectory = join(paths.runtime, await readlink(paths.runtimeCurrent));
       for (const resource of EMBEDDED_PI_RESOURCES) {

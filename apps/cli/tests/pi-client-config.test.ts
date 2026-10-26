@@ -145,7 +145,9 @@ async function launchSpec(
     'Object.defineProperty(process.stdout, "isTTY", { value: ' +
       (options.interactive !== false) +
       " });",
-    'const context = { cwd: process.env.HOME, environment: process.env, paths: resolveAxonPaths(), registration: resolveHarnessRegistration("pi"), executable: "/unused" };',
+    // These adapter-only tests inspect launch specs; no process may run through this stub.
+    'const sandbox = { clientConfig() {}, async wrap() { throw new Error("Unexpected fixture wrap"); }, async run() { throw new Error("Unexpected fixture process"); }, dispose() {} };',
+    'const context = { cwd: process.env.HOME, environment: process.env, paths: resolveAxonPaths(), registration: resolveHarnessRegistration("pi"), executable: "/unused", sandbox };',
     'import { flushProductTelemetry } from "./src/telemetry/client.ts";',
     'import { emitProductEvent } from "./src/telemetry/product-events.ts";',
     ...(options.lifecycle
@@ -229,9 +231,13 @@ describe("real Pi adapter client config integration", () => {
     expect(requests.filter((path) => path === "/api/v1/cli/config")).toHaveLength(1);
     expect(authorization).toBe("Bearer initial-token");
     expect(JSON.parse(environment["PI_TERMINAL_MANAGED_CONFIG"] ?? "null")).toEqual(terminalPolicy);
-    expect(environment["OTEL_EXPORTER_OTLP_ENDPOINT"]).toBe(`${server.url.origin}/api/v1/otel`);
+    expect(environment["OTEL_EXPORTER_OTLP_ENDPOINT"]).toBe(
+      `${environment["PI_AXON_AUTH_RELAY_URL"]}/api/v1/otel`,
+    );
     expect(environment["OTEL_EXPORTER_OTLP_PROTOCOL"]).toBe("http/protobuf");
-    expect(environment["PI_ORG_OTEL_MANAGED_ENDPOINT"]).toBe(`${server.url.origin}/api/v1/otel`);
+    expect(environment["PI_ORG_OTEL_MANAGED_ENDPOINT"]).toBe(
+      `${environment["PI_AXON_AUTH_RELAY_URL"]}/api/v1/otel`,
+    );
     expect(environment["PI_ORG_OTEL_MANAGED_HOME"]).toBe(root);
     for (const processor of ["BSP", "BLRP"]) {
       expect(environment[`OTEL_${processor}_SCHEDULE_DELAY`]).toBe("30000");
@@ -306,8 +312,12 @@ describe("real Pi adapter client config integration", () => {
       expect(environment["PI_AXON_CONFIG_REFRESH_ENABLED"]).toBe(
         options.admin ? undefined : options.offline ? "false" : "true",
       );
-      expect(environment["PI_ORG_OTEL_ENABLED"]).toBe(options.offline ? "false" : "true");
-      expect(environment["PI_WEB_SEARCH_ENABLED"]).toBe(options.offline ? "false" : "true");
+      expect(environment["PI_ORG_OTEL_ENABLED"]).toBe(
+        options.offline || options.admin ? "false" : "true",
+      );
+      expect(environment["PI_WEB_SEARCH_ENABLED"]).toBe(
+        options.offline || options.admin ? "false" : "true",
+      );
       expect(environment["PI_COMPACTION_MODEL"]).toBe(
         options.offline || options.admin ? "litellm/local" : "litellm/team/summary",
       );

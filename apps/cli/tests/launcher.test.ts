@@ -10,6 +10,7 @@ import {
 } from "../src/harnesses/pi/setup/packages/manifest.ts";
 import { resolveHarnessRegistration } from "../src/harnesses/registry.ts";
 import { createHarnessEnvironment } from "../src/launcher/environment.ts";
+import { SERVICE_ENDPOINTS } from "../src/product/endpoints.ts";
 import { AXON_MANIFEST } from "../src/product/manifest.ts";
 import { resolveAxonPaths } from "../src/product/paths.ts";
 
@@ -30,6 +31,29 @@ beforeAll(async () => {
         request.headers.get("authorization") === "Bearer launcher-fixture-session"
       ) {
         return Response.json({ status: "VERIFIED" });
+      }
+      if (
+        new URL(request.url).pathname === SERVICE_ENDPOINTS.cli.config &&
+        request.method === "GET" &&
+        request.headers.get("authorization") === "Bearer launcher-fixture-session"
+      ) {
+        return Response.json({
+          schemaVersion: 1,
+          sandbox: {
+            schemaVersion: 1,
+            required: true,
+            engine: "safehouse",
+            policyId: "launcher-fixture",
+            maxSessionSeconds: 60,
+            network: "relay-and-package-proxy",
+            remoteGit: false,
+            localGit: "read-only",
+            allowAdditionalReadPaths: true,
+            allowAdditionalWritePaths: true,
+            packageRegistryHosts: [],
+            protectedPaths: [],
+          },
+        });
       }
       return new Response(null, { status: 404 });
     },
@@ -163,18 +187,29 @@ function runLauncher(
   argumentsVector: readonly string[],
   environment: Record<string, string> = {},
 ): Bun.Subprocess<"ignore", "pipe", "pipe"> {
-  return Bun.spawn([process.execPath, "--no-env-file", "src/index.ts", ...argumentsVector], {
-    cwd: projectRoot,
-    env: {
-      ...process.env,
-      HOME: fixtureDirectory,
-      AXON_SERVICE_ORIGIN: authService.url.origin,
-      ...environment,
+  return Bun.spawn(
+    [
+      process.execPath,
+      "--no-env-file",
+      "--preload",
+      join(import.meta.dir, "fixtures", "launcher-preload.ts"),
+      "src/index.ts",
+      ...argumentsVector,
+    ],
+    {
+      cwd: projectRoot,
+      env: {
+        ...process.env,
+        HOME: fixtureDirectory,
+        AXON_SERVICE_ORIGIN: authService.url.origin,
+        ...environment,
+        AXON_LAUNCHER_FIXTURE_ROOT: fixtureDirectory,
+      },
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "pipe",
     },
-    stdin: "ignore",
-    stdout: "pipe",
-    stderr: "pipe",
-  });
+  );
 }
 
 describe("harness registry", () => {
@@ -294,18 +329,17 @@ describe("launcher dispatch", () => {
       axonEnvironment: {},
       harnessEnvironment: {
         PI_CODING_AGENT_DIR: join(axonHome, "pi"),
-        PI_CODING_AGENT_SESSION_DIR: join(axonHome, "pi", "sessions"),
         PI_SKIP_VERSION_CHECK: "1",
-        PI_AXON_BACKUP_SERVICE_ORIGIN: authService.url.origin,
-        PI_AXON_BACKUP_HOME: axonHome,
-        LITELLM_API_KEY: "litellm-token",
-        LITELLM_BASE_URL: "https://litellm.example",
+        LITELLM_API_KEY: expect.any(String),
+        LITELLM_BASE_URL: expect.stringMatching(/^http:\/\/127\.0\.0\.1:\d+\/litellm$/),
         LITELLM_DISPLAY_NAME: "Company AI Gateway",
         OTEL_EXPORTER_OTLP_ENDPOINT: "https://otel.example",
-        OTEL_EXPORTER_OTLP_HEADERS: "authorization=secret",
-        PI_ORG_OTEL_ENABLED: "true",
+        PI_ORG_OTEL_ENABLED: "false",
       },
       cwd: projectRoot,
+    });
+    expect(stdout).not.toMatchObject({
+      harnessEnvironment: { LITELLM_API_KEY: "litellm-token" },
     });
   });
 

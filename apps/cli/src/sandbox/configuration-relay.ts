@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { runSandboxMenu } from "../cli/commands/sandbox.ts";
 import type { AxonPaths } from "../product/paths.ts";
-import { formatHomePath } from "../sessions/display.ts";
+import { readFilesystemPreferences } from "./filesystem.ts";
 
 const configurationSchema = z.strictObject({});
 
@@ -16,6 +16,20 @@ export function createSandboxConfigurationRelay(paths: AxonPaths, cwd: string) {
 
   return {
     async handle(request: Request, url: URL): Promise<Response> {
+      // Report the parent's live invocation settings, never a persisted or child-supplied profile.
+      if (
+        url.pathname === "/_axon/sandbox/status" &&
+        request.method === "GET" &&
+        url.search === "" &&
+        !shutdown.signal.aborted
+      ) {
+        try {
+          const preferences = await readFilesystemPreferences(paths, cwd);
+          return reply({ project: cwd, ...preferences });
+        } catch {
+          return reply({ error: "Current sandbox settings are unavailable" }, 503);
+        }
+      }
       if (
         url.pathname !== "/_axon/sandbox/configure" ||
         request.method !== "POST" ||
@@ -36,12 +50,6 @@ export function createSandboxConfigurationRelay(paths: AxonPaths, cwd: string) {
           return reply({ error: "Sandbox configuration request is too large" }, 413);
         configurationSchema.parse(JSON.parse(body));
         signal.throwIfAborted();
-        const approved = await prompts.confirm({
-          message: `Open sandbox settings for ${formatHomePath(cwd)}? Changes apply immediately and reset when Axon exits.`,
-          initialValue: false,
-          signal,
-        });
-        if (prompts.isCancel(approved) || !approved) return reply({ opened: false });
         const saved = await runSandboxMenu(paths, cwd, prompts, { signal });
         return reply({ opened: true, saved });
       } catch {

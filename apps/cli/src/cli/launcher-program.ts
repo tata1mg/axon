@@ -7,8 +7,8 @@ import { LauncherError } from "../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../launcher/exit-status.ts";
 import { PRODUCT_IDENTITY } from "../product/identity.ts";
 import { resolveAxonPaths } from "../product/paths.ts";
-import { withUpdateProgress } from "../updater/progress.ts";
 import { canonicalPath, readFilesystemPreferences } from "../sandbox/filesystem.ts";
+import { withUpdateProgress } from "../updater/progress.ts";
 import { checkForUpdate, installUpdate, updateContext } from "../updater/update.ts";
 import { ensureAxonSession } from "./auth/preflight.ts";
 import { type AuthLoginOptions, runAuthLogin, runAuthStatus } from "./commands/auth.ts";
@@ -73,7 +73,7 @@ function createLauncherProgram(): Command {
     .action(configureSandbox);
   sandbox
     .command("show")
-    .description("show essential Pi access and this project's filesystem grants")
+    .description("show this project's default filesystem rules for a new Axon run")
     .option("--json", "print only the local preference JSON for scripts")
     .action(async (options: { json?: boolean }) => {
       const paths = resolveAxonPaths();
@@ -86,7 +86,7 @@ function createLauncherProgram(): Command {
       console.log(
         "Default permissions for a new Axon run. Use /sandbox inside Pi to inspect or edit its live permissions.",
       );
-      console.log(formatFilesystemPermissions(paths, project, preferences));
+      console.log(formatFilesystemPermissions(project, preferences));
     });
   for (const operation of ["allow-read", "allow-write", "deny", "revoke", "mode"] as const) {
     sandbox

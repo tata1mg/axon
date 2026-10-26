@@ -67,11 +67,14 @@ function pathRule(operation: string, path: string): string {
   return `(${operation} (subpath ${quoted(path)}))`;
 }
 
-function ancestorRules(path: string): string[] {
+function ancestorRules(
+  path: string,
+  operation: "file-read-metadata" | "file-read*" = "file-read-metadata",
+): string[] {
   const rules: string[] = [];
   let ancestor = dirname(path);
   while (true) {
-    rules.push(`(allow file-read-metadata (literal ${quoted(ancestor)}))`);
+    rules.push(`(allow ${operation} (literal ${quoted(ancestor)}))`);
     const parent = dirname(ancestor);
     if (parent === ancestor) return rules;
     ancestor = parent;
@@ -309,8 +312,9 @@ export async function createSandboxLaunchSpec(
       const canonical = await canonicalPath(path);
       rules.push(...ancestorRules(canonical), pathRule("allow file-read* file-write*", canonical));
     }
+    // getcwd needs parent-directory entries, but never recursive access to their contents.
     rules.push(
-      ...ancestorRules(project),
+      ...ancestorRules(project, "file-read*"),
       projectAccess
         ? pathRule(
             preferences.projectMode === "read-write"
@@ -425,13 +429,25 @@ export async function createSandboxLaunchSpec(
       policy.localGit === "deny" ? [gitFilter] : [],
       policy.localGit === "read-write" ? [] : [gitFilter],
     );
+    if (brokeredSession) {
+      // The content exclusions above also remove the TUI's cwd metadata grant.
+      // Restore only stat/getcwd on the directory itself; its contents stay broker-only.
+      restrictedRules.push(
+        ...restrictFilesystemGrants(
+          [`(allow file-read-metadata (literal ${quoted(project)}))`],
+          protectedPaths,
+          [],
+          policy.localGit === "deny" ? [gitFilter] : [],
+        ),
+      );
+    }
     const profile = join(runDirectory, `profile-${crypto.randomUUID()}.sb`);
     await writeFile(profile, `${baseline}\n${restrictedRules.join("\n")}\n`, {
       mode: 0o400,
       flag: "wx",
     });
-    // Compile and exercise the policy before launching Pi. A failure has no unsandboxed fallback.
-    const probe = Bun.spawn(["/usr/bin/sandbox-exec", "-f", profile, "/usr/bin/true"], {
+    // Compile the policy and exercise getcwd before Pi starts; never fall back to unsandboxed execution.
+    const probe = Bun.spawn(["/usr/bin/sandbox-exec", "-f", profile, "/bin/pwd"], {
       cwd: project,
       env: { PATH: "/usr/bin:/bin" },
       stdin: "ignore",
@@ -445,7 +461,7 @@ export async function createSandboxLaunchSpec(
     ]);
     if (probeExit !== 0)
       throw sandboxFailure(
-        "macOS rejected the generated Safehouse policy",
+        "Generated Safehouse policy failed its working-directory startup check",
         new Error(
           `exit=${probeExit}; signal=${probe.signalCode ?? "none"}; ${probeDiagnostics.slice(0, 8192)}`,
         ),

@@ -15,7 +15,16 @@ import {
   type ToolDefinition,
   VERSION,
 } from "@earendil-works/pi-coding-agent";
-import { Text, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import {
+  type Component,
+  Container,
+  Spacer,
+  Text,
+  type TUI,
+  truncateToWidth,
+  visibleWidth,
+  wrapTextWithAnsi,
+} from "@earendil-works/pi-tui";
 
 const ENTRY_TYPE = "axon-status";
 // Keep this bus contract in sync with session-backup/index.ts; this extension ships standalone.
@@ -125,6 +134,13 @@ function createAxonHeader(
     );
   };
 
+  const sandboxBadge = (): string | undefined => {
+    if (process.env["PI_AXON_SANDBOX"] !== "safehouse") return undefined;
+    return (
+      theme.fg("success", "●") + theme.fg("dim", " Sandbox: ") + theme.fg("success", "enabled")
+    );
+  };
+
   /** Right-align the badge; the wordmark always wins when both cannot fit. */
   const withBadge = (
     left: string,
@@ -139,22 +155,27 @@ function createAxonHeader(
     return fitted + " ".repeat(width - visibleWidth(fitted) - visibleWidth(badge)) + badge;
   };
 
-  /** Share the title row when possible; stack terminal status on smaller screens. */
+  /** Share the title row when possible; stack runtime status on smaller screens. */
   const heading = (width: number): { title: string; overflow: string[] } => {
     const title = theme.bold(theme.fg("accent", "Axon")) + theme.fg("dim", version);
     const backup = backupBadge();
     const terminal = terminalBadge();
-    const badges = [backup, terminal].filter((badge): badge is string => badge !== undefined);
+    const sandbox = sandboxBadge();
+    const badges = [backup, terminal, sandbox].filter(
+      (badge): badge is string => badge !== undefined,
+    );
     const combined = badges.join(separator);
     if (width - visibleWidth(combined) - 2 >= 4) {
       return { title: withBadge(title, width, 4, combined || undefined), overflow: [] };
     }
-    const overflow =
-      terminal === undefined
-        ? []
-        : wrapTextWithAnsi(terminal, width).map(
-            (line) => " ".repeat(Math.max(0, width - visibleWidth(line))) + line,
-          );
+    const runtimeBadges = [terminal, sandbox]
+      .filter((badge): badge is string => badge !== undefined)
+      .join(separator);
+    const overflow = runtimeBadges
+      ? wrapTextWithAnsi(runtimeBadges, width).map(
+          (line) => " ".repeat(Math.max(0, width - visibleWidth(line))) + line,
+        )
+      : [];
     return { title: withBadge(title, width, 4, backup), overflow };
   };
 
@@ -326,6 +347,180 @@ function authRelayConfiguration(): { origin: string; capability: string } | unde
   } catch {
     return undefined;
   }
+}
+
+interface SandboxScope {
+  readonly project: string;
+  readonly projectMode: "read-only" | "read-write";
+  readonly readPaths: string[];
+  readonly writePaths: string[];
+  readonly denyPaths: string[];
+}
+
+function parseSandboxScope(value: unknown): SandboxScope {
+  const scope = value as Partial<SandboxScope> | null;
+  if (
+    !scope ||
+    typeof scope.project !== "string" ||
+    scope.project.length > 4096 ||
+    (scope.projectMode !== "read-only" && scope.projectMode !== "read-write") ||
+    ![scope.readPaths, scope.writePaths, scope.denyPaths].every(
+      (paths) =>
+        Array.isArray(paths) &&
+        paths.length <= 64 &&
+        paths.every((path) => typeof path === "string" && path.length <= 4096),
+    )
+  ) {
+    throw new Error("Invalid sandbox status response");
+  }
+  return scope as SandboxScope;
+}
+
+/** A live, display-only section below Pi's startup resources; grants stay parent-owned. */
+function createSandboxScopeDisplay(ctx: ExtensionContext) {
+  const config = authRelayConfiguration();
+  if (ctx.mode !== "tui" || config === undefined) return undefined;
+  const controller = new AbortController();
+  let scope: SandboxScope | undefined;
+  let unavailable = false;
+  let refreshDisplay: (() => void) | undefined;
+  let removeSection: (() => void) | undefined;
+
+  const createComponent = (theme: Theme): Component => {
+    const pathsSummary = (paths: readonly string[]): string =>
+      paths.length
+        ? `${paths.length} · ${paths
+            .slice(0, 2)
+            .map((path) => displayDirectory(path))
+            .join(", ")}${paths.length > 2 ? ` (+${paths.length - 2} more)` : ""}`
+        : "(none)";
+    const settingLine = (label: string, value: string, color: ThemeColor): string =>
+      theme.fg("muted", `  ${label}: `) + theme.fg(color, value);
+    return {
+      invalidate() {},
+      render(width: number): string[] {
+        if (width <= 0) return [];
+        const padding = width > 2 ? 1 : 0;
+        const contentWidth = width - padding * 2;
+        const lines = [
+          theme.fg("mdHeading", "[Sandbox]"),
+          settingLine("Scope", "this Axon run", "accent") + theme.fg("dim", " · resets on exit"),
+        ];
+        if (scope === undefined) {
+          lines.push(
+            theme.fg(
+              unavailable ? "warning" : "accent",
+              unavailable ? "  Current permissions unavailable" : "  Loading current permissions…",
+            ),
+          );
+        } else {
+          const projectLabel = `  Project (${scope.projectMode}): `;
+          const projectWidth = Math.max(1, contentWidth - visibleWidth(projectLabel));
+          lines.push(
+            theme.fg("muted", "  Project (") +
+              theme.fg(
+                scope.projectMode === "read-only" ? "success" : "warning",
+                scope.projectMode,
+              ) +
+              theme.fg("muted", "): ") +
+              theme.fg(
+                "dim",
+                truncatePathStart(displayDirectory(scope.project) ?? "", projectWidth),
+              ),
+            settingLine(
+              "Extra read-only",
+              pathsSummary(scope.readPaths),
+              scope.readPaths.length ? "success" : "dim",
+            ),
+            settingLine(
+              "Extra read/write",
+              pathsSummary(scope.writePaths),
+              scope.writePaths.length ? "warning" : "dim",
+            ),
+            settingLine(
+              "Blocked",
+              pathsSummary(scope.denyPaths),
+              scope.denyPaths.length ? "error" : "dim",
+            ),
+          );
+        }
+        lines.push(
+          theme.fg("accent", "  /sandbox") +
+            theme.fg("dim", " to review or edit · changes apply after saving"),
+        );
+        return lines.map((line) => " ".repeat(padding) + truncateToWidth(line, contentWidth));
+      },
+    };
+  };
+
+  return {
+    mount(tui: TUI, theme: Theme, header: Component): void {
+      // setHeader installs its component after the factory returns.
+      queueMicrotask(() => {
+        if (controller.signal.aborted) return;
+        removeSection?.();
+        for (const parent of tui.children) {
+          if (!(parent instanceof Container)) continue;
+          const headerIndex = parent.children.findIndex(
+            (child) => child instanceof Container && child.children.includes(header),
+          );
+          if (
+            headerIndex === -1 ||
+            !(parent.children[headerIndex + 1] instanceof Container) ||
+            !(parent.children[headerIndex + 2] instanceof Container)
+          ) {
+            continue;
+          }
+          // Pi 1.4's document contains header, loaded resources, then chat.
+          // Widgets only support editor placement, so insert a separate startup section.
+          const section = new Container();
+          section.addChild(createComponent(theme));
+          section.addChild(new Spacer(1));
+          parent.children.splice(headerIndex + 2, 0, section);
+          refreshDisplay = () => tui.requestRender();
+          removeSection = () => {
+            parent.removeChild(section);
+            refreshDisplay = undefined;
+            removeSection = undefined;
+            tui.requestRender();
+          };
+          tui.requestRender();
+          return;
+        }
+      });
+    },
+    unmount(): void {
+      removeSection?.();
+    },
+    async refresh(): Promise<void> {
+      try {
+        const response = await fetch(new URL("/_axon/sandbox/status", config.origin), {
+          headers: { Authorization: `Bearer ${config.capability}` },
+          redirect: "error",
+          cache: "no-store",
+          signal: AbortSignal.any([
+            controller.signal,
+            AbortSignal.timeout(AUTH_REQUEST_TIMEOUT_MS),
+          ]),
+        });
+        if (!response.ok) throw new Error("Sandbox status unavailable");
+        const current = parseSandboxScope(await response.json());
+        if (controller.signal.aborted) return;
+        scope = current;
+        unavailable = false;
+      } catch {
+        if (controller.signal.aborted) return;
+        // Never present an old snapshot as the current permissions after a failed refresh.
+        scope = undefined;
+        unavailable = true;
+      }
+      refreshDisplay?.();
+    },
+    dispose(): void {
+      controller.abort();
+      removeSection?.();
+    },
+  };
 }
 
 /** Polling runs independently of Pi's model request, which the relay can pause for login. */
@@ -538,6 +733,7 @@ export default function axonExtension(pi: ExtensionAPI): void {
 
   registerSandboxFileTools(pi);
   let stopRecovery: (() => void) | undefined;
+  let sandboxDisplay: ReturnType<typeof createSandboxScopeDisplay>;
   let sandboxEditorOpen = false;
   let backupState: BackupHeaderState | undefined;
   let terminalState: TerminalHeaderState | undefined;
@@ -579,6 +775,9 @@ export default function axonExtension(pi: ExtensionAPI): void {
   pi.on("session_start", (_event, ctx) => {
     stopRecovery?.();
     stopRecovery = watchSessionRecovery(ctx);
+    sandboxDisplay?.dispose();
+    sandboxDisplay = createSandboxScopeDisplay(ctx);
+    void sandboxDisplay?.refresh();
     if (ctx.mode === "tui") {
       ctx.ui.setHeader((tui, theme) => {
         const component = createAxonHeader(
@@ -592,12 +791,16 @@ export default function axonExtension(pi: ExtensionAPI): void {
           tui.requestRender();
         };
         refreshHeader = refresh;
-        return {
+        const display = sandboxDisplay;
+        const header = {
           ...component,
           dispose() {
+            display?.unmount();
             if (refreshHeader === refresh) refreshHeader = undefined;
           },
         };
+        display?.mount(tui, theme, header);
+        return header;
       });
     }
   });
@@ -605,6 +808,8 @@ export default function axonExtension(pi: ExtensionAPI): void {
     refreshHeader = undefined;
     backupState = undefined;
     terminalState = undefined;
+    sandboxDisplay?.dispose();
+    sandboxDisplay = undefined;
     stopRecovery?.();
     stopRecovery = undefined;
   });
@@ -694,6 +899,7 @@ export default function axonExtension(pi: ExtensionAPI): void {
           "warning",
         );
       } finally {
+        await sandboxDisplay?.refresh();
         sandboxEditorOpen = false;
         stopRecovery = watchSessionRecovery(ctx);
       }
