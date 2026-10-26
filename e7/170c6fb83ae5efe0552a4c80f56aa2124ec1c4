@@ -1,0 +1,150 @@
+apps/backend/tests/test_dependency_destinations.py
+  s_93bc0bbf11536a::t_1a7cbb51a585ce 1-2,8-157,201,216-223
+  s_93bc0bbf11536a::t_3eaf474e969f6b 3-7,158-200,202-215
+apps/backend/app/observability/privacy.py
+  s_93bc0bbf11536a::t_8f28178e16c154 9,11-12,141-142,144,150-164,173
+  s_93bc0bbf11536a::t_4280e8cef8dad2 3-4,13-15,65-68,74-113,115-117,132,138-140
+  s_93bc0bbf11536a::t_687fb54faab9e9 69-73,114
+apps/cli/tests/request-relay.test.ts
+  s_93bc0bbf11536a::t_5cf12e0d6a5930 113-136
+apps/backend/tests/test_litellm_logging.py
+  s_93bc0bbf11536a::t_86b6059182b0dc 4,21,24,70,74,193-201,203-204,217-261
+apps/backend/tests/test_exception_telemetry.py
+  s_93bc0bbf11536a::t_6289a95acf640d 3,86
+  s_93bc0bbf11536a::t_85153fb980277b 1-2,4-56,59-70,72-75,83-85,87-155
+  s_93bc0bbf11536a::t_fcd4cd98b8060e 57-58,71,76-82
+apps/backend/app/observability/runtime.py
+  s_61fc067fb85f53::t_b733afe34201b0 15,26,46
+apps/cli/tests/relay-diagnostics.test.ts
+  s_93bc0bbf11536a::t_c2829816bd24f2 41,89-93
+  s_93bc0bbf11536a::t_538dc841f47ef5 94-111
+apps/backend/app/core/logging.py
+  s_93bc0bbf11536a::t_69a8847d6a5aa5 82-83
+apps/backend/app/observability/litellm.py
+  s_61fc067fb85f53::t_78db7e5f4ca9d4 1-15,18-50,52-54,61-73,76-91,97-111,115-137,139-149,151-173
+  s_61fc067fb85f53::t_a729ab5f92b2ad 16,92-96
+  s_61fc067fb85f53::t_fd732a567b5108 51,112-114,138
+  s_61fc067fb85f53::t_96e39fd2a950d2 74-75
+  s_61fc067fb85f53::t_4d84cab14aeb47 17,55-60,150
+apps/backend/app/proxies/litellm_common.py
+  s_61fc067fb85f53::t_fd732a567b5108 652-653,656-657,662-671
+  s_61fc067fb85f53::t_31bb43b26097cf 562,614,620,622-628
+  s_61fc067fb85f53::t_f21bfc09eecd9e 544,563-571,575-581,587-597,599-604,629
+  s_61fc067fb85f53::t_9c297268d19611 5,18,22,118-119,137,150-151,433-434,442-443,454-457,489,498-500,526-528,545-546,555-556,560-561,605-613,615-619,621,630-651,654-655,658-661,672-675,677,680-691
+  s_61fc067fb85f53::t_86a608ca7e4df1 20,557-559
+  s_93bc0bbf11536a::t_dbff84de68041b 77-78,185-186
+  s_61fc067fb85f53::t_eb65d988d77067 572-574,582-586
+  s_61fc067fb85f53::t_2a697233a4d915 480-481,676,678-679
+  s_61fc067fb85f53::t_f8b2c6df317ebd 21
+apps/backend/tests/test_product_telemetry.py
+  s_93bc0bbf11536a::t_d1b0693c9aeaec 1,110-112,115-117
+apps/backend/tests/test_litellm_disconnect.py
+  s_61fc067fb85f53::t_b62a18a3a15325 9,46,98
+  s_61fc067fb85f53::t_eb65d988d77067 48-53,176-178
+  s_61fc067fb85f53::t_a921c54e6f05d4 13-15,184-210
+  s_61fc067fb85f53::t_250f2aecb9ae22 1-8,10-12,16-45,47,54-97,99-175,179-183,211-252
+  s_61fc067fb85f53::t_1aa3179bda1a21 253-256
+apps/backend/app/listeners/litellm.py
+  s_61fc067fb85f53::t_6f13a41bfcb2e3 24-25,35-36,38-39,50
+  s_61fc067fb85f53::t_e1e1adb8b534f0 4,37,40
+  s_61fc067fb85f53::t_fd732a567b5108 41-49
+apps/backend/README.md
+  s_93bc0bbf11536a::t_5de7827b48fb37 633-640,658-661
+  s_93bc0bbf11536a::t_39a15d96ee4363 245-252
+  s_93bc0bbf11536a::t_98c94f732eaa9a 650-657,662-666
+  s_61fc067fb85f53::t_8b3eea9a19be80 162-168,253-283
+apps/cli/README.md
+  s_93bc0bbf11536a::t_05832023ea1fd2 234-237
+apps/backend/app/observability/exceptions.py
+  s_93bc0bbf11536a::t_a5adaf93a34b50 45,51,53
+  s_93bc0bbf11536a::t_9a469aa3496592 24-25,64
+  s_93bc0bbf11536a::t_1329259e3efeaa 1-23,26-44,46-50,52,54-63,65-74,77-94
+  s_93bc0bbf11536a::t_9702ac218b439a 75-76
+apps/backend/app/telemetry.py
+  s_93bc0bbf11536a::t_76927318c655d0 27,153,163-164
+apps/cli/src/cli/auth/relay-diagnostics.ts
+  s_93bc0bbf11536a::t_efe86b5176d6d0 174-175
+apps/backend/app/observability/middleware.py
+  s_93bc0bbf11536a::t_0dd8e3830cd808 13,21,79,110-113,218
+apps/backend/tests/test_backend_instrumentation.py
+  s_93bc0bbf11536a::t_4feca027f3c487 17,119-139,143-159
+  s_93bc0bbf11536a::t_2bd7b540be8ee9 95-105,109,160-165
+  s_93bc0bbf11536a::t_1c58a973f6f51b 140-142
+  s_93bc0bbf11536a::t_af6e40347c6213 166-168
+  s_93bc0bbf11536a::t_cceb627bf8776d 169-170
+apps/backend/tests/test_litellm_streaming.py
+  s_61fc067fb85f53::t_1d8c43337baad9 123-125,129-130,132
+apps/backend/app/clients/litellm/transport.py
+  s_61fc067fb85f53::t_0ac9ff45d4e381 13-14,71,74,129,133-145,149-151
+  s_61fc067fb85f53::t_222294b03af3e8 3,130-131,146-148
+  s_61fc067fb85f53::t_eb65d988d77067 18-31
+apps/backend/tests/test_litellm_incident_reproduction.py
+  s_61fc067fb85f53::t_5137566f87d54b 5-9,12-17,19-21,23,25-121,125-129,132-160,172-178,274-275,298,300-307,319-327,347-349
+  s_61fc067fb85f53::t_2ad7d0ddca71d7 218,269-271
+  s_61fc067fb85f53::t_80f4a5a90e46b5 1-4,130-131,161-171,297,299,308-318,328,339-341,343
+  s_61fc067fb85f53::t_c593c8917c890a 122-124
+  s_61fc067fb85f53::t_7880a42a321c2d 18,22,24,179-217,219-255,259-268,272-273
+  s_61fc067fb85f53::t_db1d0a9dd7c3a5 10-11,276-295,329-338,342,344-346
+  s_61fc067fb85f53::t_e03f3017cb67eb 256-258
+  s_61fc067fb85f53::t_63938a682c84f4 296,350-352
+apps/backend/tests/test_litellm_ui.py
+  s_61fc067fb85f53::t_a230775ff69d4e 377-379
+apps/backend/pyproject.toml
+  s_08b4ab12ce42b9::t_d66f7e9c488c67 3
+apps/backend/app/proxies/disconnect.py
+  s_61fc067fb85f53::t_5e742c197e2cd6 25-42
+  s_61fc067fb85f53::t_598ec14a13c402 1-24,43-80
+apps/backend/tests/test_litellm_diagnostics.py
+  s_61fc067fb85f53::t_ba541aa15f4e95 1-122
+  s_61fc067fb85f53::t_1f10a39ab2adf0 123-137
+docs/investigations/litellm-upstream-pool-timeouts.md
+  s_61fc067fb85f53::t_0bee7383acbbc8 276
+  s_61fc067fb85f53::t_84c751b17b9ca3 11,199,258,261,263,273,275
+  s_61fc067fb85f53::t_dff556b4755bc6 98,155-156
+  s_61fc067fb85f53::t_ec75ea5692450e 280-313,316
+  s_61fc067fb85f53::t_faec8c0c55b54e 314-315
+  s_61fc067fb85f53::t_986944f8af8621 1-10,12-97,99-154,157-198,200-257,259-260,262,264-272,274,277-279
+apps/backend/tests/test_backend_observability.py
+  s_93bc0bbf11536a::t_348e31db30ff74 182,188,194,210-219,269,278-282
+  s_93bc0bbf11536a::t_b14f014ac64022 226-248
+  s_93bc0bbf11536a::t_806e0fa79adbd7 250,272-277,283
+apps/backend/uv.lock
+  s_08b4ab12ce42b9::t_efd40efbe7698c 64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e7170c6fb83ae5efe0552a4c80f56aa2124ec1c4",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_08b4ab12ce42b9": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a1777f-d746-733f-b331-d805e0ac5e33",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_61fc067fb85f53": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a176fb-7031-7430-971d-e6cf1f37adb6",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_93bc0bbf11536a": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a168e0-03a2-7591-ba2c-ef47e1c5077c",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
