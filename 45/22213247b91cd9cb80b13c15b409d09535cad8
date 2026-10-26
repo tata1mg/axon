@@ -1,0 +1,57 @@
+apps/cli/src/launcher/contracts.ts
+  2cd1f06327da95f9 33-35
+apps/cli/scripts/build-terminal-permissions.ts
+  2cd1f06327da95f9 16
+apps/cli/src/cli/commands/sandbox.ts
+  2cd1f06327da95f9 85,93-95,202,247,379,385-388,390
+apps/cli/src/harnesses/pi/resources/extensions/terminal-permissions.mjs
+  2cd1f06327da95f9 2-7,9-10
+apps/cli/src/launcher/launch-harness.ts
+  2cd1f06327da95f9 36-38,46
+apps/cli/src/cli/launcher-program.ts
+  2cd1f06327da95f9 10,53-62,65-67,71-72,86,99
+apps/cli/src/sandbox/operations.ts
+  2cd1f06327da95f9 1-126
+apps/cli/src/sandbox/configuration-relay.ts
+  2cd1f06327da95f9 8,33,37,40,48
+apps/cli/src/sandbox/environment.ts
+  2cd1f06327da95f9 27
+apps/cli/src/harnesses/pi/restart.ts
+  2cd1f06327da95f9 1-4,60
+apps/cli/src/cli/auth/request-relay.ts
+  2cd1f06327da95f9 7,359,387-391
+apps/cli/src/sandbox/session.ts
+  2cd1f06327da95f9 8,17-43,55-59,71,104-105,112-113,117,124,130,138-143,153,173-174,188-189,193-198,203-204
+apps/cli/src/harnesses/pi/adapter.ts
+  2cd1f06327da95f9 12-13,158,160-165,230
+apps/cli/src/sandbox/filesystem.ts
+  2cd1f06327da95f9 46-78,120,265,274-277,279-282,291,293
+apps/cli/src/harnesses/pi/resources/extensions/axon.ts
+  2cd1f06327da95f9 4-10,15,455-529,531,587,599,614,618,633,636,646,648,661
+apps/cli/src/sandbox/launch.ts
+  2cd1f06327da95f9 119-120,189-191,194-195,199,314,345,402
+apps/cli/src/launcher/spawn-harness.ts
+  2cd1f06327da95f9 10-11
+apps/cli/src/harnesses/pi/resources/extensions/terminal-permissions.ts
+  2cd1f06327da95f9 11,290,294,558-563
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "4522213247b91cd9cb80b13c15b409d09535cad8",
+  "prompts": {
+    "2cd1f06327da95f9": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "496548",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 482,
+      "total_deletions": 257,
+      "accepted_lines": 422,
+      "overriden_lines": 0
+    }
+  }
+}
