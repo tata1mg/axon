@@ -2,7 +2,6 @@ import { homedir } from "node:os";
 import {
   type AppKeybinding,
   type ExtensionAPI,
-  type ExtensionContext,
   keyText,
   type Theme,
   VERSION,
@@ -211,7 +210,7 @@ function createAxonHeader(
       const content = `${mark[index] ?? " ".repeat(LOGO_WIDTH)}  ${row}`;
       return `${border("│")}  ${content}${" ".repeat(Math.max(0, inner - visibleWidth(content)))}  ${border("│")}`;
     });
-    const attribution = ` Powered by Pi v${VERSION} `;
+    const attribution = ` DeputyDev · Powered by Pi v${VERSION} `;
     const bottomRule = width - 2 - visibleWidth(attribution) - 2;
     const bottom =
       bottomRule >= 2
@@ -226,7 +225,7 @@ function createAxonHeader(
       title,
       ...overflow,
       theme.fg("muted", truncateToWidth("TATA 1mg", width)),
-      theme.fg("dim", truncateToWidth(`Powered by Pi v${VERSION}`, width)),
+      theme.fg("dim", truncateToWidth(`DeputyDev · Powered by Pi v${VERSION}`, width)),
     ];
   };
 
@@ -288,15 +287,7 @@ function createAxonHeader(
     },
   };
 }
-const AUTH_POLL_INTERVAL_MS = 1_000;
-const AUTH_REQUEST_TIMEOUT_MS = 5_000;
-
-interface RecoveryStatus {
-  readonly id: string;
-  readonly state: "required" | "logging-in";
-  readonly expiresAt: number;
-}
-
+// Keep in sync with axon-auth.ts; each extension ships standalone.
 function authRelayConfiguration(): { origin: string; capability: string } | undefined {
   const origin = Reflect.get(process.env, "PI_AXON_AUTH_RELAY_URL") as string | undefined;
   const capability = Reflect.get(process.env, "PI_AXON_AUTH_RELAY_KEY") as string | undefined;
@@ -320,131 +311,12 @@ function authRelayConfiguration(): { origin: string; capability: string } | unde
   }
 }
 
-/** Polling runs independently of Pi's model request, which the relay can pause for login. */
-function watchSessionRecovery(ctx: ExtensionContext): () => void {
-  const config = authRelayConfiguration();
-  if (!ctx.hasUI || config === undefined) return () => {};
-
-  const controller = new AbortController();
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let handledRecovery: string | undefined;
-  let activePrompt: { id: string; controller: AbortController } | undefined;
-  let busy = false;
-
-  const authRequest = (action: string, method = "GET", id?: string): Promise<Response> => {
-    const url = new URL(`/_axon/auth/${action}`, config.origin);
-    if (id !== undefined) url.searchParams.set("id", id);
-    return fetch(url, {
-      method,
-      headers: { Authorization: `Bearer ${config.capability}` },
-      redirect: "error",
-      cache: "no-store",
-      signal: AbortSignal.any([
-        controller.signal,
-        AbortSignal.timeout(action === "login" ? 5 * 60_000 : AUTH_REQUEST_TIMEOUT_MS),
-      ]),
-    });
-  };
-
-  const offerLogin = async (recovery: RecoveryStatus): Promise<void> => {
-    const promptController = new AbortController();
-    activePrompt = { id: recovery.id, controller: promptController };
-    const signal = AbortSignal.any([
-      controller.signal,
-      promptController.signal,
-      ...(ctx.signal === undefined ? [] : [ctx.signal]),
-    ]);
-    ctx.ui.setStatus("axon-auth", "Session expired — login required");
-    try {
-      const choice = await ctx.ui.select(
-        "Your Axon session expired. Sign in to continue this chat.",
-        ["Login from browser", "Not now (keep chat open)"],
-        { signal, timeout: Math.max(1, recovery.expiresAt - Date.now()) },
-      );
-      activePrompt = undefined;
-      if (choice !== "Login from browser" || signal.aborted) {
-        await authRequest("cancel", "POST", recovery.id);
-        if (!controller.signal.aborted) {
-          ctx.ui.notify(
-            "Login cancelled. Your chat is still open; sign in and retry when ready.",
-            "warning",
-          );
-        }
-        return;
-      }
-      ctx.ui.setStatus("axon-auth", "Waiting for browser login…");
-      ctx.ui.notify(
-        "Complete login in your browser. This chat will continue after approval.",
-        "info",
-      );
-      const response = await authRequest("login", "POST", recovery.id);
-      const payload: unknown = await response.json();
-      const authenticated =
-        response.ok &&
-        payload !== null &&
-        typeof payload === "object" &&
-        "authenticated" in payload &&
-        payload.authenticated === true;
-      if (!controller.signal.aborted) {
-        ctx.ui.notify(
-          authenticated
-            ? "Signed in. Continuing your chat…"
-            : "Login failed or timed out. Your chat is still open; retry to sign in again.",
-          authenticated ? "info" : "warning",
-        );
-      }
-    } catch {
-      if (!controller.signal.aborted) {
-        await authRequest("cancel", "POST", recovery.id).catch(() => {});
-        ctx.ui.notify(
-          "Login could not complete. Your chat is still open; retry when ready.",
-          "warning",
-        );
-      }
-    } finally {
-      activePrompt = undefined;
-      ctx.ui.setStatus("axon-auth", undefined);
-    }
-  };
-
-  const poll = async (): Promise<void> => {
-    try {
-      const response = await authRequest("status");
-      if (!response.ok) return;
-      const payload: unknown = await response.json();
-      const recovery = (payload as { recovery?: Partial<RecoveryStatus> } | null)?.recovery;
-      // Dismiss a stale dialog if Pi cancelled the waiting request or its deadline elapsed.
-      if (activePrompt !== undefined && activePrompt.id !== recovery?.id) {
-        activePrompt.controller.abort();
-      }
-      if (
-        !busy &&
-        recovery?.state === "required" &&
-        typeof recovery.id === "string" &&
-        typeof recovery.expiresAt === "number" &&
-        recovery.id !== handledRecovery
-      ) {
-        handledRecovery = recovery.id;
-        busy = true;
-        void offerLogin(recovery as RecoveryStatus).finally(() => {
-          busy = false;
-        });
-      }
-    } catch {
-      // A transient loopback failure must not interrupt the chat or spam notifications.
-    } finally {
-      if (!controller.signal.aborted) timer = setTimeout(() => void poll(), AUTH_POLL_INTERVAL_MS);
-    }
-  };
-  void poll();
-  return () => {
-    controller.abort();
-    if (timer !== undefined) clearTimeout(timer);
-    ctx.ui.setStatus("axon-auth", undefined);
-  };
-}
-
 export default function axonExtension(pi: ExtensionAPI): void {
+  // Keep AWS credentials available to tools, but never offer direct Bedrock models.
+  // An explicit empty catalog also covers saved /login tokens, models.json, and
+  // catalog refreshes. unregisterProvider would restore the built-in catalog.
+  pi.registerProvider("amazon-bedrock", { models: [] });
+
   pi.on("before_agent_start", (event) => {
     event.systemPromptOptions.sections["axon"] =
       "You are running through Axon Pi, not Pi directly. " +
@@ -453,7 +325,6 @@ export default function axonExtension(pi: ExtensionAPI): void {
       "Project-local configuration still uses .pi/.";
   });
 
-  let stopRecovery: (() => void) | undefined;
   let backupState: BackupHeaderState | undefined;
   let terminalState: TerminalHeaderState | undefined;
   let refreshHeader: (() => void) | undefined;
@@ -492,8 +363,6 @@ export default function axonExtension(pi: ExtensionAPI): void {
     };
   });
   pi.on("session_start", (_event, ctx) => {
-    stopRecovery?.();
-    stopRecovery = watchSessionRecovery(ctx);
     if (ctx.mode === "tui") {
       ctx.ui.setHeader((tui, theme) => {
         const component = createAxonHeader(
@@ -514,14 +383,26 @@ export default function axonExtension(pi: ExtensionAPI): void {
           },
         };
       });
+    } else if (ctx.mode === "rpc") {
+      // setHeader is a no-op over RPC; Pi's standard status entries carry the
+      // same badges to any RPC client that renders them.
+      const published = new Map<string, string | undefined>();
+      const publish = (key: string, value: string | undefined) => {
+        if (published.get(key) === value) return;
+        published.set(key, value);
+        ctx.ui.setStatus(key, value);
+      };
+      refreshHeader = () => {
+        publish("axon-backup", backupState && `Backup: ${BACKUP_LABELS[backupState]}`);
+        publish("axon-terminal", terminalState && `Terminal: ${TERMINAL_LABELS[terminalState]}`);
+      };
+      refreshHeader();
     }
   });
   pi.on("session_shutdown", () => {
     refreshHeader = undefined;
     backupState = undefined;
     terminalState = undefined;
-    stopRecovery?.();
-    stopRecovery = undefined;
   });
 
   pi.registerEntryRenderer(ENTRY_TYPE, (entry, _options, theme) => {

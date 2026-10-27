@@ -143,6 +143,33 @@ export async function saveEncryptedSession(
   await persistEncryptedSession(paths, encryptedSession, expectedSession);
 }
 
+/** Clear the shared local credential, preserving DeputyDev's unrelated settings. */
+export async function clearEncryptedSession(paths: AxonPaths): Promise<boolean> {
+  const destination = sessionPath(paths);
+  try {
+    await assertRegularDirectory(paths.sharedAuthDirectory);
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+      return false;
+    }
+    throw error;
+  }
+
+  return withFileLock(paths.sharedAuthLock, async () => {
+    const data = await readSessionFile(destination);
+    if (!data || !Object.hasOwn(data, AUTH_TOKEN_KEY)) return false;
+    delete data[AUTH_TOKEN_KEY];
+    const temporary = `${destination}.${crypto.randomUUID()}.tmp`;
+    try {
+      await writeFile(temporary, `${JSON.stringify(data)}\n`, { flag: "wx", mode: 0o600 });
+      await rename(temporary, destination);
+    } finally {
+      await rm(temporary, { force: true });
+    }
+    return true;
+  });
+}
+
 /** Rotate only the credential that produced this response, never a newer login. */
 export async function refreshEncryptedSession(
   paths: AxonPaths,

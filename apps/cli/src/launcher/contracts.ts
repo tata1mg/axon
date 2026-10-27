@@ -11,6 +11,8 @@ export interface LaunchContext {
 export interface HarnessLaunchContext extends LaunchContext {
   readonly registration: HarnessRegistration;
   readonly executable: string;
+  /** The launch has no usable login yet; the harness must offer sign-in itself. */
+  readonly authenticationDeferred?: boolean;
 }
 
 export interface LaunchSpec {
