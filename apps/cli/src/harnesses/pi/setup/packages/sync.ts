@@ -72,13 +72,18 @@ async function runPiPackageAction(
   request: PiPackageActionRequest,
 ): Promise<{ readonly exitCode: number }> {
   console.error(`${PRODUCT_IDENTITY.command}: ${describeAction(request)}...`);
+  // Pi, npm and git progress is noise on a successful launch; keep it for failures.
   const subprocess = Bun.spawn([context.executable, request.action, request.source], {
     cwd: context.cwd,
     env: createPiEnvironment(context.environment, context.paths),
-    stdin: "inherit",
-    stdout: "inherit",
-    stderr: "inherit",
+    stdin: "ignore",
+    stdout: "pipe",
+    stderr: "pipe",
   });
+  const output = Promise.all([
+    new Response(subprocess.stdout).text(),
+    new Response(subprocess.stderr).text(),
+  ]);
 
   const forwardingHandlers = new Map<NodeJS.Signals, () => void>();
   for (const signal of ["SIGTERM", "SIGHUP"] as const) {
@@ -93,6 +98,10 @@ async function runPiPackageAction(
 
   try {
     const exitCode = await subprocess.exited;
+    const [stdout, stderr] = await output;
+    if (exitCode !== 0 || subprocess.signalCode !== null) {
+      process.stderr.write(stdout + stderr);
+    }
     if (subprocess.signalCode !== null) {
       throw new Error(`Pi package ${request.action} terminated by signal ${subprocess.signalCode}`);
     }

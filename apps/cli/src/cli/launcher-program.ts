@@ -28,7 +28,7 @@ function createLauncherProgram(): Command {
   const program = new Command();
   program
     .name(PRODUCT_IDENTITY.command)
-    .description(`${PRODUCT_IDENTITY.displayName} Pi launcher`)
+    .description(`${PRODUCT_IDENTITY.displayName} Pi launcher by DeputyDev`)
     .usage("<harness> [harness arguments...] | <command> [options]")
     .helpOption("-h, --help", "display launcher help")
     .version(BUILD_INFO.version, "-V, --version", "display launcher version")

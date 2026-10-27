@@ -1,15 +1,13 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 import { loadEncryptedSession, saveEncryptedSession } from "../src/cli/auth/session.ts";
-import {
-  normalizeManifestPackages,
-  resolveInstalledPackagePath,
-} from "../src/harnesses/pi/setup/packages/manifest.ts";
+import { normalizeManifestPackages } from "../src/harnesses/pi/setup/packages/manifest.ts";
 import { AXON_MANIFEST } from "../src/product/manifest.ts";
 import { resolveAxonPaths } from "../src/product/paths.ts";
+import { writePiPackageFixture } from "./fixtures/pi-packages.ts";
 
 let root: string;
 let server: ReturnType<typeof Bun.serve>;
@@ -45,15 +43,7 @@ beforeAll(async () => {
   await saveEncryptedSession(paths, "initial-token");
   const packages = normalizeManifestPackages(AXON_MANIFEST);
   for (const entry of packages) {
-    const directory = resolveInstalledPackagePath(entry, paths.pi);
-    await mkdir(directory, { recursive: true });
-    await Bun.write(
-      join(directory, "package.json"),
-      JSON.stringify({
-        name: entry.packageName,
-        version: entry.versionPolicy.kind === "floating" ? "1.0.0" : entry.versionPolicy.version,
-      }),
-    );
+    await writePiPackageFixture(entry, paths.pi);
   }
   await Bun.write(
     join(paths.pi, "settings.json"),

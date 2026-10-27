@@ -211,7 +211,7 @@ function createAxonHeader(
       const content = `${mark[index] ?? " ".repeat(LOGO_WIDTH)}  ${row}`;
       return `${border("│")}  ${content}${" ".repeat(Math.max(0, inner - visibleWidth(content)))}  ${border("│")}`;
     });
-    const attribution = ` Powered by Pi v${VERSION} `;
+    const attribution = ` DeputyDev · Powered by Pi v${VERSION} `;
     const bottomRule = width - 2 - visibleWidth(attribution) - 2;
     const bottom =
       bottomRule >= 2
@@ -226,7 +226,7 @@ function createAxonHeader(
       title,
       ...overflow,
       theme.fg("muted", truncateToWidth("TATA 1mg", width)),
-      theme.fg("dim", truncateToWidth(`Powered by Pi v${VERSION}`, width)),
+      theme.fg("dim", truncateToWidth(`DeputyDev · Powered by Pi v${VERSION}`, width)),
     ];
   };
 
@@ -291,10 +291,22 @@ function createAxonHeader(
 const AUTH_POLL_INTERVAL_MS = 1_000;
 const AUTH_REQUEST_TIMEOUT_MS = 5_000;
 
+const LOGIN_CHOICE = "Login from browser";
+
 interface RecoveryStatus {
   readonly id: string;
   readonly state: "required" | "logging-in";
   readonly expiresAt: number;
+}
+
+function isRequiredRecovery(
+  recovery: Partial<RecoveryStatus> | null | undefined,
+): recovery is RecoveryStatus {
+  return (
+    recovery?.state === "required" &&
+    typeof recovery.id === "string" &&
+    typeof recovery.expiresAt === "number"
+  );
 }
 
 function authRelayConfiguration(): { origin: string; capability: string } | undefined {
@@ -325,6 +337,10 @@ function watchSessionRecovery(ctx: ExtensionContext): () => void {
   const config = authRelayConfiguration();
   if (!ctx.hasUI || config === undefined) return () => {};
 
+  // Pi's RPC protocol cannot retract a dialog: an aborted or timed-out select leaves a dead
+  // card in the client (Paseo ignores the timeout). RPC therefore keeps one card per session
+  // and applies the answer to whichever recovery is pending when it arrives.
+  const rpc = ctx.mode === "rpc";
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   let handledRecovery: string | undefined;
@@ -346,23 +362,48 @@ function watchSessionRecovery(ctx: ExtensionContext): () => void {
     });
   };
 
-  const offerLogin = async (recovery: RecoveryStatus): Promise<void> => {
+  /** Undefined means the status could not be read; null means no login is pending. */
+  const readRecovery = async (): Promise<Partial<RecoveryStatus> | null | undefined> => {
+    const response = await authRequest("status");
+    if (!response.ok) return undefined;
+    const payload: unknown = await response.json();
+    return (payload as { recovery?: Partial<RecoveryStatus> | null } | null)?.recovery ?? null;
+  };
+
+  const offerLogin = async (offered: RecoveryStatus): Promise<void> => {
     const promptController = new AbortController();
-    activePrompt = { id: recovery.id, controller: promptController };
-    const signal = AbortSignal.any([
-      controller.signal,
-      promptController.signal,
-      ...(ctx.signal === undefined ? [] : [ctx.signal]),
-    ]);
+    activePrompt = { id: offered.id, controller: promptController };
+    const signal = rpc
+      ? controller.signal
+      : AbortSignal.any([
+          controller.signal,
+          promptController.signal,
+          ...(ctx.signal === undefined ? [] : [ctx.signal]),
+        ]);
+    let recovery: RecoveryStatus | undefined = offered;
     ctx.ui.setStatus("axon-auth", "Session expired — login required");
     try {
       const choice = await ctx.ui.select(
         "Your Axon session expired. Sign in to continue this chat.",
-        ["Login from browser", "Not now (keep chat open)"],
-        { signal, timeout: Math.max(1, recovery.expiresAt - Date.now()) },
+        [LOGIN_CHOICE, "Not now (keep chat open)"],
+        rpc ? { signal } : { signal, timeout: Math.max(1, offered.expiresAt - Date.now()) },
       );
       activePrompt = undefined;
-      if (choice !== "Login from browser" || signal.aborted) {
+      if (rpc && !signal.aborted) {
+        const current = await readRecovery();
+        recovery = isRequiredRecovery(current) ? current : undefined;
+        if (recovery !== undefined) handledRecovery = recovery.id;
+      }
+      if (recovery === undefined) {
+        if (choice === LOGIN_CHOICE) {
+          ctx.ui.notify(
+            "That sign-in request is no longer active. Send your message again to retry.",
+            "info",
+          );
+        }
+        return;
+      }
+      if (choice !== LOGIN_CHOICE || signal.aborted) {
         await authRequest("cancel", "POST", recovery.id);
         if (!controller.signal.aborted) {
           ctx.ui.notify(
@@ -395,7 +436,9 @@ function watchSessionRecovery(ctx: ExtensionContext): () => void {
       }
     } catch {
       if (!controller.signal.aborted) {
-        await authRequest("cancel", "POST", recovery.id).catch(() => {});
+        if (recovery !== undefined) {
+          await authRequest("cancel", "POST", recovery.id).catch(() => {});
+        }
         ctx.ui.notify(
           "Login could not complete. Your chat is still open; retry when ready.",
           "warning",
@@ -409,24 +452,16 @@ function watchSessionRecovery(ctx: ExtensionContext): () => void {
 
   const poll = async (): Promise<void> => {
     try {
-      const response = await authRequest("status");
-      if (!response.ok) return;
-      const payload: unknown = await response.json();
-      const recovery = (payload as { recovery?: Partial<RecoveryStatus> } | null)?.recovery;
+      const recovery = await readRecovery();
+      if (recovery === undefined) return;
       // Dismiss a stale dialog if Pi cancelled the waiting request or its deadline elapsed.
-      if (activePrompt !== undefined && activePrompt.id !== recovery?.id) {
+      if (!rpc && activePrompt !== undefined && activePrompt.id !== recovery?.id) {
         activePrompt.controller.abort();
       }
-      if (
-        !busy &&
-        recovery?.state === "required" &&
-        typeof recovery.id === "string" &&
-        typeof recovery.expiresAt === "number" &&
-        recovery.id !== handledRecovery
-      ) {
+      if (!busy && isRequiredRecovery(recovery) && recovery.id !== handledRecovery) {
         handledRecovery = recovery.id;
         busy = true;
-        void offerLogin(recovery as RecoveryStatus).finally(() => {
+        void offerLogin(recovery).finally(() => {
           busy = false;
         });
       }
@@ -445,6 +480,11 @@ function watchSessionRecovery(ctx: ExtensionContext): () => void {
 }
 
 export default function axonExtension(pi: ExtensionAPI): void {
+  // Keep AWS credentials available to tools, but never offer direct Bedrock models.
+  // An explicit empty catalog also covers saved /login tokens, models.json, and
+  // catalog refreshes. unregisterProvider would restore the built-in catalog.
+  pi.registerProvider("amazon-bedrock", { models: [] });
+
   pi.on("before_agent_start", (event) => {
     event.systemPromptOptions.sections["axon"] =
       "You are running through Axon Pi, not Pi directly. " +
@@ -514,6 +554,20 @@ export default function axonExtension(pi: ExtensionAPI): void {
           },
         };
       });
+    } else if (ctx.mode === "rpc") {
+      // setHeader is a no-op over RPC; Pi's standard status entries carry the
+      // same badges to any RPC client that renders them.
+      const published = new Map<string, string | undefined>();
+      const publish = (key: string, value: string | undefined) => {
+        if (published.get(key) === value) return;
+        published.set(key, value);
+        ctx.ui.setStatus(key, value);
+      };
+      refreshHeader = () => {
+        publish("axon-backup", backupState && `Backup: ${BACKUP_LABELS[backupState]}`);
+        publish("axon-terminal", terminalState && `Terminal: ${TERMINAL_LABELS[terminalState]}`);
+      };
+      refreshHeader();
     }
   });
   pi.on("session_shutdown", () => {

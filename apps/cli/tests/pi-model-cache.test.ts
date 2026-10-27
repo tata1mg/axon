@@ -28,7 +28,7 @@ const model = (baseUrl = staleUrl, id = "test-model") => ({
   id,
   provider: "litellm",
   baseUrl,
-  litellmDiscoveryVersion: 7,
+  litellmDiscoveryVersion: 9,
 });
 
 beforeEach(async () => {
@@ -77,29 +77,32 @@ describe("managed Pi relay model cache", () => {
     }
   });
 
-  test("removes stale image models while preserving current-relay image models", async () => {
-    const image = (baseUrl: string) => ({
-      ...model(baseUrl, "axon-image"),
-      type: "image",
-      api: "litellm-images",
+  test.each([
+    { type: "image", api: "litellm-images" },
+    { type: "classifier", api: "litellm-decisions" },
+  ])("removes stale $type models while preserving current-relay models", async ({ type, api }) => {
+    const operation = (baseUrl: string) => ({
+      ...model(baseUrl, `axon-${type}`),
+      type,
+      api,
     });
-    const currentImage = image(`${relayOrigin}/litellm/v1`);
+    const currentModel = operation(`${relayOrigin}/litellm/v1`);
     await writeCache({
-      litellm: { models: [image(staleUrl), currentImage], checkedAt: Date.now() },
+      litellm: { models: [operation(staleUrl), currentModel], checkedAt: Date.now() },
     });
 
     const options = { agentDir: paths.pi, provider: "litellm", baseUrl: `${relayOrigin}/litellm` };
     // Even a recent catalog cannot be reused while any model points at an old relay.
     expect(await readStoredModels(options)).toBeUndefined();
     expect(await invalidateStalePiRelayModels(paths, relayOrigin)).toBe(1);
-    expect((await new FileModelsStore(cachePath).read("litellm"))?.models).toEqual([currentImage]);
-    expect(await readStoredModels(options)).toEqual([currentImage]);
+    expect((await new FileModelsStore(cachePath).read("litellm"))?.models).toEqual([currentModel]);
+    expect(await readStoredModels(options)).toEqual([currentModel]);
     await expectNoArtifacts();
   });
 
   test.each([
-    { name: "previous discovery version", version: 6, ageMs: 0 },
-    { name: "expired four-hour catalog", version: 7, ageMs: 4 * 60 * 60 * 1000 + 1 },
+    { name: "previous discovery version", version: 7, ageMs: 0 },
+    { name: "expired four-hour catalog", version: 9, ageMs: 4 * 60 * 60 * 1000 + 1 },
   ])("does not reuse a $name at startup", async ({ version, ageMs }) => {
     await writeCache({
       litellm: {

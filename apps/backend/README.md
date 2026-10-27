@@ -531,7 +531,7 @@ startup with a bounded non-secret diagnostic.
 still govern automatic compaction/retention; model/auth checks, idle thresholds, overflow recovery,
 and failure cancellation remain unchanged. Client recommender enablement cannot override a server
 204 eligibility response. Provider context fallback only fills metadata gaps, never known context or
-output limits. The pinned `pi-provider-litellm@4.2.0` may retain older custom fallback values in offline
+output limits. The pinned `pi-provider-litellm@4.5.0` may retain older custom fallback values in offline
 caches; do not promise to rewrite all cached metadata without discovery. Publish correct model metadata.
 
 Restart backend workers after edits; values apply on the **next authenticated online non-administrative

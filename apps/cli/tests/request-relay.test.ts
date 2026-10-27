@@ -392,6 +392,97 @@ test("pinned LiteLLM image discovery and generation use the authenticated relay 
   );
 });
 
+test("pinned LiteLLM classifiers use the authenticated relay, preserve cost and reject stale roots", async () => {
+  await runRelayScript(
+    `
+    const { discoverModels } = await import("pi-provider-litellm/src/discover.ts");
+    const { createLiteLLMProvider, toNativeClassifierModels } = await import("pi-provider-litellm/src/provider.ts");
+    const root = relay.origin + "/litellm";
+    const calls = [];
+    upstream = async (request) => {
+      const path = new URL(request.url).pathname;
+      calls.push(path);
+      assert.equal(request.headers.get("authorization"), "Bearer initial-session");
+      assert.equal(request.headers.get("x-harness-id"), "pi");
+      if (path === "/axon/litellm/model/info") return Response.json({
+        data: [
+          {
+            model_name: "typesafe/jev-1.14",
+            litellm_params: { model: "openrouter/typesafe/jev-1.14" },
+            model_info: { mode: "evaluation", max_input_tokens: 128000 },
+          },
+          {
+            model_name: "openai/gpt-6-luna",
+            litellm_params: { model: "openrouter/openai/gpt-6-luna" },
+            model_info: { mode: "chat", supported_endpoints: ["/v1/responses", "/v1/decisions"] },
+          },
+        ],
+      });
+      if (path !== "/axon/litellm/v1/systemone") return new Response(null, { status: 404 });
+      assert.equal(request.method, "POST");
+      assert.deepEqual(await request.json(), {
+        model: "typesafe/jev-1.14",
+        state: { text: "Please review this change." },
+        questions: {
+          polite: {
+            type: "noul", instructions: "Is the message polite?",
+            criteria: { true: "Polite", false: "Rude" },
+          },
+        },
+      });
+      return Response.json({
+        answers: { polite: { type: "noul", noul: 0.95 } },
+        usage: { prompt_tokens: 100, completion_tokens: 5, total_tokens: 105 },
+      }, {
+        headers: { "x-litellm-response-cost": "0.002", "x-session-refresh-token": "classifier-rotation" },
+      });
+    };
+    const discovered = await discoverModels(root, relay.capability, {
+      modelsDev: false, timeoutMs: 1000,
+    });
+    assert.deepEqual(discovered.models.map(model => model.id), ["openai/gpt-6-luna"]);
+    const classifiers = toNativeClassifierModels("litellm", root, discovered.classifierModels);
+    assert.deepEqual(classifiers.map(model => model.id), ["typesafe/jev-1.14", "openai/gpt-6-luna"]);
+    const model = classifiers[0];
+    assert.equal(model.baseUrl, root + "/v1");
+    const provider = createLiteLLMProvider({
+      id: "litellm", name: "Axon AI Gateway", baseUrl: root, models: classifiers,
+      auth: { apiKey: { name: "API key", resolve: async () => ({ auth: { apiKey: relay.capability } }) } },
+      resolveCredentialRoot: () => root,
+      discover: async () => discovered,
+    });
+    const context = {
+      state: { text: "Please review this change." },
+      questions: {
+        polite: {
+          type: "bool", instructions: "Is the message polite?",
+          criteria: { true: "Polite", false: "Rude" },
+        },
+      },
+    };
+    const result = await provider.classify(model, context, { apiKey: relay.capability });
+    assert.equal(result.stopReason, "stop", result.errorMessage);
+    assert.deepEqual(result.answers, { polite: { type: "bool", probability: 0.95 } });
+    assert.equal(result.usage.input, 100);
+    assert.equal(result.usage.output, 5);
+    assert.equal(result.usage.cost.total, 0.002);
+    assert.equal(await sessions.loadEncryptedSession(paths), "classifier-rotation");
+    const beforeStaleRequest = calls.length;
+    const rejected = await provider.classify({
+      ...model, baseUrl: "http://127.0.0.1:1/litellm/v1",
+    }, context, { apiKey: relay.capability });
+    assert.equal(rejected.stopReason, "error");
+    assert.match(rejected.errorMessage, /stale LiteLLM model root/);
+    assert.equal(calls.length, beforeStaleRequest);
+    assert.ok(calls.includes("/axon/litellm/model/info"));
+    assert.ok(calls.includes("/axon/litellm/v1/systemone"));
+    `,
+    "",
+    false,
+    "/axon",
+  );
+});
+
 test("relay forwards request bodies up to 50 MiB and rejects larger bodies before upstream", async () => {
   await runRelayScript(`
     const limit = 50 * 1024 * 1024;
