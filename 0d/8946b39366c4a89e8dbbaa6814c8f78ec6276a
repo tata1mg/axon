@@ -1,0 +1,89 @@
+apps/cli/tests/fixtures/launcher-preload.ts
+  1d67e2cad7244f95 1-10
+apps/cli/tests/compiled-pi-resources.test.ts
+  1d67e2cad7244f95 52-65,82-93,95-111,113-116,166,204,212
+apps/cli/tests/fixtures/launcher-sandbox.ts
+  1d67e2cad7244f95 1-105
+apps/cli/tests/pi-client-config.test.ts
+  1d67e2cad7244f95 148-150,235,239,315-316,319
+apps/cli/src/sandbox/configuration-relay.ts
+  f548eac27290d2d7 6,19-32
+apps/cli/tests/session-backup-header.test.ts
+  1d67e2cad7244f95 7,9,14-15,103,124
+apps/cli/src/harnesses/pi/resources/extensions/axon.ts
+  0bbfe35d16d4587d 19-21,23,26,137-143,158,163-165,171-175,178,386-389,457-494,517,521,794-795,798,802-803
+  f548eac27290d2d7 352-385,390-448,450-456,495-516,518-520,522-525,736,778-780,811-812,902
+  1d67e2cad7244f95 449
+apps/cli/src/cli/launcher-program.ts
+  1d67e2cad7244f95 11,76
+apps/cli/src/cli/commands/sandbox.ts
+  1d67e2cad7244f95 2,29-42,48-49,52-55,58,60-61,66-80,92,108,151,156,160,165,169-171,191-192,196,217,222,227,250-252
+  8e0fc9f55e638276 85-91,93-107,109,112-114,146-147,161,166,173,176,204-209,232,263,283,292
+apps/cli/src/sandbox/launch.ts
+  f548eac27290d2d7 71-72,77,315,317,432-443,449-450,464
+apps/cli/tests/launcher.test.ts
+  1d67e2cad7244f95 13,35-57,194-195,197,205-207,333-334,337,341-343
+apps/cli/tests/session-backup-recovery.test.ts
+  1d67e2cad7244f95 11,363-368,394-398,408-422,430,435-436,455-458
+apps/cli/tests/session-backups.test.ts
+  1d67e2cad7244f95 29,507,511-518,521,524-546,565,567,577-579,581-583,586-589,595,601-606,611,938-941,954-957
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "0d8946b39366c4a89e8dbbaa6814c8f78ec6276a",
+  "prompts": {
+    "0bbfe35d16d4587d": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "496820",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 83,
+      "total_deletions": 24,
+      "accepted_lines": 71,
+      "overriden_lines": 0
+    },
+    "1d67e2cad7244f95": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "496881",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 469,
+      "total_deletions": 210,
+      "accepted_lines": 374,
+      "overriden_lines": 0
+    },
+    "8e0fc9f55e638276": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "496832",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 155,
+      "total_deletions": 286,
+      "accepted_lines": 46,
+      "overriden_lines": 0
+    },
+    "f548eac27290d2d7": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "496794",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 203,
+      "total_deletions": 22,
+      "accepted_lines": 171,
+      "overriden_lines": 0
+    }
+  }
+}
