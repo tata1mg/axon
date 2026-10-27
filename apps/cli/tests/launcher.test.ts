@@ -4,15 +4,13 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { saveEncryptedSession } from "../src/cli/auth/session.ts";
 import { PI_INSTALL_VERSION, PI_PACKAGE_NAME } from "../src/harnesses/pi/installation.ts";
-import {
-  normalizeManifestPackages,
-  resolveInstalledPackagePath,
-} from "../src/harnesses/pi/setup/packages/manifest.ts";
+import { normalizeManifestPackages } from "../src/harnesses/pi/setup/packages/manifest.ts";
 import { resolveHarnessRegistration } from "../src/harnesses/registry.ts";
 import { createHarnessEnvironment } from "../src/launcher/environment.ts";
 import { SERVICE_ENDPOINTS } from "../src/product/endpoints.ts";
 import { AXON_MANIFEST } from "../src/product/manifest.ts";
 import { resolveAxonPaths } from "../src/product/paths.ts";
+import { writePiPackageFixture } from "./fixtures/pi-packages.ts";
 
 const projectRoot = resolve(import.meta.dir, "..");
 let fixtureDirectory: string;
@@ -63,7 +61,7 @@ beforeAll(async () => {
   await Bun.write(
     fakeHarnessPath,
     `#!/usr/bin/env -S bun --no-env-file
-import { mkdir } from "node:fs/promises";
+import { writePiPackageFixture } from ${JSON.stringify(join(import.meta.dir, "fixtures/pi-packages.ts"))};
 
 const argumentsVector = process.argv.slice(2);
 if (argumentsVector[0] === "--version") {
@@ -71,21 +69,10 @@ if (argumentsVector[0] === "--version") {
   process.exit(0);
 }
 const [action, source] = argumentsVector;
-const managedInstallTargets = new Set(${JSON.stringify(
-      normalizeManifestPackages(AXON_MANIFEST).map((entry) => entry.configuredSource),
-    )});
-if (action === "install" && source !== undefined && managedInstallTargets.has(source)) {
-  const packageSource = source.slice("npm:".length);
-  const versionSeparator = packageSource.lastIndexOf("@");
-  const hasVersion = versionSeparator > 0;
-  const name = hasVersion ? packageSource.slice(0, versionSeparator) : packageSource;
-  const requestedVersion = hasVersion ? packageSource.slice(versionSeparator + 1) : undefined;
-  const version = requestedVersion?.match(/^\\d+\\.\\d+\\.\\d+(?:[-+].*)?$/)
-    ? requestedVersion
-    : "1.0.0";
-  const packagePath = process.env.PI_CODING_AGENT_DIR + "/npm/node_modules/" + name;
-  await mkdir(packagePath, { recursive: true });
-  await Bun.write(packagePath + "/package.json", JSON.stringify({ name, version }));
+const managedPackages = ${JSON.stringify(normalizeManifestPackages(AXON_MANIFEST))};
+const packageEntry = managedPackages.find((entry) => entry.configuredSource === source);
+if (action === "install" && packageEntry !== undefined) {
+  await writePiPackageFixture(packageEntry, process.env.PI_CODING_AGENT_DIR);
   process.exit(0);
 }
 
@@ -160,20 +147,7 @@ async function installEmbeddedPiPackages(axonHome: string): Promise<void> {
   const packages = normalizeManifestPackages(AXON_MANIFEST);
 
   for (const packageEntry of packages) {
-    if (packageEntry.packageName === undefined) {
-      throw new Error(`launcher fixture supports only npm packages: ${packageEntry.id}`);
-    }
-    const version =
-      packageEntry.versionPolicy.kind === "floating" ? "1.0.0" : packageEntry.versionPolicy.version;
-    if (version === undefined) {
-      throw new Error(`launcher fixture requires an npm version: ${packageEntry.id}`);
-    }
-    const packagePath = resolveInstalledPackagePath(packageEntry, piAgentDirectory);
-    await mkdir(packagePath, { recursive: true });
-    await Bun.write(
-      join(packagePath, "package.json"),
-      JSON.stringify({ name: packageEntry.packageName, version }),
-    );
+    await writePiPackageFixture(packageEntry, piAgentDirectory);
   }
 
   await mkdir(piAgentDirectory, { recursive: true });
@@ -365,6 +339,8 @@ describe("launcher dispatch", () => {
       "--extension",
       join(axonHome, "runtime", activeRuntime, "pi", "extensions", "axon.ts"),
       "--extension",
+      join(axonHome, "runtime", activeRuntime, "pi", "extensions", "axon-auth.ts"),
+      "--extension",
       join(axonHome, "runtime", activeRuntime, "pi", "extensions", "pi-org-telemetry.mjs"),
       "--extension",
       join(axonHome, "runtime", activeRuntime, "pi", "extensions", "model-recommender.ts"),
@@ -512,7 +488,7 @@ describe("launcher dispatch", () => {
       expect(stderr).toContain(`Installing ${entry.configuredSource}...`);
     }
     expect(stdout).toContain("Pi resources ready:");
-    expect(stdout).toContain("Pi required packages ready: 2");
+    expect(stdout).toContain(`Pi required packages ready: ${AXON_MANIFEST.pi.packages.length}`);
   });
 
   test("passes through the Pi child exit code", async () => {

@@ -6,6 +6,7 @@ import { inspectPiPackages } from "../src/harnesses/pi/setup/packages/doctor.ts"
 import {
   classifyPiInvocation,
   isPiOffline,
+  isPiRpcMode,
   type PiInvocationEnvironment,
 } from "../src/harnesses/pi/setup/packages/invocation.ts";
 import {
@@ -23,6 +24,7 @@ import type { HarnessLaunchContext, SandboxSession } from "../src/launcher/contr
 import { withFileLock } from "../src/launcher/file-lock.ts";
 import { AXON_MANIFEST, EMBEDDED_PI_RESOURCES } from "../src/product/manifest.ts";
 import { resolveAxonPaths } from "../src/product/paths.ts";
+import { writePiPackageFixture } from "./fixtures/pi-packages.ts";
 
 let fixtureDirectory: string;
 
@@ -149,15 +151,25 @@ describe("Pi package manifest", () => {
     ).toEqual([
       {
         id: "rpiv-ask-user-question",
-        installTarget: "npm:@juicesharp/rpiv-ask-user-question@2.13.8",
+        installTarget: "npm:@juicesharp/rpiv-ask-user-question@2.15.0",
         updateOwner: "axon",
-        versionPolicy: { kind: "exact", version: "2.13.8" },
+        versionPolicy: { kind: "exact", version: "2.15.0" },
       },
       {
         id: "pi-provider-litellm",
-        installTarget: "npm:pi-provider-litellm@4.3.1",
+        installTarget: "npm:pi-provider-litellm@4.5.0",
         updateOwner: "axon",
-        versionPolicy: { kind: "exact", version: "4.3.1" },
+        versionPolicy: { kind: "exact", version: "4.5.0" },
+      },
+      {
+        id: "pi-review",
+        installTarget:
+          "git:github.com/earendil-works/pi-review@f1de050504936046c0f85b21fec0e0a93ef394eb",
+        updateOwner: "axon",
+        versionPolicy: {
+          kind: "exact",
+          commit: "f1de050504936046c0f85b21fec0e0a93ef394eb",
+        },
       },
     ]);
   });
@@ -272,6 +284,16 @@ describe("Pi invocation policy", () => {
     expect(classifyPiInvocation([], { ...interactive, ci: true })).toBe("noninteractive");
   });
 
+  test("recognizes only RPC session launches as able to defer login", () => {
+    expect(isPiRpcMode(["--mode", "rpc"])).toBe(true);
+    expect(isPiRpcMode(["--session", "s.jsonl", "--mode", "rpc"])).toBe(true);
+    expect(isPiRpcMode(["--mode", "json"])).toBe(false);
+    expect(isPiRpcMode(["-p", "hello"])).toBe(false);
+    expect(isPiRpcMode(["--", "--mode", "rpc"])).toBe(false);
+    expect(isPiRpcMode(["--mode", "rpc", "--help"])).toBe(false);
+    expect(isPiRpcMode(["install", "--mode", "rpc"])).toBe(false);
+  });
+
   test("forwards Pi auth and MCP commands untouched", () => {
     expect(
       classifyPiInvocation(["auth", "print-api-key", "--provider", "openai"], interactive),
@@ -338,6 +360,104 @@ describe("Pi package doctor", () => {
 });
 
 describe("Pi package synchronization", () => {
+  test.each(["missing", "wrong-commit"] as const)(
+    "installs pinned pi-review when %s and reuses it without an install",
+    async (initialState) => {
+      const context = createContext(`pi-review-${initialState}`);
+      const reviewEntry = AXON_MANIFEST.pi.packages.find((entry) => entry.id === "pi-review");
+      if (reviewEntry === undefined) throw new Error("pi-review manifest entry missing");
+      const packageManifest = manifest([reviewEntry]);
+      const [packageEntry] = normalizeManifestPackages(packageManifest);
+      if (packageEntry === undefined) throw new Error("pi-review package missing");
+      expect(resolveInstalledPackagePath(packageEntry, context.paths.pi)).toBe(
+        join(context.paths.pi, "git", "github.com", "earendil-works", "pi-review"),
+      );
+      if (initialState === "wrong-commit") {
+        await writePiPackageFixture(
+          { ...packageEntry, versionPolicy: { kind: "exact", commit: "b".repeat(40) } },
+          context.paths.pi,
+        );
+      }
+      await writeSettings(context, ["npm:user-package", `${reviewEntry.source}@${"b".repeat(40)}`]);
+      const actions: string[] = [];
+      const runAction = async ({ action, source }: { action: string; source: string }) => {
+        actions.push(`${action}:${source}`);
+        await writePiPackageFixture(packageEntry, context.paths.pi);
+        return { exitCode: 0 };
+      };
+
+      await expect(
+        synchronizePiPackages({
+          allowInstall: false,
+          context,
+          manifest: packageManifest,
+          runAction,
+        }),
+      ).rejects.toMatchObject({ exitStatus: 123 });
+      expect(actions).toEqual([]);
+
+      await synchronizePiPackages({
+        allowInstall: true,
+        context,
+        manifest: packageManifest,
+        runAction,
+      });
+      expect(actions).toEqual([`install:${packageEntry.configuredSource}`]);
+      expect(await settingsPackages(context)).toEqual([
+        "npm:user-package",
+        packageEntry.configuredSource,
+      ]);
+      const state = await readPiPackageState(context.paths.piPackageState);
+      expect(state.packages[packageEntry.identity]).toMatchObject({
+        sourceKind: "git",
+        configuredSource: packageEntry.configuredSource,
+        installedCommit: "f1de050504936046c0f85b21fec0e0a93ef394eb",
+      });
+      const warm = await synchronizePiPackages({
+        allowInstall: false,
+        context,
+        manifest: packageManifest,
+        runAction,
+      });
+      expect(warm.changed).toBe(false);
+      expect(actions).toEqual([`install:${packageEntry.configuredSource}`]);
+      const findings = await inspectPiPackages(context, packageManifest);
+      expect(findings.map((finding) => finding.level)).toEqual(["info"]);
+      expect(findings[0]?.message).toContain("f1de050504936046c0f85b21fec0e0a93ef394eb");
+    },
+  );
+
+  test("rejects a successful Git install that checks out the wrong commit", async () => {
+    const context = createContext("git-install-wrong-commit");
+    const packageManifest = manifest([
+      {
+        id: "git-tools",
+        source: "git:github.com/example/pi-tools",
+        required: true,
+        versionPolicy: { kind: "exact", commit: "a".repeat(40) },
+        install: { action: "pi.install" },
+      },
+    ]);
+    const [packageEntry] = normalizeManifestPackages(packageManifest);
+    if (packageEntry === undefined) throw new Error("Git package missing");
+
+    await expect(
+      synchronizePiPackages({
+        allowInstall: true,
+        context,
+        manifest: packageManifest,
+        runAction: async () => {
+          await writePiPackageFixture(
+            { ...packageEntry, versionPolicy: { kind: "exact", commit: "b".repeat(40) } },
+            context.paths.pi,
+          );
+          return { exitCode: 0 };
+        },
+      }),
+    ).rejects.toThrow("installed commit does not satisfy policy");
+    expect(await Bun.file(context.paths.piPackageState).exists()).toBe(false);
+  });
+
   test("uses a local-only warm path for a verified exact package", async () => {
     const context = createContext("exact-warm");
     const packageManifest = manifest([exactPackage("1.4.2")]);
@@ -681,7 +801,7 @@ describe("Pi package synchronization", () => {
           `${context.paths.pi}/settings.json`,
           `${context.paths.pi}/settings.json.lock`,
         ],
-        inheritOutput: true,
+        inheritOutput: false,
       },
     );
     const specification = runAction.mock.calls[0]?.[0];
@@ -720,6 +840,7 @@ describe("package and resource locks", () => {
     expect(materializedPaths.map((path) => path.split("/").at(-1))).toEqual([
       "managed-config.ts",
       "axon.ts",
+      "axon-auth.ts",
       "pi-org-telemetry.mjs",
       "model-recommender.ts",
       "session-backup.mjs",

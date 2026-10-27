@@ -89,7 +89,7 @@ test("recovery is cancelled when its last waiting request aborts", async () => {
     assert.deepEqual(await Promise.all(results), [false, false]);
     const status = await recovery.handle(heartbeat, new URL(heartbeat.url));
     assert.ok(status);
-    assert.deepEqual(await status.json(), { recovery: null });
+    assert.deepEqual(await status.json(), { signedOut: false, recovery: null });
   } finally {
     recovery.dispose();
     takeProductEvents();

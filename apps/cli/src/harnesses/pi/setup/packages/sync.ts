@@ -88,9 +88,13 @@ async function runPiPackageAction(
         `${context.paths.pi}/settings.json`,
         `${context.paths.pi}/settings.json.lock`,
       ],
-      inheritOutput: true,
+      // Keep successful provisioning quiet; expose captured output only on failure.
+      inheritOutput: false,
     },
   );
+  if (result.exitCode !== 0 || result.signalCode !== null) {
+    process.stderr.write(result.stdout + result.stderr);
+  }
   if (result.signalCode !== null)
     throw new Error(`Pi package ${request.action} terminated by signal ${result.signalCode}`);
   return { exitCode: result.exitCode };

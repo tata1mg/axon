@@ -1,4 +1,7 @@
 import axonExtensionAsset from "../harnesses/pi/resources/extensions/axon.ts" with { type: "file" };
+import axonAuthExtensionAsset from "../harnesses/pi/resources/extensions/axon-auth.ts" with {
+  type: "file",
+};
 import compactionExtensionAsset from "../harnesses/pi/resources/extensions/compaction.ts" with {
   type: "file",
 };
@@ -61,6 +64,12 @@ const AXON_CORE_RESOURCE = Object.freeze({
   destination: "pi/extensions/axon.ts",
 }) satisfies PiResourceManifestEntry;
 
+const AXON_AUTH_RESOURCE = Object.freeze({
+  id: "axon-auth",
+  type: "extension",
+  destination: "pi/extensions/axon-auth.ts",
+}) satisfies PiResourceManifestEntry;
+
 const PI_ORG_TELEMETRY_RESOURCE = Object.freeze({
   id: "pi-org-telemetry",
   type: "extension",
@@ -104,27 +113,38 @@ const AXON_LIGHT_THEME_RESOURCE = Object.freeze({
 
 export const AXON_MANIFEST = parseAxonManifest({
   schemaVersion: 1,
-  revision: "18",
+  revision: "20",
   pi: {
     packages: [
       {
         id: "rpiv-ask-user-question",
         source: "npm:@juicesharp/rpiv-ask-user-question",
         required: true,
-        versionPolicy: { kind: "exact", version: "2.13.8" },
+        versionPolicy: { kind: "exact", version: "2.15.0" },
         install: { action: "pi.install" },
       },
       {
         id: "pi-provider-litellm",
         source: "npm:pi-provider-litellm",
         required: true,
-        versionPolicy: { kind: "exact", version: "4.3.1" },
+        versionPolicy: { kind: "exact", version: "4.5.0" },
+        install: { action: "pi.install" },
+      },
+      {
+        id: "pi-review",
+        source: "git:github.com/earendil-works/pi-review",
+        required: true,
+        versionPolicy: {
+          kind: "exact",
+          commit: "f1de050504936046c0f85b21fec0e0a93ef394eb",
+        },
         install: { action: "pi.install" },
       },
     ],
     resources: [
       MANAGED_CONFIG_RESOURCE,
       AXON_CORE_RESOURCE,
+      AXON_AUTH_RESOURCE,
       MODEL_RECOMMENDER_RESOURCE,
       SESSION_BACKUP_RESOURCE,
       // Close telemetry after backup shutdown has emitted its final outcomes.
@@ -153,6 +173,10 @@ export const EMBEDDED_PI_RESOURCES = Object.freeze([
     ...AXON_CORE_RESOURCE,
     // TypeScript resolves the source module while Bun's `file` loader returns its asset path.
     sourcePath: axonExtensionAsset as unknown as string,
+  }),
+  Object.freeze({
+    ...AXON_AUTH_RESOURCE,
+    sourcePath: axonAuthExtensionAsset as unknown as string,
   }),
   Object.freeze({
     ...PI_ORG_TELEMETRY_RESOURCE,

@@ -23,6 +23,7 @@ const DEBUG_ENVIRONMENT_VARIABLE = "AXON_DEBUG";
 export async function launchRegisteredHarness(
   registration: HarnessRegistration,
   userArguments: readonly string[],
+  options: { readonly authenticationDeferred?: boolean } = {},
 ): Promise<never> {
   const cwd = process.cwd();
   const inheritedEnvironment = process.env;
@@ -34,7 +35,7 @@ export async function launchRegisteredHarness(
     );
   }
   return withSandboxSession({ cwd, environment: inheritedEnvironment, paths }, (context) =>
-    launchSandboxedHarness(registration, userArguments, Date.now(), context),
+    launchSandboxedHarness(registration, userArguments, Date.now(), context, options),
   );
 }
 
@@ -43,6 +44,7 @@ async function launchSandboxedHarness(
   userArguments: readonly string[],
   startedAt: number,
   sandboxedContext: LaunchContext & { readonly sandbox: SandboxSession },
+  options: { readonly authenticationDeferred?: boolean },
 ): Promise<never> {
   const { cwd, environment: inheritedEnvironment, paths } = sandboxedContext;
   const adapter = await loadHarnessAdapter(registration.id);
@@ -61,6 +63,7 @@ async function launchSandboxedHarness(
     paths,
     registration,
     executable,
+    ...(options.authenticationDeferred ? { authenticationDeferred: true } : {}),
   });
 
   try {

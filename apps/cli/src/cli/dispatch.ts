@@ -4,6 +4,7 @@ import {
   classifyPiInvocation,
   currentPiInvocationEnvironment,
   isPiOffline,
+  isPiRpcMode,
 } from "../harnesses/pi/setup/packages/invocation.ts";
 import { resolveHarnessRegistration } from "../harnesses/registry.ts";
 import { LauncherError } from "../launcher/errors.ts";
@@ -58,15 +59,17 @@ export async function dispatch(argumentsVector: readonly string[]): Promise<void
     const paths = resolveAxonPaths();
     const invocationKind = classifyPiInvocation(harnessArguments);
     // No Pi command may resolve, install, or launch its executable before verification.
-    if (
-      !(await ensureAuthenticatedSession(paths, {
-        offline: isPiOffline(process.env, harnessArguments),
-        interactive: invocationKind === "interactive",
-      }))
-    ) {
-      return;
-    }
-    await launchRegisteredHarness(registration, harnessArguments);
+    // RPC clients are the exception for a missing or expired login: the relay rejects
+    // every managed request until the user signs in from the chat.
+    const authentication = await ensureAuthenticatedSession(paths, {
+      offline: isPiOffline(process.env, harnessArguments),
+      interactive: invocationKind === "interactive",
+      deferLogin: isPiRpcMode(harnessArguments),
+    });
+    if (authentication === "cancelled") return;
+    await launchRegisteredHarness(registration, harnessArguments, {
+      authenticationDeferred: authentication === "deferred",
+    });
     return;
   }
 

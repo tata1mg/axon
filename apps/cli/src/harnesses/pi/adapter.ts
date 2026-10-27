@@ -164,6 +164,7 @@ export function createPiAdapter(): HarnessAdapter {
             cwd: context.cwd,
           }),
           allowPiConfigRefresh: !setup.offline,
+          ...(context.authenticationDeferred ? { signedOut: { session: encryptedSession } } : {}),
           allowTelemetry: config?.telemetry?.enabled === true,
           allowSandboxConfiguration: setup.invocationKind === "interactive",
           cwd: context.cwd,

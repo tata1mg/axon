@@ -57,6 +57,28 @@ A successful check prints **Axon session is valid.** Axon verifies your session 
 
 Login waits up to five minutes. If it fails or times out, check your connection and run `axon` again.
 
+### Log in from an open Pi chat
+
+Inside the coding session, run:
+
+```text
+/axon-login
+```
+
+This checks your saved Axon session and refreshes it when possible. If you are already signed in, it tells you without opening a browser. Otherwise, it opens browser sign-in directly—without the **Login from browser / Not now** dialog—and waits for you to finish. You can also use it after choosing **Not now (keep chat open)**. If login fails or times out, your chat stays open; run `/axon-login` again to retry.
+
+In Paseo, a new chat starts even when you are not signed in. It shows a **Login from browser / Not now** card right away; until you sign in, each message is answered with a "not signed in" error followed by the card again.
+
+After signing in, restart the agent to apply your organization's launch-time settings, such as terminal policy. This is Axon's login command, not Pi's provider `/login` command.
+
+To sign out locally:
+
+```bash
+axon auth logout
+```
+
+This removes the saved sign-in credential shared with DeputyDev, while preserving other settings and session backups. It works offline and succeeds even if you are already logged out. It does not revoke server sessions or sign out your browser. Close active Axon/DeputyDev sessions before logging out; the next Axon launch will offer sign-in again.
+
 ## 3. Start working
 
 Open your project directory and launch Axon:

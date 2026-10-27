@@ -17,6 +17,9 @@ import { Container, type SelectItem, SelectList, Text } from "@earendil-works/pi
  * ENABLED is inverted to PI_MODEL_RECOMMENDER_DISABLED. AUTO_SELECT_MS is a positive
  * millisecond countdown, not a boolean or a zero/off sentinel. Server 204 still wins.
  *
+ * RPC sessions (Paseo) get the same flow through a standard select dialog, with
+ * the request and countdown bounded to fit the client's prompt timeout.
+ *
  * The model type is derived from `ExtensionContext` rather than imported from
  * `@earendil-works/pi-ai` so this file has no dependency the CLI does not
  * already declare.
@@ -43,13 +46,34 @@ const API_KEY_ENVIRONMENT_VARIABLE = "PI_MODEL_RECOMMENDER_API_KEY";
 const AUTO_SELECT_ENVIRONMENT_VARIABLE = "PI_MODEL_RECOMMENDER_AUTO_SELECT_MS";
 const DISABLED_ENVIRONMENT_VARIABLE = "PI_MODEL_RECOMMENDER_DISABLED";
 const TIMEOUT_ENVIRONMENT_VARIABLE = "PI_MODEL_RECOMMENDER_TIMEOUT_MS";
+const RPC_ENVIRONMENT_VARIABLE = "PI_MODEL_RECOMMENDER_RPC";
+
+/**
+ * Pi answers an RPC `prompt` only after input handlers finish, and Paseo's Pi
+ * adapter waits 60s by default for that answer. Request plus decision must fit.
+ */
+const RPC_REQUEST_LIMIT_MS = 15_000;
+const RPC_DECISION_LIMIT_MS = 40_000;
 
 interface RecommenderConfig {
   readonly apiKey: string | undefined;
   readonly autoSelectMs: number;
   readonly enabled: boolean;
+  /** Offer the picker to RPC clients through standard dialogs. */
+  readonly rpcPicker: boolean;
   readonly timeoutMs: number;
   readonly url: string | undefined;
+}
+
+/**
+ * RPC is explicit opt-in only. Scripted callers must not start getting dialogs,
+ * and Pi 1.4's RPC `abort` cannot cancel a prompt whose input handlers are still
+ * running: no agent run exists yet, so abort succeeds without reaching this
+ * extension and the prompt starts once the picker settles. Paseo's Stop would
+ * therefore not stop the first task, so Paseo is not auto-detected.
+ */
+function rpcPickerEnabled(): boolean {
+  return isTruthy(process.env[RPC_ENVIRONMENT_VARIABLE]);
 }
 
 function positiveNumber(raw: string | undefined, fallback: number): number {
@@ -76,6 +100,7 @@ function readConfig(): RecommenderConfig {
       DEFAULT_AUTO_SELECT_MS,
     ),
     enabled: !isTruthy(process.env[DISABLED_ENVIRONMENT_VARIABLE]),
+    rpcPicker: rpcPickerEnabled(),
     timeoutMs: positiveNumber(process.env[TIMEOUT_ENVIRONMENT_VARIABLE], DEFAULT_API_TIMEOUT_MS),
     url: url || undefined,
   };
@@ -173,48 +198,37 @@ function parseRecommendations(payload: unknown, candidates: readonly AnyModel[])
   return ranked;
 }
 
-async function requestRemoteRecommendations(
+/**
+ * The request itself, independent of presentation. `signal` reports a user
+ * cancellation; the configured timeout is reported as a failure instead.
+ */
+async function fetchRecommendations(
   ctx: ExtensionContext,
   config: RecommenderConfig,
+  url: string,
   prompt: string,
   hasImages: boolean,
   candidates: readonly AnyModel[],
   requestId: string,
-): Promise<RemoteRecommendationResult | undefined> {
-  const url = config.url;
-  if (!url) return undefined;
+  timeoutMs: number,
+  signal?: AbortSignal,
+): Promise<RemoteRecommendationResult> {
+  const controller = new AbortController();
+  let timedOut = false;
+  let failureReason = "network";
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+  const onAbort = () => controller.abort();
+  signal?.addEventListener("abort", onAbort, { once: true });
 
-  return ctx.ui.custom<RemoteRecommendationResult>((tui, theme, _keybindings, done) => {
-    const loader = new BorderedLoader(tui, theme, "Finding the best model for this task...");
-    const controller = new AbortController();
-    let settled = false;
-    let cancelled = false;
-    let timedOut = false;
-    let failureReason = "network";
+  const headers = config.apiKey
+    ? { "content-type": "application/json", authorization: `Bearer ${config.apiKey}` }
+    : { "content-type": "application/json" };
 
-    const finish = (result: RemoteRecommendationResult) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeout);
-      done(result);
-    };
-
-    const timeout = setTimeout(() => {
-      timedOut = true;
-      controller.abort();
-    }, config.timeoutMs);
-
-    loader.onAbort = () => {
-      cancelled = true;
-      controller.abort();
-      finish({ kind: "cancelled" });
-    };
-
-    const headers = config.apiKey
-      ? { "content-type": "application/json", authorization: `Bearer ${config.apiKey}` }
-      : { "content-type": "application/json" };
-
-    void fetch(url, {
+  try {
+    const response = await fetch(url, {
       method: "POST",
       headers,
       signal: controller.signal,
@@ -233,42 +247,95 @@ async function requestRemoteRecommendations(
           cost: model.cost,
         })),
       }),
-    })
-      .then(async (response) => {
-        if (response.status === 204) {
-          finish({ kind: "disabled" });
-          return;
-        }
-        if (!response.ok) {
-          failureReason = response.status >= 500 ? "http_5xx" : "http_4xx";
-          throw new Error(`API returned HTTP ${response.status}`);
-        }
-        failureReason = "invalid_response";
-        const raw = await response.json();
-        const payload = (raw && typeof raw === "object" ? raw : {}) as {
-          assessment?: Record<string, unknown>;
-          policyVersion?: string;
-        };
-        finish({
-          kind: "success",
-          ranked: parseRecommendations(raw, candidates),
-          ...(payload.assessment && typeof payload.assessment === "object"
-            ? { assessment: payload.assessment }
-            : {}),
-          ...(typeof payload.policyVersion === "string"
-            ? { policyVersion: payload.policyVersion }
-            : {}),
-        });
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        const message = timedOut
-          ? `API timed out after ${config.timeoutMs}ms`
-          : error instanceof Error
-            ? error.message
-            : String(error);
-        finish({ kind: "failed", message, reason: timedOut ? "timeout" : failureReason });
-      });
+    });
+    if (response.status === 204) return { kind: "disabled" };
+    if (!response.ok) {
+      failureReason = response.status >= 500 ? "http_5xx" : "http_4xx";
+      throw new Error(`API returned HTTP ${response.status}`);
+    }
+    failureReason = "invalid_response";
+    const raw = await response.json();
+    const payload = (raw && typeof raw === "object" ? raw : {}) as {
+      assessment?: Record<string, unknown>;
+      policyVersion?: string;
+    };
+    return {
+      kind: "success",
+      ranked: parseRecommendations(raw, candidates),
+      ...(payload.assessment && typeof payload.assessment === "object"
+        ? { assessment: payload.assessment }
+        : {}),
+      ...(typeof payload.policyVersion === "string"
+        ? { policyVersion: payload.policyVersion }
+        : {}),
+    };
+  } catch (error: unknown) {
+    if (signal?.aborted) return { kind: "cancelled" };
+    const message = timedOut
+      ? `API timed out after ${timeoutMs}ms`
+      : error instanceof Error
+        ? error.message
+        : String(error);
+    return { kind: "failed", message, reason: timedOut ? "timeout" : failureReason };
+  } finally {
+    clearTimeout(timeout);
+    signal?.removeEventListener("abort", onAbort);
+  }
+}
+
+async function requestRemoteRecommendations(
+  ctx: ExtensionContext,
+  config: RecommenderConfig,
+  prompt: string,
+  hasImages: boolean,
+  candidates: readonly AnyModel[],
+  requestId: string,
+): Promise<RemoteRecommendationResult | undefined> {
+  const url = config.url;
+  if (!url) return undefined;
+
+  // RPC clients cannot render the loader; the request runs headless and is
+  // bounded tighter so the decision still fits in the client's prompt timeout.
+  if (ctx.mode !== "tui") {
+    return fetchRecommendations(
+      ctx,
+      config,
+      url,
+      prompt,
+      hasImages,
+      candidates,
+      requestId,
+      Math.min(config.timeoutMs, RPC_REQUEST_LIMIT_MS),
+    );
+  }
+
+  return ctx.ui.custom<RemoteRecommendationResult>((tui, theme, _keybindings, done) => {
+    const loader = new BorderedLoader(tui, theme, "Finding the best model for this task...");
+    const controller = new AbortController();
+    let settled = false;
+
+    const finish = (result: RemoteRecommendationResult) => {
+      if (settled) return;
+      settled = true;
+      done(result);
+    };
+
+    loader.onAbort = () => {
+      controller.abort();
+      finish({ kind: "cancelled" });
+    };
+
+    void fetchRecommendations(
+      ctx,
+      config,
+      url,
+      prompt,
+      hasImages,
+      candidates,
+      requestId,
+      config.timeoutMs,
+      controller.signal,
+    ).then(finish);
 
     return loader;
   });
@@ -324,14 +391,76 @@ function buildItems(ranked: readonly RankedModel[], current: AnyModel | undefine
   return items;
 }
 
+type SelectorDecision = {
+  model?: AnyModel | undefined;
+  outcome: "selected" | "auto_selected" | "kept_current" | "dismissed";
+};
+
+/**
+ * Standard select dialog for RPC clients, which cannot render the custom
+ * picker. Pi resolves `undefined` for both a dismissal and an aborted dialog, so
+ * the deadline is owned here to keep auto-selection distinct from declining.
+ * Aborting only drops Pi's local request; the RPC protocol cannot retract a
+ * question, so the deadline is also sent as `timeout` for the client to close it.
+ */
+async function showRpcModelSelector(
+  ctx: ExtensionContext,
+  config: RecommenderConfig,
+  ranked: readonly RankedModel[],
+): Promise<SelectorDecision> {
+  const top = ranked[0];
+  if (!top) return { outcome: "dismissed" };
+
+  const nameCounts = new Map<string, number>();
+  for (const entry of ranked) {
+    const name = displayName(entry.model);
+    nameCounts.set(name, (nameCounts.get(name) ?? 0) + 1);
+  }
+  // Options come back as their label, so labels must be unique per model.
+  const label = (model: AnyModel) => {
+    const name = displayName(model);
+    return (nameCounts.get(name) ?? 0) > 1 ? modelKey(model) : name;
+  };
+  const byOption = new Map<string, AnyModel>();
+  ranked.forEach((entry, index) => {
+    byOption.set(`${index === 0 ? "★ " : ""}${label(entry.model)} — ${entry.reason}`, entry.model);
+  });
+  const keepCurrentOption = ctx.model ? `Keep current (${displayName(ctx.model)})` : undefined;
+  const options = [...byOption.keys(), ...(keepCurrentOption ? [keepCurrentOption] : [])];
+
+  const timeoutMs = Math.min(config.autoSelectMs, RPC_DECISION_LIMIT_MS);
+  const controller = new AbortController();
+  const startedAt = performance.now();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  let choice: string | undefined;
+  try {
+    choice = await ctx.ui.select(
+      `Choose a model for this task (auto-selects ${label(top.model)} in ${Math.ceil(timeoutMs / 1_000)}s)`,
+      options,
+      { signal: controller.signal, timeout: timeoutMs },
+    );
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (choice === undefined) {
+    // Either our timer or Pi's `timeout` may settle first; both mean expiry.
+    const expired = controller.signal.aborted || performance.now() - startedAt >= timeoutMs;
+    return expired ? { model: top.model, outcome: "auto_selected" } : { outcome: "dismissed" };
+  }
+  if (choice === keepCurrentOption) return { model: ctx.model, outcome: "kept_current" };
+  const model = byOption.get(choice);
+  return model ? { model, outcome: "selected" } : { outcome: "dismissed" };
+}
+
 async function showModelSelector(
   ctx: ExtensionContext,
   config: RecommenderConfig,
   ranked: readonly RankedModel[],
-): Promise<{
-  model?: AnyModel | undefined;
-  outcome: "selected" | "auto_selected" | "kept_current" | "dismissed";
-}> {
+): Promise<SelectorDecision> {
+  if (ctx.mode !== "tui") return showRpcModelSelector(ctx, config, ranked);
+
   let automaticallySelected = false;
   const byKey = new Map(ranked.map((entry) => [modelKey(entry.model), entry.model]));
   const items = buildItems(ranked, ctx.model);
@@ -469,11 +598,12 @@ export function createModelRecommender(
 
     pi.on("input", async (event, ctx) => {
       const config = readConfig();
+      const terminalInput = ctx.mode === "tui" && event.source === "interactive";
+      const rpcInput = ctx.mode === "rpc" && event.source === "rpc" && config.rpcPicker;
       if (
         !shouldOfferRecommendation ||
         recommendationOffered ||
-        ctx.mode !== "tui" ||
-        event.source !== "interactive" ||
+        !(terminalInput || rpcInput) ||
         event.streamingBehavior !== undefined ||
         event.text.trim() === ""
       ) {

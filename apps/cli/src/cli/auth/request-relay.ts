@@ -14,7 +14,11 @@ import {
   type RelayRequestDiagnostics,
 } from "./relay-diagnostics.ts";
 import { loadEncryptedSession, refreshEncryptedSession } from "./session.ts";
-import { createSessionRecovery, type SessionRecovery } from "./session-recovery.ts";
+import {
+  createSessionRecovery,
+  type SessionRecovery,
+  type SessionRecoveryOptions,
+} from "./session-recovery.ts";
 import { type SessionVerificationStatus, verifyEncryptedSession } from "./verification.ts";
 import { waitForAuthWork } from "./wait-for-auth.ts";
 
@@ -227,8 +231,21 @@ async function forwardManagedRequest(
         "Your saved Axon session could not be read safely. Check the shared authentication file and its permissions, then retry.",
       );
     }
+    if (recovery.isSignedOut(encryptedSession)) {
+      // Fail fast: a waiting request would hold Pi's prompt open past RPC client timeouts.
+      return relayError(
+        401,
+        'You\'re not signed in to Axon. Choose "Login from browser" or run /axon-login in this chat, then send your message again.',
+      );
+    }
     if (encryptedSession === undefined) {
-      if (attempt === 0 && supportsRecovery && (await recovery.recover(request.signal))) continue;
+      if (
+        attempt === 0 &&
+        supportsRecovery &&
+        (await recovery.recover(request.signal, "signed-out"))
+      ) {
+        continue;
+      }
       return loginRequired();
     }
 
@@ -386,10 +403,14 @@ export function startAuthenticatedRequestRelay(
     readonly allowSandboxConfiguration?: boolean;
     readonly sandboxOperation?: (request: Request) => Promise<Response>;
     readonly cwd?: string;
+    readonly signedOut?: SessionRecoveryOptions["signedOut"];
   } = {},
 ): AuthenticatedRequestRelay {
   const capability = `${crypto.randomUUID()}${crypto.randomUUID()}`;
-  const recovery = createSessionRecovery(paths);
+  const recovery = createSessionRecovery(
+    paths,
+    options.signedOut === undefined ? {} : { signedOut: options.signedOut },
+  );
   const session = createRelaySession(paths);
   const diagnostics = createRelayDiagnostics(paths);
   const backupRelay = createBackupRelay(paths, options.cwd ?? process.cwd());

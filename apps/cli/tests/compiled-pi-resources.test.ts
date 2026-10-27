@@ -4,12 +4,10 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { saveEncryptedSession } from "../src/cli/auth/session.ts";
 import { PI_INSTALL_VERSION, PI_PACKAGE_NAME } from "../src/harnesses/pi/installation.ts";
-import {
-  normalizeManifestPackages,
-  resolveInstalledPackagePath,
-} from "../src/harnesses/pi/setup/packages/manifest.ts";
+import { normalizeManifestPackages } from "../src/harnesses/pi/setup/packages/manifest.ts";
 import { AXON_MANIFEST, EMBEDDED_PI_RESOURCES } from "../src/product/manifest.ts";
 import { resolveAxonPaths } from "../src/product/paths.ts";
+import { writePiPackageFixture } from "./fixtures/pi-packages.ts";
 
 async function output(child: Bun.Subprocess<"ignore", "pipe", "pipe">) {
   const [status, stdout, stderr] = await Promise.all([
@@ -141,15 +139,7 @@ if (process.argv[2] === "--version") {
       await chmod(pi, 0o755);
       const packages = normalizeManifestPackages(AXON_MANIFEST);
       for (const entry of packages) {
-        if (entry.sourceKind !== "npm" || entry.versionPolicy.kind !== "exact") {
-          throw new Error(`Compiled resource fixture requires an exact npm package: ${entry.id}`);
-        }
-        const directory = resolveInstalledPackagePath(entry, paths.pi);
-        await mkdir(directory, { recursive: true });
-        await Bun.write(
-          join(directory, "package.json"),
-          JSON.stringify({ name: entry.packageName, version: entry.versionPolicy.version }),
-        );
+        await writePiPackageFixture(entry, paths.pi);
       }
       await Bun.write(
         join(paths.pi, "settings.json"),

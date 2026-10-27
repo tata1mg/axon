@@ -106,6 +106,8 @@ Login and refresh write that shared token while preserving other JSON keys. Requ
 
 `axon` and every `axon pi ...` invocation verify the saved session online before resolving, installing, or launching Pi. Expired access tokens are silently refreshed when the refresh token is still usable, and the rotated encrypted session is saved atomically before continuing. A late response never overwrites another login; the newer saved session is verified instead. Browser login is offered only when the session is missing, invalid, or cannot be refreshed. Non-TTY/CI/scripted runs never prompt, but can refresh silently. Auth-service outages and unsafe refresh writes stop startup without asking for another login. Offline Pi invocations stop because online verification is required. `axon auth status` uses the same verify-and-refresh behavior.
 
+RPC launches (`axon pi --mode rpc`, as used by Paseo) are the exception for a missing or unusable login: Pi starts signed out instead of failing. The relay rejects every managed model request at once with a "not signed in" error (nothing waits, so RPC client timeouts cannot fire), and the `axon-auth` extension offers a **Login from browser / Not now** card at startup and again after each rejected message; `/axon-login` also works. A login from another terminal ends the signed-out state too. Launch-time backend preferences such as terminal policy were not fetched, so the chat asks the user to restart the agent after signing in. Offline RPC launches and auth-service outages still fail startup. Over RPC, dialogs cannot be retracted, so cards stay open until answered; under Paseo, which discards open cards when a run fails or is interrupted, a fresh card replaces the discarded one.
+
 Launcher-owned `setup`, `doctor`, `paths`, and `harnesses` retain a local saved-session preflight: if absent, interactive online invocations offer browser login, while scripted runs fail with login guidance. Launcher help/version, auth, update, and uninstall remain exempt from that preflight. API routes still validate saved sessions server-side.
 
 Online non-administrative Pi launches (including scripted modes) fetch `/api/v1/cli/config` using that session, capped at 700 ms and 16 KiB, even when telemetry/search are locally disabled. Accepted backend telemetry/search and partial compaction/recommender/provider preferences override inherited environment values. Managed telemetry has no supported local opt-out; unavailable or absent policies retain documented environment fallback, never changing authenticated search routing. Offline and administrative launches skip the request. There is no config disk cache and no public bootstrap/config endpoint. See [client configuration](docs/plans/cli-client-config.md) and [backend configuration](../backend/README.md#cli-client-configuration).
@@ -210,7 +212,7 @@ PI_CODING_AGENT_SESSION_DIR=${AXON_HOME}/pi/sessions
 
 With the default Axon home, these resolve to `~/.axon/pi` and `~/.axon/pi/sessions`. Pi settings, auth, installed npm/git packages, temporary package caches, and sessions used through Axon therefore remain separate from the user's normal `~/.pi/agent` directory. The values override inherited `PI_CODING_AGENT_DIR` and `PI_CODING_AGENT_SESSION_DIR` settings, including for forwarded Pi package commands.
 
-Pi launches set `PI_SKIP_VERSION_CHECK=1` to disable Pi's startup version request. They also remove every provider API-key variable documented by Pi (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `XAI_API_KEY`, and the rest of the list exported as `PI_STRIPPED_PROVIDER_VARIABLES` in [`src/harnesses/pi/environment.ts`](src/harnesses/pi/environment.ts)) so ambient personal credentials never select a provider implicitly. `LITELLM_*` variables, `GOOGLE_APPLICATION_CREDENTIALS`, cloud SDK configuration, and proxy variables are kept because the pinned `pi-provider-litellm` package is the organization provider path. This provider-key policy applies to every `axon pi` launch without mutating `process.env`.
+Pi launches set `PI_SKIP_VERSION_CHECK=1` to disable Pi's startup version request. They also remove every provider API-key variable documented by Pi (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `XAI_API_KEY`, and the rest of the list exported as `PI_STRIPPED_PROVIDER_VARIABLES` in [`src/harnesses/pi/environment.ts`](src/harnesses/pi/environment.ts)) so ambient personal credentials never select a provider implicitly. `LITELLM_*` variables, `GOOGLE_APPLICATION_CREDENTIALS`, cloud SDK configuration, and proxy variables are kept because the pinned `pi-provider-litellm` package is the organization provider path. This provider-key policy applies to every `axon pi` launch without mutating `process.env`. The managed Axon extension also replaces the direct `amazon-bedrock` catalog with an empty model list, so AWS profiles (including SSO/role profiles), IAM/session credentials, container/web-identity credentials, and tokens saved by `/login amazon-bedrock` cannot expose direct Bedrock models. AWS environment variables and shared files remain available to tools; saved provider credentials are not deleted. Bedrock-backed models served through LiteLLM are unaffected.
 
 The default `litellm` provider is labeled **Axon AI Gateway** in Pi. Set `LITELLM_DISPLAY_NAME` to customize it without editing settings:
 
@@ -222,7 +224,7 @@ A `litellm.providers.litellm.displayName` value in Pi settings takes precedence 
 
 Before an authenticated online Pi launch, Axon removes cached `litellm` models whose base URLs point to an obsolete Axon loopback relay. Otherwise Pi can restore the previous launch's random-port URLs over fresh discovery, causing “No models available.” Cleanup uses Pi's native model-store lock and an atomic write; other providers, unrelated LiteLLM endpoints, and current-relay models are preserved. Offline, administrative, and discovery-disabled launches leave the cache untouched. A busy or unsafe cache never blocks launch; use `/litellm-refresh` if models remain unavailable.
 
-The pinned `pi-provider-litellm@4.3.1` restores vendor-specific compatibility for models served through generic OpenAI-compatible adapters and falls back to `/v1/models` when `/model/info` is empty. Its four-hour startup catalog reuse requires the same proxy URL and discovery version. Axon creates a new random-port relay on each launch, so ordinary managed launches still discover models; the stale-relay cleanup above remains necessary. Stored models from an older discovery version are rediscovered online.
+The pinned `pi-provider-litellm@4.5.0` restores vendor-specific compatibility for models served through generic OpenAI-compatible adapters and falls back to `/v1/models` when `/model/info` is empty. Its four-hour startup catalog reuse requires the same proxy URL and discovery version. Axon creates a new random-port relay on each launch, so ordinary managed launches still discover models; the stale-relay cleanup above remains necessary. Stored models from an older discovery version are rediscovered online; upgrading from 4.3.1 changes the discovery version from 7 to 9.
 
 The local authenticated relay accepts request bodies up to **50 MiB** (52,428,800 bytes), matching the
 Nginx `50m` limit. This covers the full serialized payload, including conversation history, tool results,
@@ -255,6 +257,22 @@ path in Pi's normal error UI. Pi's `--verbose` controls startup output; the Bun 
 suggestion is a different, potentially credential-revealing fetch option and is not enabled.
 
 LiteLLM image-generation routes are available through Pi codemode's `models.generateImages()`, not `/model`, when every deployment in a `/model/info` route reports `mode: "image_generation"`. Requests use the same authenticated relay at `/litellm/v1/images/generations`. The provider accepts text prompts and base64 image responses only; reference-image editing and URL-only image responses are unsupported.
+
+LiteLLM decision routes are available through codemode's `models.classify()`, not `/model`, with the
+same authenticated relay at `/litellm/v1/systemone` (LiteLLM 1.104.2 or later). Every deployment in a
+`/model/info` route must advertise `/v1/systemone` or `/v1/decisions` in `supported_endpoints`, or,
+without an endpoint list, report `mode: "evaluation"` or `"decisions"`. A chat route advertising
+decisions remains available for chat too. List usable classifiers with
+`models.getAvailableOfType("classifier", "litellm")`. Classification accepts text state and typed
+boolean, choice, or score questions; images are unsupported. Requests use managed authentication and
+report the proxy's `x-litellm-response-cost` when present. This does not replace Axon's backend-owned
+model recommender. Wildcard routes and `/v1/models` or `/health` discovery do not publish classifiers.
+
+Claude-backed Messages or Chat routes with Anthropic cache markers now declare five-minute/one-hour
+`promptCache` lifetimes. This enables Pi's existing cache warming when eligible; it is not a new
+Axon default or a guarantee of savings. Pi defaults to warming during active runs
+(`cacheWarming: "streaming"`); idle warming is opt-in and `cacheWarming: "off"` disables it in the global settings.
+Refresh requests are billable. Responses routes and routes identified only by name are not eligible.
 
 Axon continues to forward `LITELLM_*` variables. The provider now recognizes `LITELLM_PROVIDERS`, `LITELLM_PROVIDERS_JSON`, and `LITELLM_PROVIDER_<NAME>_*` as additional-provider configuration, so inherit them only when those extra proxy destinations are intended. Provider configuration in Pi's agent-directory `models.json` also participates in the extension's configuration precedence. For managed Axon requests, avoid overriding the default `litellm` provider's relay URL or credential through settings, `models.json`, or `/login litellm`; use `axon auth login` for Axon authentication.
 
@@ -302,9 +320,19 @@ a sensible combination.
 Recommender countdowns must be positive; backend recommendation eligibility/204 still takes priority.
 Provider discovery timeout zero disables discovery (and affected integrations such as MCP). Context
 window fallback only fills missing metadata; known per-model context/output limits are preserved.
-With `pi-provider-litellm@4.3.1`, offline cache enrichment recognizes its built-in/current fallback
+With `pi-provider-litellm@4.5.0`, offline cache enrichment recognizes its built-in/current fallback
 sentinels, but cannot reliably rewrite an older custom fallback without online discovery. Prefer
 correct `/model/info` metadata over a global fallback.
+
+For known backends, `providers.<catalog-provider>.modelOverrides.<backend-model>` in
+`~/.axon/pi/models.json` can set `contextWindow` and `maxTokens` for every LiteLLM alias backed by
+that model, when discovery identifies the same backend across deployments. The provider is Pi's
+catalog provider, not necessarily the LiteLLM routing label. Overrides take effect on discovery
+(`/litellm-refresh` or cache expiry); the minimum across deployments still applies. Without an
+override, the smaller of catalog and explicit proxy limits remains the default.
+`LITELLM_TRUST_PROXY_LIMITS=1` opts into explicit proxy limits instead; Axon forwards it but does not
+enable it or add it to backend-managed launch preferences. Neither option increases actual backend
+capacity, so only configure verified limits.
 
 See [operator configuration](../backend/README.md#launch-only-compaction-recommender-and-provider-preferences)
 and the [contract](docs/plans/backend-compaction-config.md). Deploy the updated CLI before relying on
@@ -330,9 +358,9 @@ Every non-administrative `axon pi` session also loads the embedded `pi-org-telem
 
 The telemetry extension stays inert without managed OTLP configuration. To export traces, metrics, and structured logs, configure the backend's `CLI_CLIENT_CONFIG.TELEMETRY` or provide `OTEL_EXPORTER_OTLP_ENDPOINT` (or all three per-signal endpoint variables) as a fallback in the environment used to start `axon`. A fetched policy uses only the pinned backend OTEL proxy with Axon session auth, clears inherited exporter authorization/TLS overrides, and cannot select an external destination for the session. The extension reads the session for each batch and safely persists rotations. Managed mode supports HTTP/protobuf; environment fallback supports HTTP/protobuf and gRPC with normal env headers/API keys. Export failures are passive and bounded. Accepted backend enablement wins over local `PI_ORG_OTEL_ENABLED`, samplers, and exporter preferences for both Pi and launcher product events, through shutdown; there is no managed local opt-out. Explicit offline disables export, and local disablement still applies without an accepted policy. This is separate from upstream Pi's `PI_TELEMETRY`. Backend `BATCH_SCHEDULE_DELAY_MS`, `MAX_EXPORT_BATCH_SIZE`, and `MAX_QUEUE_SIZE` control both Pi and launcher log/trace batching, overriding local batch tuning; `METRIC_EXPORT_INTERVAL_MS` controls metric cadence. Full batches and shutdown can export earlier than the configured delay. The extension never exports prompt/completion text, system prompts, file contents, tool results, provider payloads, authorization headers, environment values, full session paths, raw Git remotes, or stack traces. Managed mode exports backend-verified user ID/email, and optional name after server-side identity replacement; environment fallback exports raw effective Git email when available or an installation UUID. Both export the normalized private repository slug; collector access and retention must be restricted accordingly. See [`src/harnesses/pi/telemetry/README.md`](src/harnesses/pi/telemetry/README.md), its [data policy](src/harnesses/pi/telemetry/docs/data-policy.md), and its [schema](src/harnesses/pi/telemetry/docs/telemetry-schema.md).
 
-The embedded manifest in `src/product/manifest.ts` declares required community packages. Pi 1.0 provides MCP support natively, so Axon no longer installs `pi-mcp-adapter`; upgrading to a CLI with this manifest removes the adapter on the next package synchronization when its ownership state and settings entry are unchanged. If it was adopted or modified, remove it manually with `axon pi remove npm:pi-mcp-adapter@2.34.0`. The manifest locks `pi-provider-litellm` to `4.3.1` and `@juicesharp/rpiv-ask-user-question` to `2.13.8`. Package entries support:
+The embedded manifest in `src/product/manifest.ts` declares required community packages. Pi 1.0 provides MCP support natively, so Axon no longer installs `pi-mcp-adapter`; upgrading to a CLI with this manifest removes the adapter on the next package synchronization when its ownership state and settings entry are unchanged. If it was adopted or modified, remove it manually with `axon pi remove npm:pi-mcp-adapter@2.34.0`. The manifest locks `pi-provider-litellm` to `4.5.0`, `@juicesharp/rpiv-ask-user-question` to `2.15.0`, and `git:github.com/earendil-works/pi-review` to commit `f1de050504936046c0f85b21fec0e0a93ef394eb`. The review package adds `/review` and `/end-review` for reviewing uncommitted changes, branches, commits, pull requests, or files/folders. Git must be installed to provision and verify Git packages; pull-request reviews also require the GitHub CLI (`gh`). Package entries support:
 
-- `exact`: only the declared version is accepted; a failed migration may use a verified, non-revoked last-known-good exact version
+- `exact`: only the declared npm version or Git commit is accepted; a failed migration may use a verified, non-revoked last-known-good exact version
 - `minimum`: the declared version is a hard floor; newer installed versions are accepted and never downgraded
 - `floating`: no Axon version constraint; Pi or the user may update it at any time
 
