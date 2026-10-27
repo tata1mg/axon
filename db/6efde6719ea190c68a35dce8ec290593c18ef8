@@ -1,0 +1,44 @@
+apps/cli/src/sandbox/launch.ts
+  cfe0537e954287b2 4,117-121,166-236,244,362-375,484,566-571
+apps/backend/config_template.json
+  cfe0537e954287b2 125-126
+apps/cli/src/sandbox/contracts.ts
+  cfe0537e954287b2 18-23
+apps/backend/app/core/sandbox.py
+  cfe0537e954287b2 8,20-21,35-37,52-53
+apps/cli/src/sandbox/package-proxy.ts
+  cfe0537e954287b2 4,27-38,42,52-53,85-86,119-123,125,133-168,172-177,182-188
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "db6efde6719ea190c68a35dce8ec290593c18ef8",
+  "prompts": {
+    "b7e64494f7b40b5d": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "496917",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 8,
+      "total_deletions": 1,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    },
+    "cfe0537e954287b2": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "497389",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 638,
+      "total_deletions": 95,
+      "accepted_lines": 565,
+      "overriden_lines": 0
+    }
+  }
+}
