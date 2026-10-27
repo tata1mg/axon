@@ -1,0 +1,180 @@
+apps/cli/tests/litellm-client-provider.test.ts
+  s_3b534ce4c7e3fd::t_eff2bb953aef4a 14,24-26,31,43,110-118,126-137,141-173,176-177,181,186-189
+  s_3b534ce4c7e3fd::t_1eb792fd99b5cd 27-30,119-125,138-140,174-175,178-180,182-185
+  s_3b534ce4c7e3fd::t_6d34b6c99b7142 190
+apps/cli/src/harnesses/pi/environment.ts
+  s_2eaa55471bba3b::t_06da0e620c8b89 27-28
+apps/cli/tests/compiled-pi-resources.test.ts
+  s_d8c9e57acb5639::t_7b79f6acc68529 7,10,122
+apps/cli/tests/axon-header.test.ts
+  s_4d88523a2e08f7::t_8549258454d393 248,269
+  s_5fde5dbf60db4b::t_a7d440889fea0c 581-603
+  s_2eaa55471bba3b::t_e8a9d01786325b 74
+  s_5fde5dbf60db4b::t_93dbecb4b6f3e9 62
+  s_5fde5dbf60db4b::t_07dce9bbffe7e1 82,84
+apps/cli/src/harnesses/pi/setup/packages/sync.ts
+  s_5fde5dbf60db4b::t_a1164fe0371a84 101-104
+  s_5fde5dbf60db4b::t_10c919c282c8b8 75,79-81,83-86
+apps/backend/README.md
+  s_3b534ce4c7e3fd::t_a7d239ca2a9205 534
+apps/cli/tests/pi-model-cache.test.ts
+  s_3b534ce4c7e3fd::t_09f13ddd716dfa 84,89,91,98-99
+  s_3b534ce4c7e3fd::t_ccb34c202b5a41 31,80-83,85-87,104-105
+apps/cli/tests/fixtures/pi-packages.ts
+  s_d8c9e57acb5639::t_e75ce8f6763272 1-14,17-20,22-24,26-34
+  s_d8c9e57acb5639::t_9e16087b981977 15-16,21,25
+apps/cli/tests/bedrock-model-policy.test.ts
+  s_2eaa55471bba3b::t_3a2e3fc614f9bf 1,3-73,112,127,131-143,148-153
+  s_2eaa55471bba3b::t_ffd24acf53c497 2,74-111,113-126,128-130,144-147
+docs/investigations/paseo-support-layer.md
+  s_8efb48ca18057f::t_2944e55646fecc 1-404
+apps/cli/package.json
+  s_bc49841f49e7ec::t_fe7370b915e438 3
+  s_3b534ce4c7e3fd::t_7fec37ef759cfb 65
+apps/cli/tests/session-recovery-dialog.test.ts
+  s_7ef819a29c35b5::t_ac2a18dee1bdc8 57,62
+  s_7ef819a29c35b5::t_7fae7d14e5a822 1-56,58-61,63-168
+apps/cli/src/harnesses/pi/resources/extensions/model-recommender.ts
+  s_5fde5dbf60db4b::t_40858d3b596927 103
+  s_9cb1c09a6f91e7::t_d946c5a323c50f 433-434,441,448-449
+  s_9cb1c09a6f91e7::t_65a11b95b081ce 403-404
+  s_5fde5dbf60db4b::t_40f41a42a557db 601-602,606
+  s_5fde5dbf60db4b::t_1d6c0c0ecb7bde 77,394-402,405-432,435-440,442-447,450-456,461-463
+  s_9cb1c09a6f91e7::t_7d3fbacbfc2f80 69-73,76
+  s_5fde5dbf60db4b::t_274a0f8079c4d1 201-285,297-311,328-338
+  s_5fde5dbf60db4b::t_dc093d11bb5ee1 20-22
+  s_5fde5dbf60db4b::t_8e7cd60908a25b 49-56,62-63,68,74-75
+  s_5fde5dbf60db4b::t_6f2bbffb5d6488 78
+apps/cli/README.md
+  s_3b534ce4c7e3fd::t_8e96ee59d8f950 225,259-270,273-274,321,325-333
+  s_d8c9e57acb5639::t_c8722492207a40 359,361
+  s_3b534ce4c7e3fd::t_3db35139e01aa2 271-272
+  s_2eaa55471bba3b::t_afb190285ae435 213
+  s_3b534ce4c7e3fd::t_9a7eefd7692394 334
+apps/cli/src/cli/launcher-program.ts
+  s_4d88523a2e08f7::t_8549258454d393 31
+apps/cli/tests/launcher.test.ts
+  s_d8c9e57acb5639::t_d8492f3e83ae22 7,12,40,48-51,126,455
+apps/cli/src/product/manifest.ts
+  s_3b534ce4c7e3fd::t_5180ed26036a00 121
+  s_d8c9e57acb5639::t_8c42f31012a372 107,122-131
+  s_d8c9e57acb5639::t_2fc7cc000da53d 114
+apps/cli/tests/request-relay.test.ts
+  s_3b534ce4c7e3fd::t_39f214cf00ffdb 395-485
+apps/cli/tests/pi-client-config.test.ts
+  s_d8c9e57acb5639::t_7002bf0172fb83 2
+  s_d8c9e57acb5639::t_709f5cbfefbe23 7,10,46
+apps/cli/tests/model-recommender-rpc.test.ts
+  s_9cb1c09a6f91e7::t_f3b7cef34ba065 12
+  s_9cb1c09a6f91e7::t_fd886464affdf2 135,153,187,210,222
+  s_9cb1c09a6f91e7::t_7a352dc423c870 119-127,134,141-142
+  s_9cb1c09a6f91e7::t_0558f39b67feca 175-183
+  s_5fde5dbf60db4b::t_d3e26eb819034d 1-11,13-44,46-59,66-118,129-133,136-140,143-152,154-164,166-174,184-186,188-209,211-221,223-230,232-271
+  s_9cb1c09a6f91e7::t_7c2eb9d1d3d1dc 45
+  s_9cb1c09a6f91e7::t_5f3cb35e2dddb0 60-65
+  s_5fde5dbf60db4b::t_80e7af15acbedf 128,165,231
+apps/cli/src/harnesses/pi/resources/extensions/axon.ts
+  s_7ef819a29c35b5::t_b300b73a408e7e 455-456,458,461,464
+  s_2eaa55471bba3b::t_2eb567a940d198 483-487
+  s_7ef819a29c35b5::t_7f37694f616131 365-373,375-383,388-389,392-406
+  s_7ef819a29c35b5::t_d23634c3ef359f 439-441
+  s_5fde5dbf60db4b::t_202400f52cc51b 557-570
+  s_4d88523a2e08f7::t_8549258454d393 214,229
+  s_7ef819a29c35b5::t_0f97f586aa4654 294-295,302-309
+  s_7ef819a29c35b5::t_b3323892b5af56 340-343
+  s_7ef819a29c35b5::t_e37e85c3dda77f 310-311
+apps/cli/tests/pi-package-setup.test.ts
+  s_d8c9e57acb5639::t_281835a84ce96f 26,162-171,352-378,385-449
+  s_3b534ce4c7e3fd::t_cd28e057b56e00 159,161
+  s_d8c9e57acb5639::t_e49411fa3826f1 379-384
+  s_d8c9e57acb5639::t_4f1be72c8cb5ba 153,155
+apps/cli/docs/plans/backend-compaction-config.md
+  s_3b534ce4c7e3fd::t_d55425b30d81e0 147
+bun.lock
+  s_bc49841f49e7ec::t_b67b2f2956c756 13,47,385
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f3a418d9e5418e3bf973c1e41e0c2794ab5d82c2",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_2eaa55471bba3b": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a17813-7232-72fc-b0af-ab3fdec46192",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_3b534ce4c7e3fd": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a177bf-83d8-77d9-871d-366d5a9bf568",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_4d88523a2e08f7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ee47f1ba-e113-44f4-9af1-3479e4680869",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_5fde5dbf60db4b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9e5054f4-7e1c-46b8-a637-11d6b7922f3e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_7ef819a29c35b5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7ec183d5-90bb-4724-8298-101160c4e469",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_8efb48ca18057f": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "496802",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_9cb1c09a6f91e7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "942ffb0a-f8a8-4bd8-b6fe-81d6b6dd19de",
+        "model": "unknown"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_bc49841f49e7ec": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a178a0-b6ea-779f-8780-3dc649602ee5",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_d8c9e57acb5639": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a178ba-326b-7606-b31a-96ad5d2b094e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
