@@ -4,7 +4,7 @@
 set -eu
 
 REPOSITORY_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-PRIVATE_IMAGE=831059512818.dkr.ecr.ap-south-1.amazonaws.com/python:wolfi-3.12.14-r8
+PRIVATE_IMAGE=831059512818.dkr.ecr.ap-south-1.amazonaws.com/wolfi-3.12.16-r1-test1
 PUBLIC_IMAGE=cgr.dev/chainguard/wolfi-base:latest
 
 if docker pull --platform=linux/amd64 "$PRIVATE_IMAGE"; then
