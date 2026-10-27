@@ -6,6 +6,7 @@ import { inspectPiPackages } from "../src/harnesses/pi/setup/packages/doctor.ts"
 import {
   classifyPiInvocation,
   isPiOffline,
+  isPiRpcMode,
   type PiInvocationEnvironment,
 } from "../src/harnesses/pi/setup/packages/invocation.ts";
 import {
@@ -281,6 +282,16 @@ describe("Pi invocation policy", () => {
     expect(classifyPiInvocation([], { ...interactive, stdoutIsTty: false })).toBe("noninteractive");
     expect(classifyPiInvocation(["--mode", "json"], interactive)).toBe("noninteractive");
     expect(classifyPiInvocation([], { ...interactive, ci: true })).toBe("noninteractive");
+  });
+
+  test("recognizes only RPC session launches as able to defer login", () => {
+    expect(isPiRpcMode(["--mode", "rpc"])).toBe(true);
+    expect(isPiRpcMode(["--session", "s.jsonl", "--mode", "rpc"])).toBe(true);
+    expect(isPiRpcMode(["--mode", "json"])).toBe(false);
+    expect(isPiRpcMode(["-p", "hello"])).toBe(false);
+    expect(isPiRpcMode(["--", "--mode", "rpc"])).toBe(false);
+    expect(isPiRpcMode(["--mode", "rpc", "--help"])).toBe(false);
+    expect(isPiRpcMode(["install", "--mode", "rpc"])).toBe(false);
   });
 
   test("forwards Pi auth and MCP commands untouched", () => {
@@ -821,6 +832,7 @@ describe("package and resource locks", () => {
     expect(materializedPaths.map((path) => path.split("/").at(-1))).toEqual([
       "managed-config.ts",
       "axon.ts",
+      "axon-auth.ts",
       "pi-org-telemetry.mjs",
       "model-recommender.ts",
       "session-backup.mjs",

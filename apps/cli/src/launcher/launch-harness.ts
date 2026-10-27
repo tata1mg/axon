@@ -14,6 +14,7 @@ const DEBUG_ENVIRONMENT_VARIABLE = "AXON_DEBUG";
 export async function launchRegisteredHarness(
   registration: HarnessRegistration,
   userArguments: readonly string[],
+  options: { readonly authenticationDeferred?: boolean } = {},
 ): Promise<never> {
   const startedAt = Date.now();
   const cwd = process.cwd();
@@ -35,6 +36,7 @@ export async function launchRegisteredHarness(
     paths,
     registration,
     executable,
+    ...(options.authenticationDeferred ? { authenticationDeferred: true } : {}),
   });
 
   try {

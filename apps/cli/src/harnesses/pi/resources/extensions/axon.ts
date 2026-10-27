@@ -2,7 +2,6 @@ import { homedir } from "node:os";
 import {
   type AppKeybinding,
   type ExtensionAPI,
-  type ExtensionContext,
   keyText,
   type Theme,
   VERSION,
@@ -288,27 +287,7 @@ function createAxonHeader(
     },
   };
 }
-const AUTH_POLL_INTERVAL_MS = 1_000;
-const AUTH_REQUEST_TIMEOUT_MS = 5_000;
-
-const LOGIN_CHOICE = "Login from browser";
-
-interface RecoveryStatus {
-  readonly id: string;
-  readonly state: "required" | "logging-in";
-  readonly expiresAt: number;
-}
-
-function isRequiredRecovery(
-  recovery: Partial<RecoveryStatus> | null | undefined,
-): recovery is RecoveryStatus {
-  return (
-    recovery?.state === "required" &&
-    typeof recovery.id === "string" &&
-    typeof recovery.expiresAt === "number"
-  );
-}
-
+// Keep in sync with axon-auth.ts; each extension ships standalone.
 function authRelayConfiguration(): { origin: string; capability: string } | undefined {
   const origin = Reflect.get(process.env, "PI_AXON_AUTH_RELAY_URL") as string | undefined;
   const capability = Reflect.get(process.env, "PI_AXON_AUTH_RELAY_KEY") as string | undefined;
@@ -332,153 +311,6 @@ function authRelayConfiguration(): { origin: string; capability: string } | unde
   }
 }
 
-/** Polling runs independently of Pi's model request, which the relay can pause for login. */
-function watchSessionRecovery(ctx: ExtensionContext): () => void {
-  const config = authRelayConfiguration();
-  if (!ctx.hasUI || config === undefined) return () => {};
-
-  // Pi's RPC protocol cannot retract a dialog: an aborted or timed-out select leaves a dead
-  // card in the client (Paseo ignores the timeout). RPC therefore keeps one card per session
-  // and applies the answer to whichever recovery is pending when it arrives.
-  const rpc = ctx.mode === "rpc";
-  const controller = new AbortController();
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let handledRecovery: string | undefined;
-  let activePrompt: { id: string; controller: AbortController } | undefined;
-  let busy = false;
-
-  const authRequest = (action: string, method = "GET", id?: string): Promise<Response> => {
-    const url = new URL(`/_axon/auth/${action}`, config.origin);
-    if (id !== undefined) url.searchParams.set("id", id);
-    return fetch(url, {
-      method,
-      headers: { Authorization: `Bearer ${config.capability}` },
-      redirect: "error",
-      cache: "no-store",
-      signal: AbortSignal.any([
-        controller.signal,
-        AbortSignal.timeout(action === "login" ? 5 * 60_000 : AUTH_REQUEST_TIMEOUT_MS),
-      ]),
-    });
-  };
-
-  /** Undefined means the status could not be read; null means no login is pending. */
-  const readRecovery = async (): Promise<Partial<RecoveryStatus> | null | undefined> => {
-    const response = await authRequest("status");
-    if (!response.ok) return undefined;
-    const payload: unknown = await response.json();
-    return (payload as { recovery?: Partial<RecoveryStatus> | null } | null)?.recovery ?? null;
-  };
-
-  const offerLogin = async (offered: RecoveryStatus): Promise<void> => {
-    const promptController = new AbortController();
-    activePrompt = { id: offered.id, controller: promptController };
-    const signal = rpc
-      ? controller.signal
-      : AbortSignal.any([
-          controller.signal,
-          promptController.signal,
-          ...(ctx.signal === undefined ? [] : [ctx.signal]),
-        ]);
-    let recovery: RecoveryStatus | undefined = offered;
-    ctx.ui.setStatus("axon-auth", "Session expired — login required");
-    try {
-      const choice = await ctx.ui.select(
-        "Your Axon session expired. Sign in to continue this chat.",
-        [LOGIN_CHOICE, "Not now (keep chat open)"],
-        rpc ? { signal } : { signal, timeout: Math.max(1, offered.expiresAt - Date.now()) },
-      );
-      activePrompt = undefined;
-      if (rpc && !signal.aborted) {
-        const current = await readRecovery();
-        recovery = isRequiredRecovery(current) ? current : undefined;
-        if (recovery !== undefined) handledRecovery = recovery.id;
-      }
-      if (recovery === undefined) {
-        if (choice === LOGIN_CHOICE) {
-          ctx.ui.notify(
-            "That sign-in request is no longer active. Send your message again to retry.",
-            "info",
-          );
-        }
-        return;
-      }
-      if (choice !== LOGIN_CHOICE || signal.aborted) {
-        await authRequest("cancel", "POST", recovery.id);
-        if (!controller.signal.aborted) {
-          ctx.ui.notify(
-            "Login cancelled. Your chat is still open; sign in and retry when ready.",
-            "warning",
-          );
-        }
-        return;
-      }
-      ctx.ui.setStatus("axon-auth", "Waiting for browser login…");
-      ctx.ui.notify(
-        "Complete login in your browser. This chat will continue after approval.",
-        "info",
-      );
-      const response = await authRequest("login", "POST", recovery.id);
-      const payload: unknown = await response.json();
-      const authenticated =
-        response.ok &&
-        payload !== null &&
-        typeof payload === "object" &&
-        "authenticated" in payload &&
-        payload.authenticated === true;
-      if (!controller.signal.aborted) {
-        ctx.ui.notify(
-          authenticated
-            ? "Signed in. Continuing your chat…"
-            : "Login failed or timed out. Your chat is still open; retry to sign in again.",
-          authenticated ? "info" : "warning",
-        );
-      }
-    } catch {
-      if (!controller.signal.aborted) {
-        if (recovery !== undefined) {
-          await authRequest("cancel", "POST", recovery.id).catch(() => {});
-        }
-        ctx.ui.notify(
-          "Login could not complete. Your chat is still open; retry when ready.",
-          "warning",
-        );
-      }
-    } finally {
-      activePrompt = undefined;
-      ctx.ui.setStatus("axon-auth", undefined);
-    }
-  };
-
-  const poll = async (): Promise<void> => {
-    try {
-      const recovery = await readRecovery();
-      if (recovery === undefined) return;
-      // Dismiss a stale dialog if Pi cancelled the waiting request or its deadline elapsed.
-      if (!rpc && activePrompt !== undefined && activePrompt.id !== recovery?.id) {
-        activePrompt.controller.abort();
-      }
-      if (!busy && isRequiredRecovery(recovery) && recovery.id !== handledRecovery) {
-        handledRecovery = recovery.id;
-        busy = true;
-        void offerLogin(recovery).finally(() => {
-          busy = false;
-        });
-      }
-    } catch {
-      // A transient loopback failure must not interrupt the chat or spam notifications.
-    } finally {
-      if (!controller.signal.aborted) timer = setTimeout(() => void poll(), AUTH_POLL_INTERVAL_MS);
-    }
-  };
-  void poll();
-  return () => {
-    controller.abort();
-    if (timer !== undefined) clearTimeout(timer);
-    ctx.ui.setStatus("axon-auth", undefined);
-  };
-}
-
 export default function axonExtension(pi: ExtensionAPI): void {
   // Keep AWS credentials available to tools, but never offer direct Bedrock models.
   // An explicit empty catalog also covers saved /login tokens, models.json, and
@@ -493,7 +325,6 @@ export default function axonExtension(pi: ExtensionAPI): void {
       "Project-local configuration still uses .pi/.";
   });
 
-  let stopRecovery: (() => void) | undefined;
   let backupState: BackupHeaderState | undefined;
   let terminalState: TerminalHeaderState | undefined;
   let refreshHeader: (() => void) | undefined;
@@ -532,8 +363,6 @@ export default function axonExtension(pi: ExtensionAPI): void {
     };
   });
   pi.on("session_start", (_event, ctx) => {
-    stopRecovery?.();
-    stopRecovery = watchSessionRecovery(ctx);
     if (ctx.mode === "tui") {
       ctx.ui.setHeader((tui, theme) => {
         const component = createAxonHeader(
@@ -574,8 +403,6 @@ export default function axonExtension(pi: ExtensionAPI): void {
     refreshHeader = undefined;
     backupState = undefined;
     terminalState = undefined;
-    stopRecovery?.();
-    stopRecovery = undefined;
   });
 
   pi.registerEntryRenderer(ENTRY_TYPE, (entry, _options, theme) => {

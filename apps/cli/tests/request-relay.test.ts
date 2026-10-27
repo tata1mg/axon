@@ -13,6 +13,7 @@ async function runRelayScript(
   setup = "",
   allowPiConfigRefresh = false,
   serviceBasePath = "",
+  relayOptions = "",
 ): Promise<void> {
   const home = await mkdtemp(join(tmpdir(), "axon-request-relay-"));
   await saveEncryptedSession(resolveAxonPaths({ AXON_HOME: home, HOME: home }), "initial-session");
@@ -46,6 +47,7 @@ async function runRelayScript(
     const { startAuthenticatedRequestRelay } = await import("./src/cli/auth/request-relay.ts");
     const relay = startAuthenticatedRequestRelay(paths, {
       allowPiConfigRefresh: ${allowPiConfigRefresh},
+      ${relayOptions}
     });
     function send(path, signal) {
       return actualFetch(relay.origin + path, {
@@ -771,6 +773,225 @@ test("a rejected expired session is refreshed before offering browser login", as
       ["/litellm/v1/chat/completions", "Bearer recovered-session"],
     ]);
   `);
+});
+
+test("a missing login offers sign-in as signed out, not as an expired session", async () => {
+  await runRelayScript(`
+    await (await import("node:fs/promises")).rm(paths.sharedAuthFile);
+    const control = (path, method = "GET") =>
+      actualFetch(relay.origin + "/_axon/auth/" + path, {
+        method,
+        headers: { authorization: "Bearer " + relay.capability },
+      });
+    // The UI heartbeat makes the relay wait for login instead of failing at once.
+    await control("status");
+    const response = send("/litellm/v1/chat/completions");
+    let recovery = null;
+    for (let attempt = 0; attempt < 100 && recovery === null; attempt++) {
+      recovery = (await (await control("status")).json()).recovery;
+      if (recovery === null) await Bun.sleep(10);
+    }
+    assert.equal(recovery?.reason, "signed-out");
+    assert.equal(recovery?.state, "required");
+    await control("cancel?id=" + recovery.id, "POST");
+    assert.equal((await bounded(response)).status, 401);
+  `);
+});
+
+test("a signed-out launch rejects requests at once and lifts when the saved session changes", async () => {
+  await runRelayScript(
+    `
+      const seen = [];
+      upstream = async request => {
+        seen.push(request.headers.get("authorization"));
+        return Response.json({ ok: true });
+      };
+      const status = async () =>
+        (await (await actualFetch(relay.origin + "/_axon/auth/status", {
+          headers: { authorization: "Bearer " + relay.capability },
+        })).json());
+      // A live UI heartbeat would make a normal request wait for login; this one must not.
+      assert.equal((await status()).signedOut, true);
+      const rejected = await bounded(send("/litellm/v1/chat/completions"));
+      assert.equal(rejected.status, 401);
+      assert.match((await rejected.json()).error.message, /not signed in to Axon/);
+      assert.equal((await status()).recovery, null);
+      assert.deepEqual(seen, []);
+
+      // A login from another terminal replaces the saved session.
+      await sessions.saveEncryptedSession(paths, "new-session");
+      assert.equal((await bounded(send("/litellm/v1/chat/completions"))).status, 200);
+      assert.equal((await status()).signedOut, false);
+      assert.deepEqual(seen, ["Bearer new-session"]);
+    `,
+    "",
+    false,
+    "",
+    'signedOut: { session: "initial-session" },',
+  );
+});
+
+test("signing in from the chat lifts the signed-out gate", async () => {
+  await runRelayScript(
+    `
+      upstream = async request => {
+        const url = new URL(request.url);
+        if (url.pathname.endsWith("/verify-auth-token")) return Response.json({ status: "VERIFIED" });
+        return Response.json({ ok: true });
+      };
+      const control = (path, method = "GET") =>
+        actualFetch(relay.origin + "/_axon/auth/" + path, {
+          method,
+          headers: { authorization: "Bearer " + relay.capability },
+        });
+      await (await import("node:fs/promises")).rm(paths.sharedAuthFile);
+      assert.equal((await (await control("status")).json()).signedOut, true);
+      assert.equal((await bounded(send("/litellm/v1/chat/completions"))).status, 401);
+      const signedIn = await bounded(control("sign-in", "POST"));
+      assert.deepEqual(await signedIn.json(), { authenticated: true });
+      assert.deepEqual(logins, [true]);
+      assert.equal((await (await control("status")).json()).signedOut, false);
+      assert.equal((await bounded(send("/litellm/v1/chat/completions"))).status, 200);
+      // Already signed in: no second browser login.
+      assert.deepEqual(await (await control("sign-in", "POST")).json(), {
+        authenticated: true, alreadyAuthenticated: true,
+      });
+      assert.deepEqual(logins, [true]);
+    `,
+    `
+      const logins = [];
+      const auth = await import("./src/cli/commands/auth.ts");
+      mock.module("./src/cli/commands/auth.ts", () => ({
+        ...auth,
+        runAuthLogin: async (_paths, options) => {
+          logins.push(options.browser);
+          await sessions.saveEncryptedSession(paths, "browser-session");
+          return true;
+        },
+      }));
+    `,
+    false,
+    "",
+    "signedOut: { session: undefined },",
+  );
+});
+
+for (const scenario of [
+  "valid",
+  "missing",
+  "expired",
+  "refreshable",
+  "outage",
+  "unsafe-storage",
+  "corrupt",
+] as const) {
+  test(`explicit chat sign-in verifies a ${scenario} session before deciding to open the browser`, async () => {
+    await runRelayScript(
+      `
+        const scenario = ${JSON.stringify(scenario)};
+        const verified = [];
+        upstream = async request => {
+          assert.ok(new URL(request.url).pathname.endsWith("/verify-auth-token"));
+          const token = request.headers.get("authorization");
+          verified.push(token);
+          if (scenario === "outage") return new Response(null, { status: 503 });
+          if (scenario === "expired" && token === "Bearer initial-session") {
+            return Response.json({ status: "EXPIRED" });
+          }
+          return Response.json({ status: "VERIFIED" }, scenario === "refreshable" ? {
+            headers: { "x-session-refresh-token": "refreshed-session" },
+          } : {});
+        };
+        if (scenario === "missing") await (await import("node:fs/promises")).rm(paths.sharedAuthFile);
+        if (scenario === "unsafe-storage") {
+          const fs = await import("node:fs/promises");
+          const target = paths.sharedAuthFile + ".target";
+          await fs.rename(paths.sharedAuthFile, target);
+          await fs.symlink(target, paths.sharedAuthFile);
+        }
+        if (scenario === "corrupt") await Bun.write(paths.sharedAuthFile, "corrupt-json");
+        const response = await bounded(actualFetch(relay.origin + "/_axon/auth/sign-in", {
+          method: "POST",
+          headers: { authorization: "Bearer " + relay.capability },
+        }));
+        const failed = scenario === "outage" || scenario === "unsafe-storage";
+        assert.equal(response.status, failed ? 401 : 200);
+        const result = await response.json();
+        assert.equal(result.authenticated, !failed);
+        assert.equal(result.alreadyAuthenticated === true, scenario === "valid" || scenario === "refreshable");
+        assert.deepEqual(logins, ["missing", "expired", "corrupt"].includes(scenario) ? [true] : []);
+        if (scenario === "refreshable") {
+          assert.equal(await sessions.loadEncryptedSession(paths), "refreshed-session");
+        }
+        if (scenario === "missing" || scenario === "corrupt") {
+          assert.deepEqual(verified, ["Bearer browser-session"]);
+        }
+      `,
+      `
+        const logins = [];
+        const auth = await import("./src/cli/commands/auth.ts");
+        mock.module("./src/cli/commands/auth.ts", () => ({
+          ...auth,
+          runAuthLogin: async (_paths, options) => {
+            logins.push(options.browser);
+            assert.equal(options.quiet, true);
+            await sessions.saveEncryptedSession(paths, "browser-session");
+            return true;
+          },
+        }));
+      `,
+    );
+  });
+}
+
+test("explicit chat sign-in shares one browser flow and resumes a waiting model request", async () => {
+  await runRelayScript(
+    `
+      upstream = async request => {
+        const token = request.headers.get("authorization");
+        if (new URL(request.url).pathname.endsWith("/verify-auth-token")) {
+          return Response.json({ status: token === "Bearer browser-session" ? "VERIFIED" : "EXPIRED" });
+        }
+        return token === "Bearer browser-session" ? Response.json({ ok: true }) : new Response(null, { status: 401 });
+      };
+      const control = (path, method = "GET") => actualFetch(relay.origin + "/_axon/auth/" + path, {
+        method, headers: { authorization: "Bearer " + relay.capability },
+      });
+      await control("status");
+      const model = send("/litellm/v1/chat/completions");
+      let recovery;
+      for (let attempt = 0; attempt < 100 && !recovery; attempt++) {
+        recovery = (await (await control("status")).json()).recovery;
+        if (!recovery) await Bun.sleep(10);
+      }
+      assert.ok(recovery);
+      const login = control("sign-in", "POST");
+      await bounded(browserStarted.promise);
+      assert.equal((await control("sign-in", "POST")).status, 409);
+      assert.equal((await control("login?id=" + recovery.id, "POST")).status, 409);
+      browserApproved.resolve();
+      assert.deepEqual(await (await bounded(login)).json(), { authenticated: true });
+      assert.equal((await bounded(model)).status, 200);
+      assert.equal((await (await control("status")).json()).recovery, null);
+      assert.equal(logins, 1);
+    `,
+    `
+      let logins = 0;
+      const browserStarted = Promise.withResolvers();
+      const browserApproved = Promise.withResolvers();
+      const auth = await import("./src/cli/commands/auth.ts");
+      mock.module("./src/cli/commands/auth.ts", () => ({
+        ...auth,
+        runAuthLogin: async () => {
+          logins++;
+          browserStarted.resolve();
+          await browserApproved.promise;
+          await sessions.saveEncryptedSession(paths, "browser-session");
+          return true;
+        },
+      }));
+    `,
+  );
 });
 
 test("session read failures return storage errors, not browser login requests", async () => {

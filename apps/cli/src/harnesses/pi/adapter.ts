@@ -168,6 +168,7 @@ export function createPiAdapter(): HarnessAdapter {
         // live session for each request and owns refresh persistence and recovery.
         relay = startAuthenticatedRequestRelay(context.paths, {
           allowPiConfigRefresh: !setup.offline,
+          ...(context.authenticationDeferred ? { signedOut: { session: encryptedSession } } : {}),
         });
         // Startup discovery seeds fresh models, but Pi restores its cached catalog over
         // them. Old per-launch relay URLs would then hide otherwise available models.

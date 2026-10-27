@@ -10,7 +10,12 @@ import { resolveAxonPaths } from "../product/paths.ts";
 import { withUpdateProgress } from "../updater/progress.ts";
 import { checkForUpdate, installUpdate, updateContext } from "../updater/update.ts";
 import { ensureAxonSession } from "./auth/preflight.ts";
-import { type AuthLoginOptions, runAuthLogin, runAuthStatus } from "./commands/auth.ts";
+import {
+  type AuthLoginOptions,
+  runAuthLogin,
+  runAuthLogout,
+  runAuthStatus,
+} from "./commands/auth.ts";
 import { runDoctor } from "./commands/doctor.ts";
 import { printHarnesses } from "./commands/harnesses.ts";
 import { printPaths } from "./commands/paths.ts";
@@ -62,6 +67,13 @@ function createLauncherProgram(): Command {
     .description("verify the saved Axon session with the auth service")
     .action(async () => {
       await runAuthStatus(resolveAxonPaths());
+    });
+
+  auth
+    .command("logout")
+    .description("clear the local sign-in credential shared with DeputyDev (no server revocation)")
+    .action(async () => {
+      await runAuthLogout(resolveAxonPaths());
     });
 
   const sessions = program

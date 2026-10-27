@@ -1,4 +1,7 @@
 import axonExtensionAsset from "../harnesses/pi/resources/extensions/axon.ts" with { type: "file" };
+import axonAuthExtensionAsset from "../harnesses/pi/resources/extensions/axon-auth.ts" with {
+  type: "file",
+};
 import compactionExtensionAsset from "../harnesses/pi/resources/extensions/compaction.ts" with {
   type: "file",
 };
@@ -61,6 +64,12 @@ const AXON_CORE_RESOURCE = Object.freeze({
   destination: "pi/extensions/axon.ts",
 }) satisfies PiResourceManifestEntry;
 
+const AXON_AUTH_RESOURCE = Object.freeze({
+  id: "axon-auth",
+  type: "extension",
+  destination: "pi/extensions/axon-auth.ts",
+}) satisfies PiResourceManifestEntry;
+
 const PI_ORG_TELEMETRY_RESOURCE = Object.freeze({
   id: "pi-org-telemetry",
   type: "extension",
@@ -104,7 +113,7 @@ const AXON_LIGHT_THEME_RESOURCE = Object.freeze({
 
 export const AXON_MANIFEST = parseAxonManifest({
   schemaVersion: 1,
-  revision: "19",
+  revision: "20",
   pi: {
     packages: [
       {
@@ -135,6 +144,7 @@ export const AXON_MANIFEST = parseAxonManifest({
     resources: [
       MANAGED_CONFIG_RESOURCE,
       AXON_CORE_RESOURCE,
+      AXON_AUTH_RESOURCE,
       MODEL_RECOMMENDER_RESOURCE,
       SESSION_BACKUP_RESOURCE,
       // Close telemetry after backup shutdown has emitted its final outcomes.
@@ -163,6 +173,10 @@ export const EMBEDDED_PI_RESOURCES = Object.freeze([
     ...AXON_CORE_RESOURCE,
     // TypeScript resolves the source module while Bun's `file` loader returns its asset path.
     sourcePath: axonExtensionAsset as unknown as string,
+  }),
+  Object.freeze({
+    ...AXON_AUTH_RESOURCE,
+    sourcePath: axonAuthExtensionAsset as unknown as string,
   }),
   Object.freeze({
     ...PI_ORG_TELEMETRY_RESOURCE,

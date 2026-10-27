@@ -74,7 +74,7 @@ test("startup refreshes and saves a usable session without interactive login", a
         headers: { "x-session-refresh-token": "refreshed-session" },
       });
     };
-    assert.equal(await ensureAuthenticatedSession(paths, { interactive: false }), true);
+    assert.equal(await ensureAuthenticatedSession(paths, { interactive: false }), "verified");
     assert.equal(await sessions.loadEncryptedSession(paths), "refreshed-session");
     assert.deepEqual(calls, ["Bearer initial-session"]);
     assert.equal(takeProductEvents().find(event => event.stage === "refresh")?.outcome, "success");
@@ -87,7 +87,7 @@ test("valid access tokens are accepted without changing the saved session", asyn
       assert.equal(url.searchParams.get("refresh_expired"), "true");
       return Response.json({ status: "VERIFIED" });
     };
-    assert.equal(await ensureAuthenticatedSession(paths, { interactive: false }), true);
+    assert.equal(await ensureAuthenticatedSession(paths, { interactive: false }), "verified");
     assert.equal(await sessions.loadEncryptedSession(paths), "initial-session");
     assert.equal(calls.length, 1);
   `);
@@ -104,6 +104,33 @@ for (const status of ["EXPIRED", "NOT_VERIFIED"]) {
     `);
   });
 }
+
+test("RPC launches defer a missing login to in-chat sign-in", async () => {
+  await runStartupScript(`
+    console.error = () => {};
+    await rm(paths.sharedAuthFile);
+    assert.equal(
+      await ensureAuthenticatedSession(paths, { interactive: false, deferLogin: true }),
+      "deferred",
+    );
+    assert.equal(calls.length, 0);
+  `);
+});
+
+test("RPC launches defer an expired login, but never offline verification", async () => {
+  await runStartupScript(`
+    console.error = () => {};
+    upstream = async () => Response.json({ status: "EXPIRED" });
+    assert.equal(
+      await ensureAuthenticatedSession(paths, { interactive: false, deferLogin: true }),
+      "deferred",
+    );
+    await assert.rejects(
+      ensureAuthenticatedSession(paths, { offline: true, deferLogin: true }),
+      /while offline/,
+    );
+  `);
+});
 
 test("unreadable saved sessions report storage failure instead of requiring login", async () => {
   await runStartupScript(`
@@ -176,7 +203,7 @@ for (const [name, content] of [
       assert.equal(await Bun.file(paths.sharedAuthFile).text(), ${JSON.stringify(content)});
       await sessions.saveEncryptedSession(paths, "repaired-session");
       upstream = async () => Response.json({ status: "VERIFIED" });
-      assert.equal(await ensureAuthenticatedSession(paths, { interactive: false }), true);
+      assert.equal(await ensureAuthenticatedSession(paths, { interactive: false }), "verified");
       assert.deepEqual(calls, ["Bearer repaired-session"]);
     `);
   });
@@ -196,7 +223,7 @@ for (const body of ["not-json", JSON.stringify({ status: "UNKNOWN" })]) {
         assert.equal(request.headers.get("authorization"), "Bearer recoverable-session");
         return Response.json({ status: "VERIFIED" });
       };
-      assert.equal(await ensureAuthenticatedSession(paths, { interactive: false }), true);
+      assert.equal(await ensureAuthenticatedSession(paths, { interactive: false }), "verified");
     `);
   });
 }
@@ -240,7 +267,7 @@ for (const status of ["VERIFIED", "NOT_VERIFIED"]) {
         }
         return Response.json({ status: "VERIFIED" });
       };
-      assert.equal(await ensureAuthenticatedSession(paths, { interactive: false }), true);
+      assert.equal(await ensureAuthenticatedSession(paths, { interactive: false }), "verified");
       assert.equal(await sessions.loadEncryptedSession(paths), "new-login-session");
       assert.deepEqual(calls, ["Bearer initial-session", "Bearer new-login-session"]);
     `);
