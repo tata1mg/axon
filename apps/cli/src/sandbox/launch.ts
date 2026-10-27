@@ -1,7 +1,7 @@
 import { rmSync } from "node:fs";
 import { lstat, mkdtemp, readFile, realpath, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, dirname, join, parse } from "node:path";
+import { basename, dirname, isAbsolute, join, parse } from "node:path";
 
 import { readCertificates } from "../launcher/certificates.ts";
 import type { LaunchSpec } from "../launcher/contracts.ts";
@@ -114,6 +114,11 @@ export interface SandboxResources {
   readonly runDirectory: string;
   readonly temporary: string;
   readonly proxy: PackageProxy;
+  readonly ssh?: {
+    readonly configuration: string;
+    readonly knownHosts: string;
+    readonly agent?: string;
+  };
   readonly certificateEnvironment: NodeJS.ProcessEnv;
   dispose(): void;
 }
@@ -158,6 +163,77 @@ export async function createSandboxResources(
       ])
         certificateEnvironment[name] = certificatePath;
     }
+    let ssh: SandboxResources["ssh"];
+    if (proxy.sshTunnels.length > 0) {
+      const home = await canonicalPath(homedir());
+      const backendProtectedPaths = await Promise.all(
+        authorization.policy.protectedPaths.map((path) => canonicalPath(path)),
+      );
+      const sourceKnownHosts = await canonicalPath(join(home, ".ssh", "known_hosts"));
+      if (backendProtectedPaths.some((path) => isWithin(path, sourceKnownHosts)))
+        throw sandboxFailure("Backend policy protects SSH host-verification data");
+      let hostKeys = "";
+      try {
+        const info = await lstat(join(home, ".ssh", "known_hosts"));
+        if (!info.isFile() || info.isSymbolicLink() || info.size > 1024 * 1024)
+          throw sandboxFailure("SSH known_hosts must be a regular file smaller than 1 MiB");
+        hostKeys = await readFile(sourceKnownHosts, "utf8");
+      } catch (error) {
+        if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
+      }
+      let agent: string | undefined;
+      const sourceAgent = environment["SSH_AUTH_SOCK"];
+      if (sourceAgent && isAbsolute(sourceAgent)) {
+        // macOS launchd sockets cannot themselves be realpath()'d by Bun.
+        const candidate = join(await canonicalPath(dirname(sourceAgent)), basename(sourceAgent));
+        try {
+          if ((await lstat(candidate)).isSocket()) {
+            const protectedPaths = await protectedFilesystemPaths(paths, authorization.policy);
+            if (protectedPaths.some((path) => isWithin(path, candidate)))
+              throw sandboxFailure("SSH agent socket is inside a protected location");
+            agent = candidate;
+          }
+        } catch (error) {
+          if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
+        }
+      }
+      const configuration = join(runDirectory, "ssh_config");
+      const knownHosts = join(runDirectory, "known_hosts");
+      // Snapshot public host keys only. Private keys and ~/.ssh/config remain protected.
+      // Escape OpenSSH's path tokens as well as quotes; no user SSH hooks are imported.
+      const sshPath = (path: string): string => quoted(path.replace(/%/g, "%%"));
+      const configurationLines = [
+        ...proxy.sshTunnels.flatMap(({ host, port }) => [
+          `Host ${host}`,
+          `  ProxyCommand /usr/bin/nc 127.0.0.1 ${port}`,
+          `  HostKeyAlias ${host}`,
+        ]),
+        "Host *",
+        "  ProxyCommand /usr/bin/false",
+        "  User git",
+        "  Port 22",
+        "  BatchMode yes",
+        "  IdentityFile none",
+        `  IdentityAgent ${agent ? sshPath(agent) : "none"}`,
+        `  UserKnownHostsFile ${sshPath(knownHosts)}`,
+        "  GlobalKnownHostsFile /dev/null",
+        "  StrictHostKeyChecking yes",
+        "  UpdateHostKeys no",
+        "  ForwardAgent no",
+        "  ForwardX11 no",
+        "  ClearAllForwardings yes",
+        "  PermitLocalCommand no",
+        "  ControlMaster no",
+        "  ControlPath none",
+        "  ConnectTimeout 15",
+      ];
+      await writeFile(knownHosts, hostKeys, { mode: 0o400, flag: "wx" });
+      await writeFile(configuration, `${configurationLines.join("\n")}\n`, {
+        mode: 0o400,
+        flag: "wx",
+      });
+      ssh = { configuration, knownHosts, ...(agent ? { agent } : {}) };
+    }
     const activeProxy = proxy;
     let disposed = false;
     return {
@@ -165,6 +241,7 @@ export async function createSandboxResources(
       runDirectory,
       temporary,
       proxy: activeProxy,
+      ...(ssh ? { ssh } : {}),
       certificateEnvironment,
       dispose() {
         if (disposed) return;
@@ -282,6 +359,20 @@ export async function createSandboxLaunchSpec(
       rules.push(`(allow network-outbound (remote tcp ${quoted(`localhost:${relay.port}`)}))`);
     if (purpose !== "probe")
       rules.push(`(allow network-outbound (remote tcp ${quoted(`localhost:${proxyPort}`)}))`);
+    const ssh = purpose === "session" || purpose === "operation" ? resources.ssh : undefined;
+    if (ssh) {
+      for (const { port } of proxy.sshTunnels)
+        rules.push(`(allow network-outbound (remote tcp ${quoted(`localhost:${port}`)}))`);
+      for (const path of [ssh.configuration, ssh.knownHosts])
+        rules.push(...(await readGrant(path)));
+      if (ssh.agent) {
+        rules.push(
+          ...ancestorRules(ssh.agent),
+          `(allow file-read-metadata (literal ${quoted(ssh.agent)}))`,
+          `(allow network-outbound (literal ${quoted(ssh.agent)}))`,
+        );
+      }
+    }
     for (const path of SYSTEM_READ_PATHS) rules.push(...(await readGrant(path)));
     for (const path of DEVICE_WRITE_PATHS) rules.push(pathRule("allow file-write*", path));
     rules.push('(allow file-write* (regex #"^/dev/(ttys|pty)[^/]*$"))');
@@ -390,6 +481,7 @@ export async function createSandboxLaunchSpec(
         join(paths.pi, "bin"),
         join(paths.pi, "extensions"),
         join(paths.home, "sandbox", "runtime"),
+        ...(resources.ssh ? [resources.ssh.configuration, resources.ssh.knownHosts] : []),
       ].map((path) => canonicalPath(path)),
     );
     for (const path of managedCodePaths) {
@@ -471,6 +563,12 @@ export async function createSandboxLaunchSpec(
       ...sandboxEnvironment(specification.environment, home, temporary, proxy.authenticatedUrl),
       ...resources.certificateEnvironment,
     };
+    if (ssh) {
+      const configuration = `'${ssh.configuration.replace(/'/g, "'\\''")}'`;
+      environment["GIT_SSH_COMMAND"] = `/usr/bin/ssh -F ${configuration}`;
+      environment["GIT_SSH_VARIANT"] = "ssh";
+      if (ssh.agent) environment["SSH_AUTH_SOCK"] = ssh.agent;
+    }
     if (purpose === "session") environment["PI_CODING_AGENT_DIR"] = paths.pi;
     if (purpose !== "session") {
       // Setup cannot inherit ambient provider credentials or the main session's relay capability.

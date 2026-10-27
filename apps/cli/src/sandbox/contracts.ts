@@ -15,7 +15,12 @@ export const sandboxPolicySchema = z.strictObject({
   policyId: z.string().regex(/^[a-zA-Z0-9._-]{1,128}$/),
   maxSessionSeconds: z.number().int().min(60).max(86_400),
   network: z.literal("relay-and-package-proxy"),
-  remoteGit: z.literal(false),
+  remoteGit: z.boolean(),
+  // Missing host permissions grant no SSH access, even when remoteGit is enabled.
+  remoteGitHosts: z
+    .array(z.enum(["github.com", "bitbucket.org"]))
+    .max(2)
+    .default([]),
   localGit: z.enum(["deny", "read-only", "read-write"]),
   allowAdditionalReadPaths: z.boolean(),
   allowAdditionalWritePaths: z.boolean(),

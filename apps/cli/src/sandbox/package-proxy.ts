@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import { createServer } from "node:http";
-import { BlockList, connect, type Socket } from "node:net";
+import { BlockList, connect, createServer as createTcpServer, type Socket } from "node:net";
 
 import type { SandboxPolicy } from "./policy.ts";
 
@@ -24,9 +24,22 @@ for (const [address, prefix] of [
 ] as const)
   blockedAddresses.addSubnet(address, prefix, "ipv4");
 
+/** Resolve once and reject private/reserved destinations before a parent-owned connection. */
+export async function lookupPublicAddress(hostname: string): Promise<string> {
+  const addresses = await lookup(hostname, { family: 4, all: true });
+  const address = addresses[0];
+  if (
+    address === undefined ||
+    addresses.some((entry) => blockedAddresses.check(entry.address, "ipv4"))
+  )
+    throw new Error("Sandbox proxy destination must resolve only to public addresses");
+  return address.address;
+}
+
 export interface PackageProxy {
   readonly origin: string;
   readonly authenticatedUrl: string;
+  readonly sshTunnels: readonly { readonly host: string; readonly port: number }[];
   dispose(): void;
 }
 
@@ -36,6 +49,8 @@ export async function startPackageProxy(policy: SandboxPolicy): Promise<PackageP
   const expected = Buffer.from(`Basic ${Buffer.from(`axon:${capability}`).toString("base64")}`);
   const allowedHosts = new Set<string>(policy.packageRegistryHosts);
   const sockets = new Set<Socket>();
+  const sshServers: ReturnType<typeof createTcpServer>[] = [];
+  const sshTunnels: { readonly host: string; readonly port: number }[] = [];
   let stopped = false;
   const server = createServer(
     { maxHeaderSize: 8192, requestTimeout: 10_000 },
@@ -67,20 +82,14 @@ export async function startPackageProxy(policy: SandboxPolicy): Promise<PackageP
     }
     const hostname = target[1];
     client.pause();
-    void lookup(hostname, { family: 4, all: true })
-      .then((addresses) => {
+    void lookupPublicAddress(hostname)
+      .then((address) => {
         // Pin a checked numerical address; never resolve the name again in connect().
-        const address = addresses[0];
-        if (
-          stopped ||
-          client.destroyed ||
-          address === undefined ||
-          addresses.some((entry) => blockedAddresses.check(entry.address, "ipv4"))
-        ) {
+        if (stopped || client.destroyed) {
           client.destroy();
           return;
         }
-        const upstream = connect({ host: address.address, port: 443 });
+        const upstream = connect({ host: address, port: 443 });
         sockets.add(upstream);
         upstream.setTimeout(90_000, () => upstream.destroy());
         upstream.once("close", () => {
@@ -107,23 +116,74 @@ export async function startPackageProxy(policy: SandboxPolicy): Promise<PackageP
       .catch(() => client.destroy());
   });
   server.on("clientError", (_error, socket) => socket.destroy());
-  await new Promise<void>((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", () => {
-      server.off("error", reject);
-      resolve();
-    });
-  });
-  const address = server.address();
-  if (!address || typeof address === "string") throw new Error("Package proxy could not bind");
-  const origin = `http://127.0.0.1:${address.port}`;
-  return {
-    origin,
-    authenticatedUrl: `http://axon:${capability}@127.0.0.1:${address.port}`,
-    dispose() {
-      stopped = true;
-      server.close();
-      for (const socket of sockets) socket.destroy();
-    },
+  const dispose = (): void => {
+    stopped = true;
+    server.close();
+    for (const sshServer of sshServers) sshServer.close();
+    for (const socket of sockets) socket.destroy();
   };
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(0, "127.0.0.1", () => {
+        server.off("error", reject);
+        resolve();
+      });
+    });
+    // Seatbelt cannot restrict TCP by remote hostname/IP. One loopback listener per
+    // approved host preserves the allowlist without granting general port-22 access.
+    // These are raw TCP tunnels only: SSH credentials and Git both stay in the sandbox.
+    for (const host of policy.remoteGit ? new Set(policy.remoteGitHosts) : []) {
+      const address = await lookupPublicAddress(host);
+      const sshServer = createTcpServer({ allowHalfOpen: true }, (client) => {
+        if (stopped) {
+          client.destroy();
+          return;
+        }
+        const upstream = connect({ host: address, port: 22, allowHalfOpen: true });
+        for (const socket of [client, upstream]) {
+          sockets.add(socket);
+          socket.setTimeout(90_000, () => socket.destroy());
+          socket.on("error", () => socket.destroy());
+          socket.once("close", () => sockets.delete(socket));
+        }
+        client.pause();
+        client.once("close", () => upstream.destroy());
+        upstream.once("close", () => client.destroy());
+        upstream.once("connect", () => {
+          if (stopped || client.destroyed) {
+            upstream.destroy();
+            return;
+          }
+          client.pipe(upstream);
+          upstream.pipe(client);
+          client.resume();
+        });
+      });
+      sshServer.maxConnections = 16;
+      sshServers.push(sshServer);
+      await new Promise<void>((resolve, reject) => {
+        sshServer.once("error", reject);
+        sshServer.listen(0, "127.0.0.1", () => {
+          sshServer.off("error", reject);
+          resolve();
+        });
+      });
+      const endpoint = sshServer.address();
+      if (!endpoint || typeof endpoint === "string") throw new Error("SSH tunnel could not bind");
+      sshTunnels.push({ host, port: endpoint.port });
+    }
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("Package proxy could not bind");
+    const origin = `http://127.0.0.1:${address.port}`;
+    return {
+      origin,
+      authenticatedUrl: `http://axon:${capability}@127.0.0.1:${address.port}`,
+      sshTunnels,
+      dispose,
+    };
+  } catch (error) {
+    dispose();
+    throw error;
+  }
 }

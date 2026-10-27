@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 RegistryHost = Literal["registry.npmjs.org", "registry.yarnpkg.com", "pypi.org", "files.pythonhosted.org"]
+GitHost = Literal["github.com", "bitbucket.org"]
 
 
 class CliSandboxPolicy(BaseModel):
@@ -16,7 +17,8 @@ class CliSandboxPolicy(BaseModel):
     policy_id: str = Field(alias="policyId")
     max_session_seconds: int = Field(alias="maxSessionSeconds")
     network: Literal["relay-and-package-proxy"] = "relay-and-package-proxy"
-    remote_git: Literal[False] = Field(default=False, alias="remoteGit")
+    remote_git: bool = Field(default=False, alias="remoteGit")
+    remote_git_hosts: tuple[GitHost, ...] = Field(default=(), alias="remoteGitHosts")
     local_git: Literal["deny", "read-only", "read-write"] = Field(alias="localGit")
     allow_additional_read_paths: bool = Field(alias="allowAdditionalReadPaths")
     allow_additional_write_paths: bool = Field(alias="allowAdditionalWritePaths")
@@ -30,6 +32,9 @@ class SandboxSettings(BaseModel):
     policy_id: str = Field(default="safehouse-v1", alias="POLICY_ID", pattern=r"^[a-zA-Z0-9._-]{1,128}$")
     max_session_seconds: int = Field(default=14400, alias="MAX_SESSION_SECONDS", ge=60, le=86400)
     local_git: Literal["deny", "read-only", "read-write"] = Field(default="read-only", alias="LOCAL_GIT")
+    # Enables sandboxed SSH-agent use and TCP access to the approved Git hosts.
+    remote_git: bool = Field(default=False, alias="REMOTE_GIT")
+    remote_git_hosts: list[GitHost] = Field(default_factory=list, alias="REMOTE_GIT_HOSTS", max_length=2)
     allow_additional_read_paths: bool = Field(default=True, alias="ALLOW_ADDITIONAL_READ_PATHS")
     allow_additional_write_paths: bool = Field(default=True, alias="ALLOW_ADDITIONAL_WRITE_PATHS")
     package_registry_hosts: list[RegistryHost] = Field(
@@ -44,6 +49,8 @@ class SandboxSettings(BaseModel):
             policyId=self.policy_id,
             maxSessionSeconds=self.max_session_seconds,
             localGit=self.local_git,
+            remoteGit=self.remote_git,
+            remoteGitHosts=tuple(self.remote_git_hosts),
             allowAdditionalReadPaths=self.allow_additional_read_paths,
             allowAdditionalWritePaths=self.allow_additional_write_paths,
             packageRegistryHosts=tuple(self.package_registry_hosts),

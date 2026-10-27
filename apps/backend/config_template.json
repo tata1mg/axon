@@ -122,6 +122,8 @@
     "POLICY_ID": "safehouse-v1",
     "MAX_SESSION_SECONDS": 14400,
     "LOCAL_GIT": "read-only",
+    "REMOTE_GIT": false,
+    "REMOTE_GIT_HOSTS": [],
     "ALLOW_ADDITIONAL_READ_PATHS": true,
     "ALLOW_ADDITIONAL_WRITE_PATHS": true,
     "PACKAGE_REGISTRY_HOSTS": [
