@@ -1,0 +1,20 @@
+apps/backend/README.md
+  h_cbc19accedcd8a 776
+apps/backend/tests/test_build_backend_image.py
+  h_cbc19accedcd8a 14
+scripts/build-backend-image.sh
+  h_cbc19accedcd8a 7
+Dockerfile
+  h_cbc19accedcd8a 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f9563f4fd127fa0277491bee2de81d7e8e0efe51",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
