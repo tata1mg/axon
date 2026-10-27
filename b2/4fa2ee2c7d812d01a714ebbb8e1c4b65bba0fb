@@ -1,0 +1,16 @@
+apps/backend/pyproject.toml
+  h_cbc19accedcd8a 3
+apps/backend/uv.lock
+  h_cbc19accedcd8a 64,115,122,124,129,136,138,143,145,147,293,295,297,302,312,314,319,321,323,328,333,335,340,345,347-356,383,385,387-399,667,669,671,676,678,680,685,694,696,716,718,720,725,733,735,740,745-765,816,821,823,896,901,903,917,923,925,930,938,940,1012,1021,1023,1053-1083
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b24fa2ee2c7d812d01a714ebbb8e1c4b65bba0fb",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
