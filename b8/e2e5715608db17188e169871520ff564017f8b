@@ -1,0 +1,170 @@
+apps/cli/src/harnesses/pi/setup/packages/sync.ts
+  s_1ab3c42ce359e8::t_b39838fb224748 91-92,95-97
+apps/cli/src/harnesses/pi/resources/extensions/terminal-permissions.mjs
+  s_1ab3c42ce359e8::t_9b4805ca57fa60 2-5,9
+apps/cli/tests/pi-package-setup.test.ts
+  s_1ab3c42ce359e8::t_b723b97896aeb2 804
+  s_1ab3c42ce359e8::t_5e6138815e7662 9,27,154,156,160,162-172,287-296,363-460,843
+apps/cli/src/harnesses/pi/adapter.ts
+  s_1ab3c42ce359e8::t_c7b510e69528b0 167
+apps/cli/src/harnesses/pi/resources/extensions/pi-org-telemetry.mjs
+  s_1ab3c42ce359e8::t_9b4805ca57fa60 231,233,235,238-239,245,249,251-252,256,258,264-269
+apps/cli/src/harnesses/pi/resources/extensions/axon.ts
+  s_1ab3c42ce359e8::t_b0d43ad6e20971 498
+  s_1ab3c42ce359e8::t_a7d1a4588289d4 30
+  s_1ab3c42ce359e8::t_bf8088b5c15230 31-32,732-733,788
+  s_1ab3c42ce359e8::t_b500361d010cb5 246,261,323,597-601,678-691
+apps/cli/src/launcher/launch-harness.ts
+  s_1ab3c42ce359e8::t_5989bfdf0c65f6 38,47
+  s_1ab3c42ce359e8::t_f1dfd21649d05f 26,66
+apps/cli/src/harnesses/pi/resources/extensions/axon-auth.ts
+  s_1ab3c42ce359e8::t_dc400d74f5d595 20-425,436
+  s_1ab3c42ce359e8::t_a38ddaf30d267e 17-19
+  s_1ab3c42ce359e8::t_78188ed8df3afc 426-428,433-435
+  s_1ab3c42ce359e8::t_00ba2833d5f13c 437-439
+  s_1ab3c42ce359e8::t_83285a3cb84333 1-16,429-432,440
+apps/cli/tests/axon-auth.test.ts
+  s_1ab3c42ce359e8::t_a3c2d59b0353cb 26,38,104,118-195,249,260-261,268,275,280,286-287,290,292,295,300,302,306,317,321,323-324,327-328,332-333,335,339,341-342,344,346,351,353-356,358,363,365-366,370,374,376-378,382,388,393,395,401-402,407,409,414,419,423-424,426-427,429
+  s_1ab3c42ce359e8::t_4859445bd9fa74 23-25
+  s_1ab3c42ce359e8::t_831bba74340dd6 27-29,35-37
+  s_1ab3c42ce359e8::t_c44b73e41d2a8a 39-41,101-103
+  s_1ab3c42ce359e8::t_7aece95015eae5 105-107,115-117
+  s_1ab3c42ce359e8::t_e32b03e7b3bc43 196-198,246-248
+  s_1ab3c42ce359e8::t_c0e5798138c487 250-252,257-259
+  s_1ab3c42ce359e8::t_a2d79f72b7a434 262-267
+  s_1ab3c42ce359e8::t_fd6dd01137c7dd 269-274
+  s_1ab3c42ce359e8::t_a133c4372d6ae0 276-279
+  s_1ab3c42ce359e8::t_d64dae80d9104b 281-285
+  s_1ab3c42ce359e8::t_1e64c9c4a714dc 288-289
+  s_1ab3c42ce359e8::t_bc93984e9daf1f 291
+  s_1ab3c42ce359e8::t_6db30ad47f366b 293-294
+  s_1ab3c42ce359e8::t_0d48abeb23294b 296-299
+  s_1ab3c42ce359e8::t_f874ebc2e3f043 301
+  s_1ab3c42ce359e8::t_89ee3923e96d5d 303-305
+  s_1ab3c42ce359e8::t_93a3e6ddd1ff1d 307-309,314-316
+  s_1ab3c42ce359e8::t_bb97e5871d1b9d 318-320
+  s_1ab3c42ce359e8::t_d7cfbaff68eee1 322
+  s_1ab3c42ce359e8::t_110fee9fbfd24b 325-326
+  s_1ab3c42ce359e8::t_bfb1e5a5e003f8 329-331
+  s_1ab3c42ce359e8::t_dd3bc0b5136050 334
+  s_1ab3c42ce359e8::t_987f3bc1614d0d 336-338
+  s_1ab3c42ce359e8::t_6c374d46b5540b 340
+  s_1ab3c42ce359e8::t_be1cde9ec8f697 343
+  s_1ab3c42ce359e8::t_8ce93b15182807 345
+  s_1ab3c42ce359e8::t_51b36cce357827 347-350
+  s_1ab3c42ce359e8::t_70ec2e588cf171 352
+  s_1ab3c42ce359e8::t_490080d157eeee 357
+  s_1ab3c42ce359e8::t_467524f6a0fee9 359-362
+  s_1ab3c42ce359e8::t_b157dec7c6f8ac 364
+  s_1ab3c42ce359e8::t_68fa4959bfea11 367-369
+  s_1ab3c42ce359e8::t_1564722aa07236 371-373
+  s_1ab3c42ce359e8::t_06dd2674f0c6f6 375
+  s_1ab3c42ce359e8::t_379d00f1e863e1 379-381
+  s_1ab3c42ce359e8::t_00a0d3b571a891 383-387
+  s_1ab3c42ce359e8::t_3698bb1ed3848b 389-392
+  s_1ab3c42ce359e8::t_af69700b2be157 394
+  s_1ab3c42ce359e8::t_5bdca88f6ee1c9 396-400
+  s_1ab3c42ce359e8::t_1ad81661d22d29 403-406
+  s_1ab3c42ce359e8::t_1505e2150664ab 408
+  s_1ab3c42ce359e8::t_daae2eebce5cdf 410-413
+  s_1ab3c42ce359e8::t_b1da69bf364c24 415-418
+  s_1ab3c42ce359e8::t_a62465643091b4 420-422
+  s_1ab3c42ce359e8::t_f165994af7bc56 425
+  s_1ab3c42ce359e8::t_8606b9c75fd27e 428
+  s_1ab3c42ce359e8::t_4af0bc9d2088e2 1-22,30-34,42-100,108-114,199-245,253-256,310-313
+Dockerfile
+  s_1ab3c42ce359e8::t_c1b38d1fd7281d 3
+apps/backend/README.md
+  s_1ab3c42ce359e8::t_f9d8001c1a6e09 534,776
+apps/backend/pyproject.toml
+  s_1ab3c42ce359e8::t_ab684821e2ef34 3
+apps/backend/tests/test_build_backend_image.py
+  s_1ab3c42ce359e8::t_8d60d71c906388 14
+apps/backend/uv.lock
+  s_1ab3c42ce359e8::t_1915589ca49baf 64,115,122,124,129,136,138,143,145,147,293,295,297,302,312,314,319,321,323,328,333,335,340,345,347-356,383,385,387-399,667,669,671,676,678,680,685,694,696,716,718,720,725,733,735,740,745-765,816,821,823,896,901,903,917,923,925,930,938,940,1012,1021,1023,1053-1083
+apps/cli/README.md
+  s_1ab3c42ce359e8::t_551d15b0b94d64 109-110,215,227,261-276,323,327-336,361,363
+apps/cli/docs/plans/backend-compaction-config.md
+  s_1ab3c42ce359e8::t_884bb7bd81a2e9 147
+apps/cli/package.json
+  s_1ab3c42ce359e8::t_254b876952654d 3,65
+apps/cli/src/cli/auth/ensure-session.ts
+  s_1ab3c42ce359e8::t_3bf11ccfdb3a88 8-23,26-27,55,63,71,77
+apps/cli/src/cli/auth/request-relay.ts
+  s_1ab3c42ce359e8::t_630317e197fe65 17-21,234-240,242-248,406,410-413
+apps/cli/src/cli/auth/session-recovery.ts
+  s_1ab3c42ce359e8::t_ba94878f133e31 4,12-14,17,29-37,39-41,51-54,58-122,139,171,182,189-195,197,201-206,210,222,254
+apps/cli/src/cli/auth/session.ts
+  s_1ab3c42ce359e8::t_5443b28b3251ae 146-172
+apps/cli/src/cli/commands/auth.ts
+  s_1ab3c42ce359e8::t_4db38eeeb4dd28 12-16,206-222
+apps/cli/src/cli/dispatch.ts
+  s_1ab3c42ce359e8::t_49fc24d397ef67 7,62-72
+apps/cli/src/cli/launcher-program.ts
+  s_1ab3c42ce359e8::t_02d5f6be245675 14-19,38,123-129
+apps/cli/src/harnesses/pi/environment.ts
+  s_1ab3c42ce359e8::t_ebebc563344ce8 27-28
+apps/cli/src/harnesses/pi/resources/extensions/model-recommender.ts
+  s_1ab3c42ce359e8::t_01b58592974d3d 20-22,49-56,62-63,68-78,103,201-285,297-311,328-338,394-456,461-463,601-602,606
+apps/cli/src/harnesses/pi/setup/packages/invocation.ts
+  s_1ab3c42ce359e8::t_132ff7b9bb77fb 49-63,77
+apps/cli/src/launcher/contracts.ts
+  s_1ab3c42ce359e8::t_9fd4b15cbd1522 17-18
+apps/cli/src/product/manifest.ts
+  s_1ab3c42ce359e8::t_056d788dbc0703 2-4,67-72,116,123,130-140,147,177-180
+apps/cli/tests/auth-logout.test.ts
+  s_1ab3c42ce359e8::t_a1136013f014d2 1-114
+apps/cli/tests/auth-telemetry.test.ts
+  s_1ab3c42ce359e8::t_8184305957c87c 92
+apps/cli/tests/axon-header.test.ts
+  s_1ab3c42ce359e8::t_43ad6d2cea41ce 62,74,82,84,248,269,581-603
+apps/cli/tests/bedrock-model-policy.test.ts
+  s_1ab3c42ce359e8::t_1d072f7169e0c7 1-153
+apps/cli/tests/compiled-pi-resources.test.ts
+  s_1ab3c42ce359e8::t_bfe965cc4190c4 7,10,142
+apps/cli/tests/fixtures/pi-packages.ts
+  s_1ab3c42ce359e8::t_6699acaa3fd02e 1-34
+apps/cli/tests/launcher.test.ts
+  s_1ab3c42ce359e8::t_a87f7801d2d8fc 7,13,64,72-75,150,342-343,491
+apps/cli/tests/litellm-client-provider.test.ts
+  s_1ab3c42ce359e8::t_1ce3e9163734f8 14,24-31,43,110-190
+apps/cli/tests/model-recommender-rpc.test.ts
+  s_1ab3c42ce359e8::t_a1b6821ad03573 1-271
+apps/cli/tests/pi-client-config.test.ts
+  s_1ab3c42ce359e8::t_c95764edc95d0a 2,7,10,46
+apps/cli/tests/pi-model-cache.test.ts
+  s_1ab3c42ce359e8::t_bfe75a2ce9c707 31,80-87,89,91,98-99,104-105
+apps/cli/tests/request-relay.test.ts
+  s_1ab3c42ce359e8::t_e8505bfa5959d8 16,50,397-487,778-996
+apps/cli/tests/startup-session-refresh.test.ts
+  s_1ab3c42ce359e8::t_8e857834c2fb5b 77,90,108-134,206,226,270
+bun.lock
+  s_1ab3c42ce359e8::t_c0884049dea1c5 13,47,385
+docs/investigations/paseo-support-layer.md
+  s_1ab3c42ce359e8::t_77350ebb113cd3 1-404
+docs/user-guide.md
+  s_1ab3c42ce359e8::t_afe5a0f955a36b 60-81
+scripts/build-backend-image.sh
+  s_1ab3c42ce359e8::t_6c42da9e2c59dc 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b8e2e5715608db17188e169871520ff564017f8b",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_1ab3c42ce359e8": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a17d1f-9599-7570-b646-ad01a5e230b5",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
