@@ -21,6 +21,8 @@ export interface HarnessLaunchContext extends LaunchContext {
   readonly executable: string;
   /** Register a validated resume target while the parent owns the sandbox editor. */
   readonly prepareSandboxRestart?: (session: SandboxResumeSession) => () => void;
+  /** The launch has no usable login yet; the harness must offer sign-in itself. */
+  readonly authenticationDeferred?: boolean;
 }
 
 export interface LaunchSpec {

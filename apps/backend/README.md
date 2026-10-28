@@ -531,7 +531,7 @@ startup with a bounded non-secret diagnostic.
 still govern automatic compaction/retention; model/auth checks, idle thresholds, overflow recovery,
 and failure cancellation remain unchanged. Client recommender enablement cannot override a server
 204 eligibility response. Provider context fallback only fills metadata gaps, never known context or
-output limits. The pinned `pi-provider-litellm@4.2.0` may retain older custom fallback values in offline
+output limits. The pinned `pi-provider-litellm@4.5.0` may retain older custom fallback values in offline
 caches; do not promise to rewrite all cached metadata without discovery. Publish correct model metadata.
 
 Restart backend workers after edits; values apply on the **next authenticated online non-administrative
@@ -773,7 +773,7 @@ The image builds the frontend and embeds it, so **the build context is the repos
 docker build -t axon-backend .
 ```
 
-The shared Python base stage defaults to the private base `831059512818.dkr.ecr.ap-south-1.amazonaws.com/python:wolfi-3.12.14-r8`. Internal builds do not need to pass `PYTHON_BASE_IMAGE`, but the build runner must have ECR pull permissions and log in before building:
+The shared Python base stage defaults to the private base `831059512818.dkr.ecr.ap-south-1.amazonaws.com/python:wolfi-3.12.16-r1-test1`. Internal builds do not need to pass `PYTHON_BASE_IMAGE`, but the build runner must have ECR pull permissions and log in before building:
 
 ```bash
 aws ecr get-login-password --region ap-south-1 | \

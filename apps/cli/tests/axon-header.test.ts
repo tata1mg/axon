@@ -59,6 +59,7 @@ function setup(mode: ExtensionContext["mode"] = "tui", cwd?: string) {
   const emitBackup = (data: unknown) => listeners.get("axon:backup-status")?.(data);
   const emitTerminal = (data: unknown) => listeners.get("axon:terminal-status")?.(data);
   const setHeader = mock((_factory: Parameters<ExtensionContext["ui"]["setHeader"]>[0]) => {});
+  const setStatus = mock((_key: string, _text: string | undefined) => {});
   axonExtension({
     events: {
       on(channel: string, handler: (data: unknown) => void) {
@@ -70,6 +71,7 @@ function setup(mode: ExtensionContext["mode"] = "tui", cwd?: string) {
       handlers.set(name, handler);
       return () => {};
     },
+    registerProvider() {},
     registerEntryRenderer() {},
     registerCommand() {},
   } as unknown as ExtensionAPI);
@@ -77,9 +79,9 @@ function setup(mode: ExtensionContext["mode"] = "tui", cwd?: string) {
     mode,
     cwd,
     hasUI: mode === "tui" || mode === "rpc",
-    ui: { setHeader },
+    ui: { setHeader, setStatus },
   } as unknown as ExtensionContext);
-  return { handlers, setHeader, emitBackup, emitTerminal };
+  return { handlers, setHeader, setStatus, emitBackup, emitTerminal };
 }
 
 const plainTheme = (fg: (color: string, text: string) => string = (_color, text) => text): Theme =>
@@ -243,7 +245,7 @@ describe("Axon startup header", () => {
     expect(lines[2]).toContain("├─●  TATA 1mg · Your coding workspace");
     expect(lines[3]).toContain("╰─●");
     expect(lines[4]).toStartWith(" ╰─");
-    expect(lines[4]).toEndWith(` Powered by Pi v${PI_INSTALL_VERSION} ──╯`);
+    expect(lines[4]).toEndWith(` DeputyDev · Powered by Pi v${PI_INSTALL_VERSION} ──╯`);
     const output = text(header());
     expect(output).toContain("escape interrupt");
     expect(output).toContain("ctrl+l models");
@@ -264,7 +266,7 @@ describe("Axon startup header", () => {
     const output = text(header());
     expect(output).toContain("Axon");
     expect(output).not.toContain("Axon v");
-    expect(output).toContain(`Powered by Pi v${PI_INSTALL_VERSION}`);
+    expect(output).toContain(`DeputyDev · Powered by Pi v${PI_INSTALL_VERSION}`);
   });
 
   test("does not render terminal controls or multiline values from version metadata", () => {
@@ -573,6 +575,29 @@ describe("Axon startup header", () => {
   for (const mode of ["rpc", "json", "print"] as const) {
     test(`does not install terminal components in ${mode} mode`, () => {
       expect(setup(mode).setHeader).not.toHaveBeenCalled();
+    });
+  }
+
+  test("publishes backup and terminal badges as RPC status entries, only on change", () => {
+    const { setStatus, emitBackup, emitTerminal } = setup("rpc");
+    expect(setStatus).not.toHaveBeenCalled();
+    emitBackup("syncing");
+    emitTerminal("standard");
+    emitBackup("syncing");
+    emitTerminal("yolo");
+    expect(setStatus.mock.calls).toEqual([
+      ["axon-backup", "Backup: syncing…"],
+      ["axon-terminal", "Terminal: standard"],
+      ["axon-terminal", "Terminal: YOLO"],
+    ]);
+  });
+
+  for (const mode of ["tui", "json", "print"] as const) {
+    test(`does not publish status entries in ${mode} mode`, () => {
+      const { setStatus, emitBackup, emitTerminal } = setup(mode);
+      emitBackup("saved");
+      emitTerminal("yolo");
+      expect(setStatus).not.toHaveBeenCalled();
     });
   }
 

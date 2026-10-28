@@ -25,6 +25,8 @@ const PI_PROCESS_OVERRIDES = Object.freeze({
  * pinned `pi-provider-litellm` package is the organization's provider path.
  * Cloud SDK configuration (AWS_*, GOOGLE_APPLICATION_CREDENTIALS, Cloudflare
  * account identifiers) and proxy variables are general-purpose and also kept.
+ * The managed Axon extension hides the direct Bedrock catalog regardless of
+ * ambient AWS credentials or saved Pi authentication.
  */
 export const PI_STRIPPED_PROVIDER_VARIABLES: readonly string[] = Object.freeze([
   "AI_GATEWAY_API_KEY",

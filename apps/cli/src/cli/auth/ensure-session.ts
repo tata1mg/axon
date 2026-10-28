@@ -5,10 +5,26 @@ import { runAuthLogin } from "../commands/auth.ts";
 import { InvalidSessionContentError, loadEncryptedSession } from "./session.ts";
 import { verifyEncryptedSession } from "./verification.ts";
 
+export interface EnsureSessionOptions {
+  readonly offline?: boolean;
+  readonly interactive?: boolean;
+  /**
+   * Launch without a login and let the chat offer sign-in. Only for RPC clients,
+   * which render Pi's standard dialogs themselves.
+   */
+  readonly deferLogin?: boolean;
+}
+
+/**
+ * `"deferred"` launches signed out and the chat offers sign-in (see `deferLogin`);
+ * `"cancelled"` means the user dismissed interactive login.
+ */
+export type SessionCheck = "verified" | "deferred" | "cancelled";
+
 export async function ensureAuthenticatedSession(
   paths: AxonPaths,
-  options: { readonly offline?: boolean; readonly interactive?: boolean } = {},
-): Promise<boolean> {
+  options: EnsureSessionOptions = {},
+): Promise<SessionCheck> {
   // A saved token alone is not proof of access. Offline mode cannot bypass verification.
   if (options.offline) {
     throw new LauncherError(
@@ -36,7 +52,7 @@ export async function ensureAuthenticatedSession(
 
   if (encryptedSession !== undefined) {
     const status = await verifyEncryptedSession(encryptedSession, paths);
-    if (status === "VERIFIED") return true;
+    if (status === "VERIFIED") return "verified";
     console.error(
       status === "EXPIRED" ? "Your Axon session has expired." : "Your Axon session is invalid.",
     );
@@ -44,6 +60,7 @@ export async function ensureAuthenticatedSession(
     console.error("Sign in to Axon to continue.");
   }
 
+  if (options.deferLogin) return "deferred";
   if (options.interactive === false || !process.stdin.isTTY || !process.stdout.isTTY) {
     throw new LauncherError("Axon login is required", LAUNCHER_EXIT_STATUS.profileFailure, {
       remediation: "Login from browser: run axon auth login --browser in a terminal.",
@@ -51,13 +68,13 @@ export async function ensureAuthenticatedSession(
   }
 
   // runAuthLogin presents a choice; it never opens a browser until selected.
-  if (!(await runAuthLogin(paths, {}))) return false;
+  if (!(await runAuthLogin(paths, {}))) return "cancelled";
   const savedSession = await loadEncryptedSession(paths);
   if (
     savedSession !== undefined &&
     (await verifyEncryptedSession(savedSession, paths)) === "VERIFIED"
   ) {
-    return true;
+    return "verified";
   }
   throw new LauncherError(
     "The browser session could not be verified",

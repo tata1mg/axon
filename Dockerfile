@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 # Build from the repository root; see apps/backend/README.md#docker.
-ARG PYTHON_BASE_IMAGE=831059512818.dkr.ecr.ap-south-1.amazonaws.com/python:wolfi-3.12.15-r3-tmp
+ARG PYTHON_BASE_IMAGE=831059512818.dkr.ecr.ap-south-1.amazonaws.com/python:wolfi-3.12.16-r1-test1
 
 # Static frontend output is architecture-independent, so build it natively.
 FROM --platform=$BUILDPLATFORM node:24-alpine AS console

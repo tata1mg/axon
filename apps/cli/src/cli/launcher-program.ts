@@ -11,7 +11,12 @@ import { canonicalPath, readFilesystemPreferences } from "../sandbox/filesystem.
 import { withUpdateProgress } from "../updater/progress.ts";
 import { checkForUpdate, installUpdate, updateContext } from "../updater/update.ts";
 import { ensureAxonSession } from "./auth/preflight.ts";
-import { type AuthLoginOptions, runAuthLogin, runAuthStatus } from "./commands/auth.ts";
+import {
+  type AuthLoginOptions,
+  runAuthLogin,
+  runAuthLogout,
+  runAuthStatus,
+} from "./commands/auth.ts";
 import { runDoctor } from "./commands/doctor.ts";
 import { printHarnesses } from "./commands/harnesses.ts";
 import { printPaths } from "./commands/paths.ts";
@@ -30,7 +35,7 @@ function createLauncherProgram(): Command {
   const program = new Command();
   program
     .name(PRODUCT_IDENTITY.command)
-    .description(`${PRODUCT_IDENTITY.displayName} Pi launcher`)
+    .description(`${PRODUCT_IDENTITY.displayName} Pi launcher by DeputyDev`)
     .usage("<harness> [harness arguments...] | <command> [options]")
     .helpOption("-h, --help", "display launcher help")
     .version(BUILD_INFO.version, "-V, --version", "display launcher version")
@@ -113,6 +118,13 @@ function createLauncherProgram(): Command {
     .description("verify the saved Axon session with the auth service")
     .action(async () => {
       await runAuthStatus(resolveAxonPaths());
+    });
+
+  auth
+    .command("logout")
+    .description("clear the local sign-in credential shared with DeputyDev (no server revocation)")
+    .action(async () => {
+      await runAuthLogout(resolveAxonPaths());
     });
 
   const sessions = program

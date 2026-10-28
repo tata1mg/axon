@@ -9,7 +9,11 @@ import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../../product/endpoints.ts";
 import type { AxonPaths } from "../../product/paths.ts";
 import { emitProductEvent } from "../../telemetry/product-events.ts";
-import { loadEncryptedSession, saveEncryptedSession } from "../auth/session.ts";
+import {
+  clearEncryptedSession,
+  loadEncryptedSession,
+  saveEncryptedSession,
+} from "../auth/session.ts";
 import { verifyEncryptedSession } from "../auth/verification.ts";
 
 const SESSION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -197,6 +201,23 @@ export async function runAuthLogin(paths: AxonPaths, options: AuthLoginOptions):
     });
     throw error;
   }
+}
+
+export async function runAuthLogout(paths: AxonPaths): Promise<void> {
+  let cleared: boolean;
+  try {
+    cleared = await clearEncryptedSession(paths);
+  } catch {
+    throw new LauncherError(
+      "Saved Axon session could not be cleared safely",
+      LAUNCHER_EXIT_STATUS.profileFailure,
+    );
+  }
+  console.log(
+    cleared
+      ? "Logged out locally. The sign-in credential shared with DeputyDev was removed; server sessions were not revoked."
+      : "No saved Axon browser session. Already logged out locally.",
+  );
 }
 
 export async function runAuthStatus(paths: AxonPaths): Promise<void> {

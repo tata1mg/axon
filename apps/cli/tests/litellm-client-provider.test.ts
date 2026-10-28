@@ -11,6 +11,7 @@ type MetadataModel = {
   contextWindow: number;
   maxTokens: number;
   litellmBackendFamily?: string;
+  promptCache?: { short?: number; long?: number };
   compat?: { maxTokensField?: string; supportsStrictMode?: boolean };
   litellmPolicy?: { normalizeStrictToolMessages?: boolean };
 };
@@ -20,7 +21,14 @@ const { discoverModels, enrichCachedModel } = (await import(
   discoverModels: (
     base: string,
     key: string,
-    options: { modelsDev: boolean; timeoutMs: number },
+    options: {
+      modelsDev: boolean;
+      timeoutMs: number;
+      modelOverrides?: Record<
+        string,
+        Record<string, { contextWindow?: number; maxTokens?: number }>
+      >;
+    },
   ) => Promise<{ models: MetadataModel[] }>;
   enrichCachedModel: (model: MetadataModel) => MetadataModel;
 };
@@ -32,7 +40,7 @@ const { toNativeModels } = (await import(
 
 // Exercise the exact installed provider, not a reimplementation of its fallback rules.
 test("pinned LiteLLM fallback respects authoritative metadata and does not promise to rewrite arbitrary cached windows", async () => {
-  expect(providerPackage.version).toBe("4.3.1");
+  expect(providerPackage.version).toBe("4.5.0");
   let modelInfoAvailable = true;
   const server = Bun.serve({
     hostname: "127.0.0.1",
@@ -95,6 +103,87 @@ test("pinned LiteLLM fallback respects authoritative metadata and does not promi
   } finally {
     if (previous === undefined) delete process.env["LITELLM_DEFAULT_CONTEXT_WINDOW"];
     else process.env["LITELLM_DEFAULT_CONTEXT_WINDOW"] = previous;
+    server.stop(true);
+  }
+});
+
+test("backend-model limit overrides apply to LiteLLM aliases without changing default limits", async () => {
+  const server = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    fetch(request) {
+      expect(request.headers.get("authorization")).toBe("Bearer test-key");
+      if (new URL(request.url).pathname !== "/model/info")
+        return new Response(null, { status: 404 });
+      return Response.json({
+        data: [
+          {
+            model_name: "axon-gpt-alias",
+            litellm_params: { model: "openai/gpt-4.1" },
+            model_info: { mode: "chat", max_input_tokens: 64000, max_output_tokens: 4096 },
+          },
+        ],
+      });
+    },
+  });
+  try {
+    const options = { modelsDev: false, timeoutMs: 1000 };
+    const defaults = await discoverModels(server.url.origin, "test-key", options);
+    expect(defaults.models[0]).toMatchObject({ contextWindow: 64000, maxTokens: 4096 });
+    const overridden = await discoverModels(server.url.origin, "test-key", {
+      ...options,
+      modelOverrides: { openai: { "gpt-4.1": { contextWindow: 128000, maxTokens: 8192 } } },
+    });
+    expect(overridden.models[0]).toMatchObject({
+      id: "axon-gpt-alias",
+      contextWindow: 128000,
+      maxTokens: 8192,
+    });
+  } finally {
+    server.stop(true);
+  }
+});
+
+test("prompt cache lifetimes require Claude backend evidence and a compatible transport", async () => {
+  const server = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    fetch(request) {
+      expect(request.headers.get("authorization")).toBe("Bearer test-key");
+      if (new URL(request.url).pathname !== "/model/info")
+        return new Response(null, { status: 404 });
+      return Response.json({
+        data: [
+          {
+            model_name: "axon-claude-chat",
+            litellm_params: { model: "anthropic/claude-sonnet-4-5" },
+            model_info: { mode: "chat", supported_endpoints: ["/v1/chat/completions"] },
+          },
+          {
+            model_name: "axon-claude-responses",
+            litellm_params: { model: "anthropic/claude-sonnet-4-5" },
+            model_info: { mode: "responses", supported_endpoints: ["/v1/responses"] },
+          },
+          { model_name: "claude-sonnet-4-5", model_info: { mode: "chat" } },
+        ],
+      });
+    },
+  });
+  try {
+    const { models } = await discoverModels(server.url.origin, "test-key", {
+      modelsDev: false,
+      timeoutMs: 1000,
+    });
+    expect(models).toHaveLength(3);
+    expect(models.find((model) => model.id === "axon-claude-chat")?.promptCache).toEqual({
+      short: 300,
+      long: 3600,
+    });
+    expect(
+      models.find((model) => model.id === "axon-claude-responses")?.promptCache,
+    ).toBeUndefined();
+    expect(models.find((model) => model.id === "claude-sonnet-4-5")?.promptCache).toBeUndefined();
+  } finally {
     server.stop(true);
   }
 });

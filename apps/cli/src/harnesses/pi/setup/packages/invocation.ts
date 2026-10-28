@@ -46,6 +46,21 @@ export function currentPiInvocationEnvironment(
   };
 }
 
+function piMode(options: readonly string[]): string | undefined {
+  const modeIndex = options.indexOf("--mode");
+  return modeIndex === -1 ? undefined : options[modeIndex + 1];
+}
+
+/** RPC launches (Paseo and other clients) can answer Pi's standard extension dialogs. */
+export function isPiRpcMode(argumentsVector: readonly string[]): boolean {
+  const options = piOptionTokens(argumentsVector);
+  return (
+    piMode(options) === "rpc" &&
+    !options.some((argument) => ADMINISTRATIVE_FLAGS.has(argument)) &&
+    !ADMINISTRATIVE_COMMANDS.has(argumentsVector[0] ?? "")
+  );
+}
+
 export function classifyPiInvocation(
   argumentsVector: readonly string[],
   environment: PiInvocationEnvironment = currentPiInvocationEnvironment(),
@@ -59,8 +74,7 @@ export function classifyPiInvocation(
     return "administrative";
   }
 
-  const modeIndex = options.indexOf("--mode");
-  const mode = modeIndex === -1 ? undefined : options[modeIndex + 1];
+  const mode = piMode(options);
   if (
     environment.ci ||
     !environment.stdinIsTty ||
