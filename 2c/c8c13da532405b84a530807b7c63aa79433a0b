@@ -1,0 +1,62 @@
+apps/cli/src/cli/client-config.ts
+  71de1b8796e925e5 6-7,9,235-253,260,264-266,285
+apps/cli/src/sandbox/environment.ts
+  71de1b8796e925e5 21-23
+apps/cli/src/sandbox/launch.ts
+  71de1b8796e925e5 136-137,285-288,290-291,294-296,390-391,409-415,435,663
+apps/cli/src/cli/dispatch.ts
+  71de1b8796e925e5 3,50-59
+apps/cli/src/harnesses/pi/resources/extensions/axon.ts
+  9f64701ee8589e72 402
+apps/cli/src/cli/commands/sandbox.ts
+  9f64701ee8589e72 49,53-55,68,110,158-159,163,168,171,176,182,197,201,204-205,207-223,226,228,249-250,254,257-258,263,279-280,284-285,288,291-295,298,308,311-315,318,325
+apps/cli/src/launcher/contracts.ts
+  71de1b8796e925e5 12-13,67-68
+apps/cli/src/harnesses/pi/resources/extensions/axon-auth.ts
+  71de1b8796e925e5 361-364
+apps/cli/src/launcher/launch-harness.ts
+  71de1b8796e925e5 1-2,5-7,12,15-16,51-62,67-68,72-73,76-78,174-183,193
+apps/cli/src/product/endpoints.ts
+  71de1b8796e925e5 48-49
+apps/cli/src/sandbox/policy.ts
+  71de1b8796e925e5 4-5,18-19,39-49
+apps/cli/src/sandbox/session.ts
+  71de1b8796e925e5 2,4,76-77,79-109,140-141,180-184,365,368
+apps/backend/app/routers/cli_config.py
+  71de1b8796e925e5 1,5,21,24-26,41-51,54-55
+apps/cli/src/harnesses/pi/adapter.ts
+  71de1b8796e925e5 95,198
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "2cc8c13da532405b84a530807b7c63aa79433a0b",
+  "prompts": {
+    "71de1b8796e925e5": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "498040",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 262,
+      "total_deletions": 58,
+      "accepted_lines": 199,
+      "overriden_lines": 0
+    },
+    "9f64701ee8589e72": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "498228",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 94,
+      "total_deletions": 65,
+      "accepted_lines": 62,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -1,0 +1,23 @@
+apps/cli/src/sandbox/package-proxy.ts
+  7f4243dc4d2f3ff4 9-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "af7891af38c0a61650ac987d9d636177424aa886",
+  "prompts": {
+    "7f4243dc4d2f3ff4": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "498090",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 5,
+      "total_deletions": 3,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}
