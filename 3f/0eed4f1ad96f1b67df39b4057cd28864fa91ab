@@ -1,0 +1,26 @@
+apps/cli/README.md
+  s_f35b53a8af0227::t_338b0dcd1069d6 128
+apps/cli/src/cli/commands/setup-paseo.ts
+  s_f35b53a8af0227::t_fba67c99913c5a 41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3f0eed4f1ad96f1b67df39b4057cd28864fa91ab",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_f35b53a8af0227": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a182d4-9966-71bf-9cc0-3887f9b00a08",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
