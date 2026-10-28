@@ -4,6 +4,7 @@ export const STARTUP_TIPS: readonly [string, ...string[]] = [
   "Use /terminal-permissions to see your terminal mode and command restrictions.",
   "Use /review to review uncommitted changes, a branch, or a pull request.",
   "Use /hotkeys to see all keyboard shortcuts.",
+  "Press Ctrl+L for models or use /thinking, then Ctrl+S in either selector to save your default.",
   "Type ! before a command to run it directly in your terminal.",
 ];
 
