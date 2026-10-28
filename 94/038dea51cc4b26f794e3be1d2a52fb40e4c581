@@ -1,0 +1,41 @@
+apps/cli/tests/pi-package-setup.test.ts
+  56268a6d36fd8a2d 801
+apps/cli/src/sandbox/package-proxy.ts
+  56268a6d36fd8a2d 42,47,50,52-54,56-61,83-97,200
+apps/cli/src/sandbox/launch.ts
+  56268a6d36fd8a2d 2,121,154-158,254,398,452-453,490,525,533,535-536,540-541,557-561,567-568,577-587,619,623
+apps/cli/src/harnesses/pi/setup/packages/invocation.ts
+  56268a6d36fd8a2d 38-59
+apps/cli/tests/launcher.test.ts
+  56268a6d36fd8a2d 397-405,412-413,463,468-469,471
+apps/cli/src/sandbox/contracts.ts
+  56268a6d36fd8a2d 28-32
+apps/cli/src/harnesses/pi/setup/packages/sync.ts
+  56268a6d36fd8a2d 88
+apps/backend/config_template.json
+  56268a6d36fd8a2d 135
+apps/backend/app/core/sandbox.py
+  56268a6d36fd8a2d 30,50-53,66
+apps/cli/src/cli/dispatch.ts
+  56268a6d36fd8a2d 7,51-52,59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "94038dea51cc4b26f794e3be1d2a52fb40e4c581",
+  "prompts": {
+    "56268a6d36fd8a2d": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "498064",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 156,
+      "total_deletions": 51,
+      "accepted_lines": 121,
+      "overriden_lines": 0
+    }
+  }
+}
