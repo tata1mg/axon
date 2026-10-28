@@ -4,6 +4,7 @@ import {
   classifyPiInvocation,
   currentPiInvocationEnvironment,
   isPiOffline,
+  isPiPackageUpdate,
   isPiRpcMode,
 } from "../harnesses/pi/setup/packages/invocation.ts";
 import { resolveHarnessRegistration } from "../harnesses/registry.ts";
@@ -45,13 +46,17 @@ export async function dispatch(argumentsVector: readonly string[]): Promise<void
   const registration = resolveHarnessRegistration(head);
 
   if (registration !== undefined) {
-    if (registration.id === "pi" && harnessArguments[0] === "update") {
+    if (
+      registration.id === "pi" &&
+      harnessArguments[0] === "update" &&
+      !isPiPackageUpdate(harnessArguments)
+    ) {
       throw new LauncherError(
         "axon pi update is disabled: Axon pins its own Pi executable",
         LAUNCHER_EXIT_STATUS.usage,
         {
           remediation:
-            "Upgrade axon for a reviewed Pi version change; use pi directly for your separate global installation.",
+            "Use axon pi update --extensions or axon pi update <source> for packages. Upgrade axon for a reviewed Pi version change.",
         },
       );
     }

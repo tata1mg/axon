@@ -85,6 +85,7 @@ async function runPiPackageAction(
       purpose: "provision",
       writePaths: [
         `${context.paths.pi}/npm`,
+        `${context.paths.pi}/git`,
         `${context.paths.pi}/settings.json`,
         `${context.paths.pi}/settings.json.lock`,
       ],

@@ -132,6 +132,7 @@
       "pypi.org",
       "files.pythonhosted.org"
     ],
+    "PACKAGE_GIT_HOSTS": ["github.com"],
     "PROTECTED_PATHS": []
   },
   "TERMINAL_PERMISSIONS": {

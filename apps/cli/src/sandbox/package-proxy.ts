@@ -39,15 +39,26 @@ export async function lookupPublicAddress(hostname: string): Promise<string> {
 export interface PackageProxy {
   readonly origin: string;
   readonly authenticatedUrl: string;
+  readonly authenticatedProvisioningUrl: string;
   readonly sshTunnels: readonly { readonly host: string; readonly port: number }[];
   dispose(): void;
 }
 
-/** HTTPS CONNECT only, exact reviewed registries, public DNS results pinned per connection. */
+/** HTTPS CONNECT only, exact backend-approved hosts, public DNS results pinned per connection. */
 export async function startPackageProxy(policy: SandboxPolicy): Promise<PackageProxy> {
   const capability = crypto.randomUUID();
+  const provisioningCapability = crypto.randomUUID();
   const expected = Buffer.from(`Basic ${Buffer.from(`axon:${capability}`).toString("base64")}`);
+  const expectedProvisioning = Buffer.from(
+    `Basic ${Buffer.from(`axon:${provisioningCapability}`).toString("base64")}`,
+  );
   const allowedHosts = new Set<string>(policy.packageRegistryHosts);
+  // Only package subprocesses receive this separate capability. Sessions and
+  // shell tools cannot use the additional HTTPS Git-host permissions.
+  const provisioningHosts = new Set<string>([
+    ...policy.packageRegistryHosts,
+    ...policy.packageGitHosts,
+  ]);
   const sockets = new Set<Socket>();
   const sshServers: ReturnType<typeof createTcpServer>[] = [];
   const sshTunnels: { readonly host: string; readonly port: number }[] = [];
@@ -69,14 +80,21 @@ export async function startPackageProxy(policy: SandboxPolicy): Promise<PackageP
   server.on("connect", (request, client, head) => {
     const supplied = Buffer.from(request.headers["proxy-authorization"] ?? "");
     const target = /^([a-z0-9.-]+):443$/.exec(request.url ?? "");
-    if (
-      stopped ||
-      supplied.length !== expected.length ||
-      !timingSafeEqual(supplied, expected) ||
-      !target?.[1] ||
-      !allowedHosts.has(target[1]) ||
-      head.length > 65536
-    ) {
+    const sessionAuthorized =
+      supplied.length === expected.length && timingSafeEqual(supplied, expected);
+    const provisioningAuthorized =
+      supplied.length === expectedProvisioning.length &&
+      timingSafeEqual(supplied, expectedProvisioning);
+    if (!sessionAuthorized && !provisioningAuthorized) {
+      // Git/libcurl negotiates proxy authentication after a challenge rather
+      // than sending credentials preemptively like npm does.
+      client.end(
+        'HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic realm="Axon package proxy"\r\nContent-Length: 0\r\nConnection: close\r\n\r\n',
+      );
+      return;
+    }
+    const authorizedHosts = provisioningAuthorized ? provisioningHosts : allowedHosts;
+    if (stopped || !target?.[1] || !authorizedHosts.has(target[1]) || head.length > 65536) {
       client.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n");
       return;
     }
@@ -179,6 +197,7 @@ export async function startPackageProxy(policy: SandboxPolicy): Promise<PackageP
     return {
       origin,
       authenticatedUrl: `http://axon:${capability}@127.0.0.1:${address.port}`,
+      authenticatedProvisioningUrl: `http://axon:${provisioningCapability}@127.0.0.1:${address.port}`,
       sshTunnels,
       dispose,
     };

@@ -27,6 +27,7 @@ class CliSandboxPolicy(BaseModel):
     allow_additional_read_paths: bool = Field(alias="allowAdditionalReadPaths")
     allow_additional_write_paths: bool = Field(alias="allowAdditionalWritePaths")
     package_registry_hosts: tuple[RegistryHost, ...] = Field(alias="packageRegistryHosts")
+    package_git_hosts: tuple[GitHost, ...] = Field(default=(), alias="packageGitHosts")
     protected_paths: tuple[ProtectedPath, ...] = Field(alias="protectedPaths", max_length=64)
 
 
@@ -46,6 +47,10 @@ class SandboxSettings(BaseModel):
         alias="PACKAGE_REGISTRY_HOSTS",
         max_length=4,
     )
+    # HTTPS cloning only during package setup/administration, never ordinary session egress.
+    package_git_hosts: list[GitHost] = Field(
+        default_factory=lambda: ["github.com"], alias="PACKAGE_GIT_HOSTS", max_length=2
+    )
     protected_paths: list[ProtectedPath] = Field(default_factory=list, alias="PROTECTED_PATHS", max_length=64)
 
     def cli_config(self) -> CliSandboxPolicy:
@@ -58,6 +63,7 @@ class SandboxSettings(BaseModel):
             allowAdditionalReadPaths=self.allow_additional_read_paths,
             allowAdditionalWritePaths=self.allow_additional_write_paths,
             packageRegistryHosts=tuple(self.package_registry_hosts),
+            packageGitHosts=tuple(self.package_git_hosts),
             protectedPaths=tuple(self.protected_paths),
         )
 

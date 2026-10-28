@@ -394,14 +394,23 @@ describe("launcher dispatch", () => {
   });
 
   test("keeps forwarded Pi package commands free of setup arguments", async () => {
-    const subprocess = runLauncher(["pi", "install", "npm:user-package"]);
-    const [stdout, exitCode] = await Promise.all([
-      new Response(subprocess.stdout).json() as Promise<{ arguments: string[] }>,
-      subprocess.exited,
-    ]);
+    for (const userArguments of [
+      ["install", "npm:user-package"],
+      ["remove", "npm:user-package"],
+      ["uninstall", "npm:user-package"],
+      ["update", "npm:user-package"],
+      ["update", "--extensions"],
+      ["update", "--extension", "git:github.com/example/pi-tools"],
+    ]) {
+      const subprocess = runLauncher(["pi", ...userArguments]);
+      const [stdout, exitCode] = await Promise.all([
+        new Response(subprocess.stdout).json() as Promise<{ arguments: string[] }>,
+        subprocess.exited,
+      ]);
 
-    expect(exitCode).toBe(0);
-    expect(stdout.arguments).toEqual(["install", "npm:user-package"]);
+      expect(exitCode).toBe(0);
+      expect(stdout.arguments).toEqual(userArguments);
+    }
   });
 
   test("source runs use the developer's exact Pi version without touching global Pi", async () => {
@@ -451,14 +460,15 @@ describe("launcher dispatch", () => {
     expect(await Bun.file(join(absentHome, "pi-runtime", PI_INSTALL_VERSION)).exists()).toBe(false);
   });
 
-  test("blocks every forwarded Pi update before resolving or installing Pi", async () => {
+  test("blocks Pi self-updates before resolving or installing Pi", async () => {
     for (const argumentsVector of [
       ["pi", "update"],
       ["pi", "update", "--self"],
       ["pi", "update", "--all"],
-      ["pi", "update", "--extensions"],
+      ["pi", "update", "self"],
+      ["pi", "update", "pi", "--extensions"],
       ["pi", "update", "--models"],
-      ["pi", "update", "npm:example"],
+      ["pi", "update", "--self", "--extensions"],
     ]) {
       const subprocess = runLauncher(argumentsVector, {
         AXON_HOME: join(fixtureDirectory, "no installed Pi"),

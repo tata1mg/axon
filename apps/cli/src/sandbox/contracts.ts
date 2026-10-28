@@ -25,6 +25,11 @@ export const sandboxPolicySchema = z.strictObject({
   allowAdditionalReadPaths: z.boolean(),
   allowAdditionalWritePaths: z.boolean(),
   packageRegistryHosts: z.array(z.enum(PACKAGE_REGISTRY_HOSTS)).max(4),
+  // HTTPS Git package access is separate from session/SSH access and fails closed when absent.
+  packageGitHosts: z
+    .array(z.enum(["github.com", "bitbucket.org"]))
+    .max(2)
+    .default([]),
   protectedPaths: z
     .array(
       z
