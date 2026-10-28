@@ -74,7 +74,7 @@ export function formatFilesystemPermissions(
     colors.yellow(
       "Saving stops running file/shell operations; new operations use the saved rules.",
     ),
-    colors.dim("Your chat continues without restarting. Settings reset when Axon exits."),
+    colors.dim("Pi restarts and resumes your saved chat. Settings reset when Axon exits."),
     colors.dim(
       "Settings stay in this process; they are not saved with chats or shared with other runs.",
     ),
@@ -294,7 +294,7 @@ export async function runSandboxMenu(
         signal?.throwIfAborted();
         await saveFilesystemPreferences(paths, project, draft, original, currentPolicy);
         ui.outro(
-          "Sandbox permissions applied for this Axon run. Your chat continues without restarting.",
+          "Sandbox permissions applied for this Axon run. Restarting Pi to resume your chat safely.",
         );
         return true;
       }

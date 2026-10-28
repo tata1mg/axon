@@ -1,5 +1,5 @@
 import { rmSync } from "node:fs";
-import { lstat, mkdtemp, readFile, realpath, writeFile } from "node:fs/promises";
+import { lstat, mkdtemp, realpath, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, parse } from "node:path";
 
@@ -93,15 +93,20 @@ async function gitMetadata(project: string): Promise<string[]> {
     if (info.isSymbolicLink()) throw sandboxFailure("Symlinked Git metadata is not supported");
     if (info.isDirectory()) return [await realpath(marker)];
     if (!info.isFile() || info.size > 8192) throw sandboxFailure("Invalid Git worktree metadata");
-    const match = /^gitdir: (.+)\s*$/.exec(await readFile(marker, "utf8"));
+    const match = /^gitdir: (.+)\s*$/.exec(await Bun.file(marker).text());
     if (!match?.[1]) throw sandboxFailure("Invalid Git worktree metadata");
     const directory = await canonicalPath(match[1].trim(), project);
     const commonFile = join(directory, "commondir");
-    const commonInfo = await lstat(commonFile);
+    const commonInfo = await lstat(commonFile).catch((error: unknown) => {
+      // Submodules have a gitdir, but unlike linked worktrees need no commondir.
+      if (error instanceof Error && "code" in error && error.code === "ENOENT") return undefined;
+      throw error;
+    });
+    if (!commonInfo) return [directory];
     if (!commonInfo.isFile() || commonInfo.isSymbolicLink() || commonInfo.size > 8192) {
       throw sandboxFailure("Invalid shared Git metadata");
     }
-    const common = await canonicalPath((await readFile(commonFile, "utf8")).trim(), directory);
+    const common = await canonicalPath((await Bun.file(commonFile).text()).trim(), directory);
     return [directory, common];
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "ENOENT") return [];
@@ -124,7 +129,7 @@ export interface SandboxResources {
 }
 
 interface SandboxLaunchOptions {
-  readonly purpose?: "session" | "probe" | "provision" | "operation";
+  readonly purpose?: "session" | "probe" | "provision" | "administration" | "operation";
   readonly project?: string;
   readonly writePaths?: readonly string[];
   readonly resources?: SandboxResources;
@@ -177,7 +182,7 @@ export async function createSandboxResources(
         const info = await lstat(join(home, ".ssh", "known_hosts"));
         if (!info.isFile() || info.isSymbolicLink() || info.size > 1024 * 1024)
           throw sandboxFailure("SSH known_hosts must be a regular file smaller than 1 MiB");
-        hostKeys = await readFile(sourceKnownHosts, "utf8");
+        hostKeys = await Bun.file(sourceKnownHosts).text();
       } catch (error) {
         if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
       }
@@ -268,10 +273,12 @@ export async function createSandboxLaunchSpec(
   const purpose = options.purpose ?? "session";
   const brokeredSession =
     purpose === "session" && specification.environment["PI_AXON_SANDBOX_OPERATIONS"] === "1";
-  const projectAccess = purpose === "operation" || (purpose === "session" && !brokeredSession);
+  const projectAccess =
+    purpose === "operation" || purpose === "administration" || purpose === "session";
+  const provisioning = purpose === "provision" || purpose === "administration";
   if (Date.now() >= expiresAt) throw sandboxFailure("Sandbox authorization expired during startup");
   const project =
-    purpose === "session" || purpose === "operation"
+    purpose === "session" || purpose === "operation" || purpose === "administration"
       ? await validateFilesystemProject(paths, options.project ?? specification.cwd)
       : await canonicalPath(specification.cwd);
   const home = await canonicalPath(homedir());
@@ -310,12 +317,17 @@ export async function createSandboxLaunchSpec(
   const runtimeRoot = await canonicalPath(paths.piRuntime);
   const provisionTargets = new Set([
     join(piRoot, "npm"),
+    join(piRoot, "git"),
     join(piRoot, "settings.json"),
     join(piRoot, "settings.json.lock"),
   ]);
+  if (purpose === "administration") {
+    for (const entry of ["npm", "git", "settings.json", "settings.json.lock"])
+      provisionTargets.add(await canonicalPath(join(project, ".pi", entry)));
+  }
   for (const path of writePaths) {
     if (
-      purpose !== "provision" ||
+      !provisioning ||
       (!provisionTargets.has(path) &&
         !(dirname(path) === runtimeRoot && /^\.staging-[a-zA-Z0-9-]+$/.test(basename(path))))
     ) {
@@ -359,7 +371,10 @@ export async function createSandboxLaunchSpec(
       rules.push(`(allow network-outbound (remote tcp ${quoted(`localhost:${relay.port}`)}))`);
     if (purpose !== "probe")
       rules.push(`(allow network-outbound (remote tcp ${quoted(`localhost:${proxyPort}`)}))`);
-    const ssh = purpose === "session" || purpose === "operation" ? resources.ssh : undefined;
+    const ssh =
+      purpose === "session" || purpose === "operation" || purpose === "administration"
+        ? resources.ssh
+        : undefined;
     if (ssh) {
       for (const { port } of proxy.sshTunnels)
         rules.push(`(allow network-outbound (remote tcp ${quoted(`localhost:${port}`)}))`);
@@ -387,7 +402,7 @@ export async function createSandboxLaunchSpec(
         const actual = await canonicalPath(executable);
         // Version-managed runtimes need their adjacent libraries as well as bin/.
         const root = binary === "node" || binary === "python3" ? dirname(dirname(actual)) : actual;
-        if (root !== home && root !== parse(root).root && !isWithin(project, root))
+        if (!isWithin(root, home) && root !== parse(root).root && !isWithin(project, root))
           rules.push(...(await readGrant(root)));
       }
     }
@@ -408,7 +423,9 @@ export async function createSandboxLaunchSpec(
       ...ancestorRules(project, "file-read*"),
       projectAccess
         ? pathRule(
-            preferences.projectMode === "read-write"
+            !brokeredSession &&
+              purpose !== "administration" &&
+              preferences.projectMode === "read-write"
               ? "allow file-read* file-write*"
               : "allow file-read*",
             project,
@@ -421,7 +438,10 @@ export async function createSandboxLaunchSpec(
     ] as const) {
       for (const entry of entries) {
         const path = await canonicalPath(entry);
-        rules.push(...ancestorRules(path), pathRule(operation, path));
+        rules.push(
+          ...ancestorRules(path),
+          pathRule(brokeredSession ? "allow file-read*" : operation, path),
+        );
       }
     }
     // Pi requires writable auth/settings/model files and their lock directories.
@@ -456,17 +476,27 @@ export async function createSandboxLaunchSpec(
         rules.push(
           ...ancestorRules(path),
           pathRule(
-            policy.localGit === "read-write" ? "allow file-read* file-write*" : "allow file-read*",
+            !brokeredSession && policy.localGit === "read-write"
+              ? "allow file-read* file-write*"
+              : "allow file-read*",
             path,
           ),
         );
       }
     }
+    // Package Git metadata is writable only during explicit package administration.
+    // This exception never grants writes to the project's own Git metadata.
+    const packageRoots = provisioning
+      ? writePaths.filter((path) => basename(path) === "git" || basename(path) === "npm")
+      : [];
+    const gitFilter = packageRoots.length
+      ? `(require-all (regex #"/[.]git(/|$)") ${packageRoots.map((path) => `(require-not (subpath ${quoted(path)}))`).join(" ")})`
+      : '(regex #"/[.]git(/|$)")';
     // Regex protects newly created .git directories too; path rules cover linked worktrees.
     const gitOperations =
       policy.localGit === "deny" ? "deny file-read* file-write*" : "deny file-write*";
     if (policy.localGit !== "read-write") {
-      rules.push(`(${gitOperations} (regex #"/[.]git(/|$)"))`);
+      rules.push(`(${gitOperations} ${gitFilter})`);
       for (const path of metadata) rules.push(pathRule(gitOperations, path));
     }
     for (const path of protectedPaths) {
@@ -491,11 +521,15 @@ export async function createSandboxLaunchSpec(
     for (const path of writePaths) {
       rules.push(...ancestorRules(path), pathRule("allow file-read* file-write*", path));
     }
+    if (purpose === "administration") {
+      // Local installs may create .pi itself, not arbitrary siblings or project files.
+      const localRoot = await canonicalPath(join(project, ".pi"));
+      rules.push(`(allow file-read-metadata file-write-create (literal ${quoted(localRoot)}))`);
+    }
     for (const path of preferences.denyPaths)
       rules.push(pathRule("deny file-read* file-write*", await canonicalPath(path)));
     const deniedReadPaths = [
       ...protectedPaths,
-      ...(brokeredSession ? [project] : []),
       ...preferences.denyPaths,
       ...(purpose === "session"
         ? []
@@ -508,12 +542,14 @@ export async function createSandboxLaunchSpec(
     const deniedWritePaths = [
       ...deniedReadPaths,
       ...preferences.readPaths,
-      ...(purpose === "session" && preferences.projectMode === "read-only" ? [project] : []),
-      // Provisioning has no user grants and needs narrowly allowlisted staging paths.
-      ...(purpose === "provision" ? [] : managedCodePaths),
+      ...(brokeredSession ? [project, ...preferences.writePaths, ...metadata] : []),
+      ...(projectAccess && preferences.projectMode === "read-only" ? [project] : []),
+      // Package administration and provisioning need narrowly allowlisted writable paths.
+      ...(provisioning
+        ? managedCodePaths.filter((path) => !writePaths.some((target) => isWithin(path, target)))
+        : managedCodePaths),
       ...(policy.localGit === "read-write" ? [] : metadata),
     ];
-    const gitFilter = '(regex #"/[.]git(/|$)")';
     const restrictedRules = restrictFilesystemGrants(
       rules,
       deniedReadPaths,
@@ -521,18 +557,6 @@ export async function createSandboxLaunchSpec(
       policy.localGit === "deny" ? [gitFilter] : [],
       policy.localGit === "read-write" ? [] : [gitFilter],
     );
-    if (brokeredSession) {
-      // The content exclusions above also remove the TUI's cwd metadata grant.
-      // Restore only stat/getcwd on the directory itself; its contents stay broker-only.
-      restrictedRules.push(
-        ...restrictFilesystemGrants(
-          [`(allow file-read-metadata (literal ${quoted(project)}))`],
-          protectedPaths,
-          [],
-          policy.localGit === "deny" ? [gitFilter] : [],
-        ),
-      );
-    }
     const profile = join(runDirectory, `profile-${crypto.randomUUID()}.sb`);
     await writeFile(profile, `${baseline}\n${restrictedRules.join("\n")}\n`, {
       mode: 0o400,

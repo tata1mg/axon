@@ -1,6 +1,8 @@
+import { piRestartArguments } from "../harnesses/pi/restart.ts";
 import { isPiOffline } from "../harnesses/pi/setup/packages/invocation.ts";
 import { loadHarnessAdapter } from "../harnesses/registry.ts";
 import { resolveAxonPaths } from "../product/paths.ts";
+import { validateSandboxResumeSession } from "../sandbox/configuration-relay.ts";
 import { assertSandboxSupported, sandboxFailure } from "../sandbox/policy.ts";
 import { withSandboxSession } from "../sandbox/session.ts";
 import { emitProductEvent } from "../telemetry/product-events.ts";
@@ -9,6 +11,7 @@ import type {
   HarnessRegistration,
   LaunchContext,
   LaunchSpec,
+  SandboxResumeSession,
   SandboxSession,
 } from "./contracts.ts";
 import { isTrue, printDebugLaunchPreview } from "./debug-preview.ts";
@@ -54,6 +57,8 @@ async function launchSandboxedHarness(
           allowInstall: true,
         });
 
+  let resumeSession: SandboxResumeSession | undefined;
+  let editorClosed = Promise.resolve();
   const context: HarnessLaunchContext = Object.freeze({
     ...sandboxedContext,
     cwd,
@@ -61,6 +66,14 @@ async function launchSandboxedHarness(
     paths,
     registration,
     executable,
+    prepareSandboxRestart(session: SandboxResumeSession) {
+      resumeSession = session;
+      let finished: () => void = () => {};
+      editorClosed = new Promise<void>((resolve) => {
+        finished = resolve;
+      });
+      return finished;
+    },
   });
 
   try {
@@ -116,13 +129,25 @@ async function launchSandboxedHarness(
   }
 
   // Only the launcher may wrap the already-validated managed executable.
+  // Keep the parent-owned relay and its environment stable across child replacements.
+  const originalSpecification = specification;
+  const wrap = (candidate: LaunchSpec): Promise<LaunchSpec> =>
+    sandboxedContext.sandbox.wrap(
+      {
+        ...candidate,
+        environment: createHarnessEnvironment(candidate.environment, {
+          PI_AXON_LAUNCH_STARTED_AT: String(startedAt),
+        }),
+      },
+      {
+        // Pi dispatches package subcommands only from the first argument.
+        packageAdministration: ["install", "remove", "uninstall", "update"].includes(
+          userArguments[0] ?? "",
+        ),
+      },
+    );
   try {
-    specification = await sandboxedContext.sandbox.wrap({
-      ...specification,
-      environment: createHarnessEnvironment(specification.environment, {
-        PI_AXON_LAUNCH_STARTED_AT: String(startedAt),
-      }),
-    });
+    specification = await wrap(originalSpecification);
   } catch (error) {
     specification.dispose?.();
     if (error instanceof LauncherError) throw error;
@@ -144,5 +169,14 @@ async function launchSandboxedHarness(
     outcome: "success",
     durationMs: Date.now() - startedAt,
   });
-  return spawnHarness(specification);
+  return spawnHarness(specification, async () => {
+    await editorClosed;
+    if (!resumeSession)
+      throw sandboxFailure("Sandbox permissions changed without a validated resume session");
+    const session = await validateSandboxResumeSession(paths, resumeSession);
+    return wrap({
+      ...originalSpecification,
+      arguments: piRestartArguments(originalSpecification.arguments, session),
+    });
+  });
 }

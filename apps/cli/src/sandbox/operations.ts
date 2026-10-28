@@ -14,7 +14,7 @@ const operationSchema = z.strictObject({
 const shellSchema = z.strictObject({
   command: z.string().max(1024 * 1024),
   shellPath: z.string().min(1).max(4096).optional(),
-  timeout: z.number().positive().max(3600).optional(),
+  timeout: z.number().positive().max(2_147_483.647).optional(),
 });
 
 // This fixed program runs only inside sandbox-exec. No request can select a module or host argv.
@@ -68,12 +68,12 @@ export function createSandboxOperations(
         let executable: string;
         let argumentsVector: readonly string[];
         let stdin: string | undefined;
-        let timeoutMs = 300_000;
+        let timeoutMs: number | undefined = 300_000;
         if (operation.tool === "shell") {
           const shell = shellSchema.parse(operation.input);
           executable = shell.shellPath ?? "/bin/bash";
           argumentsVector = ["-c", shell.command];
-          timeoutMs = (shell.timeout ?? 300) * 1000;
+          timeoutMs = shell.timeout === undefined ? undefined : shell.timeout * 1000;
         } else {
           if (!node) throw sandboxFailure("Node.js is required for sandboxed file operations");
           toolsModule ??= realpath(specification.executable).then(
@@ -96,7 +96,7 @@ export function createSandboxOperations(
             purpose: "operation",
             signal: request.signal,
             ...(stdin === undefined ? {} : { stdin }),
-            timeoutMs,
+            ...(timeoutMs === undefined ? {} : { timeoutMs }),
           },
         );
         if (operation.tool === "shell")

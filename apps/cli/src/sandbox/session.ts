@@ -1,3 +1,5 @@
+import { join } from "node:path";
+
 import type {
   LaunchContext,
   LaunchSpec,
@@ -14,9 +16,18 @@ import {
   sandboxFailure,
 } from "./policy.ts";
 
-async function readCommandOutput(stream: ReadableStream<Uint8Array> | undefined): Promise<string> {
+async function readCommandOutput(
+  stream: ReadableStream<Uint8Array> | undefined,
+  signal: AbortSignal,
+  onData: () => void,
+): Promise<string> {
   if (!stream) return "";
   const reader = stream.getReader();
+  const cancel = (): void => {
+    void reader.cancel().catch(() => {});
+  };
+  signal.addEventListener("abort", cancel, { once: true });
+  if (signal.aborted) cancel();
   const maximumBytes = 16 * 1024 * 1024;
   const chunks: Uint8Array[] = [];
   let retainedBytes = 0;
@@ -25,6 +36,7 @@ async function readCommandOutput(stream: ReadableStream<Uint8Array> | undefined)
     while (true) {
       const item = await reader.read();
       if (item.done) break;
+      onData();
       const remaining = maximumBytes - retainedBytes;
       if (item.value.byteLength > remaining) truncated = true;
       if (remaining > 0) {
@@ -35,6 +47,7 @@ async function readCommandOutput(stream: ReadableStream<Uint8Array> | undefined)
       // Drain even after truncation so a full pipe cannot deadlock the child.
     }
   } finally {
+    signal.removeEventListener("abort", cancel);
     reader.releaseLock();
   }
   return (
@@ -83,14 +96,38 @@ export async function createSandboxSession(
         throw sandboxFailure("Axon identity changed during setup; restart for fresh authorization");
       return authorization.clientConfig;
     },
-    async wrap(specification) {
+    async wrap(specification, options) {
       assertActive();
+      const revision = filesystemPreferencesRevision(context.paths);
       const wrapped = await createSandboxLaunchSpec(specification, context.paths, authorization, {
         resources,
+        ...(options?.packageAdministration
+          ? {
+              purpose: "administration" as const,
+              writePaths: [context.paths.pi, join(context.cwd, ".pi")].flatMap((root) =>
+                ["npm", "git", "settings.json", "settings.json.lock"].map((entry) =>
+                  join(root, entry),
+                ),
+              ),
+            }
+          : {}),
       });
+      assertActive();
+      if (revision !== filesystemPreferencesRevision(context.paths))
+        throw sandboxFailure("Sandbox settings changed during startup; retry the launch");
+      const brokered = specification.environment["PI_AXON_SANDBOX_OPERATIONS"] === "1";
+      const revocation = new AbortController();
+      const stopWatchingSession = brokered
+        ? watchFilesystemPreferences(context.paths, () => revocation.abort())
+        : () => {};
       return {
         ...wrapped,
-        dispose() {
+        ...(brokered ? { revoked: revocation.signal } : {}),
+        dispose(options) {
+          stopWatchingSession();
+          // A replacement child reuses the same relay, authorization and resources.
+          // Final disposal must still work if rebuilding the replacement fails.
+          if (options?.restarting) return;
           try {
             wrapped.dispose?.();
           } finally {
@@ -130,6 +167,10 @@ export async function createSandboxSession(
           ...(options.purpose === "operation" ? { project: context.cwd } : {}),
           writePaths,
           resources,
+        }).catch((error: unknown) => {
+          // Share in-flight compilation, not a failed attempt for the rest of the invocation.
+          if (profiles.get(key) === pending) profiles.delete(key);
+          throw error;
         });
         profiles.set(key, pending);
       }
@@ -153,11 +194,8 @@ export async function createSandboxSession(
           stdin: options.stdin === undefined ? "ignore" : new TextEncoder().encode(options.stdin),
           stdout: options.inheritOutput ? "inherit" : "pipe",
           stderr: options.inheritOutput ? "inherit" : "pipe",
-          timeout: Math.max(
-            1,
-            Math.min(options.timeoutMs ?? 300_000, authorization.expiresAt - Date.now()),
-          ),
-          killSignal: "SIGKILL",
+          // The session lease bounds all commands. Only explicit operation deadlines
+          // impose a shorter timeout; Pi's shell tool has no default deadline.
         },
       );
       const signalGroup = (signal: NodeJS.Signals): void => {
@@ -168,7 +206,37 @@ export async function createSandboxSession(
             child.kill(signal);
         }
       };
-      const stop = (): void => signalGroup("SIGKILL");
+      let backgroundCheck: ReturnType<typeof setInterval> | undefined;
+      const releaseGroup = (): void => {
+        if (backgroundCheck !== undefined) clearInterval(backgroundCheck);
+        activeCommands.delete(stop);
+        activeOperations.delete(stop);
+      };
+      const stop = (): void => {
+        signalGroup("SIGKILL");
+        releaseGroup();
+      };
+      const timeoutMs =
+        options.timeoutMs ?? (options.purpose === "operation" ? undefined : 300_000);
+      let timedOut = false;
+      const timeout =
+        timeoutMs === undefined
+          ? undefined
+          : setTimeout(() => {
+              timedOut = true;
+              stop();
+            }, timeoutMs);
+      let preserveDescendants = false;
+      const outputCancellation = new AbortController();
+      let idleTimer: ReturnType<typeof setTimeout> | undefined;
+      let parentExited = false;
+      const armOutputIdleTimer = (): void => {
+        if (!parentExited) return;
+        if (idleTimer !== undefined) clearTimeout(idleTimer);
+        // Match Pi's post-exit idle grace: quiet inherited pipes must not hang a
+        // command, but keep draining while output is actively arriving.
+        idleTimer = setTimeout(() => outputCancellation.abort(), 100);
+      };
       activeCommands.add(stop);
       if (options.purpose === "operation") activeOperations.add(stop);
       options.signal?.addEventListener("abort", stop, { once: true });
@@ -181,12 +249,16 @@ export async function createSandboxSession(
         }
       }
       try {
-        // Reap descendants before draining pipes; background helpers must not retain
-        // provisioning permissions or keep stdout open after their parent exits.
-        const exited = child.exited.finally(stop);
+        const exited = child.exited.then((exitCode) => {
+          parentExited = true;
+          // Installers must never leave descendants holding provisioning grants.
+          if (options.purpose !== "operation") stop();
+          armOutputIdleTimer();
+          return exitCode;
+        });
         const [stdout, stderr, exitCode] = await Promise.all([
-          readCommandOutput(child.stdout),
-          readCommandOutput(child.stderr),
+          readCommandOutput(child.stdout, outputCancellation.signal, armOutputIdleTimer),
+          readCommandOutput(child.stderr, outputCancellation.signal, armOutputIdleTimer),
           exited,
         ]);
         assertActive();
@@ -196,11 +268,33 @@ export async function createSandboxSession(
           revision !== filesystemPreferencesRevision(context.paths)
         )
           throw sandboxFailure("Sandbox settings changed; retry the operation");
+        if (timedOut) throw new Error(`timeout:${(timeoutMs ?? 0) / 1000}`);
+        // Background jobs keep this operation's sandbox, never provisioning grants.
+        // Retain ownership so a settings change or session disposal still kills them.
+        if (options.purpose === "operation") {
+          try {
+            process.kill(-child.pid, 0);
+            preserveDescendants = true;
+            // Drop completed groups instead of retaining stale PIDs for the whole run.
+            backgroundCheck = setInterval(() => {
+              try {
+                process.kill(-child.pid, 0);
+              } catch (error) {
+                if (error instanceof Error && "code" in error && error.code === "ESRCH")
+                  releaseGroup();
+              }
+            }, 1_000);
+            backgroundCheck.unref();
+          } catch {
+            // No remaining process group to retain.
+          }
+        }
         return { exitCode, signalCode: child.signalCode, stdout, stderr };
       } finally {
-        stop();
-        activeCommands.delete(stop);
-        activeOperations.delete(stop);
+        if (timeout !== undefined) clearTimeout(timeout);
+        if (idleTimer !== undefined) clearTimeout(idleTimer);
+        outputCancellation.abort();
+        if (!preserveDescendants) stop();
         options.signal?.removeEventListener("abort", stop);
         for (const [signal, handler] of forwarding) process.off(signal, handler);
       }

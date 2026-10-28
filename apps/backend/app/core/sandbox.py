@@ -1,11 +1,15 @@
 """Backend-owned sandbox capabilities; clients may only narrow these permissions."""
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 RegistryHost = Literal["registry.npmjs.org", "registry.yarnpkg.com", "pypi.org", "files.pythonhosted.org"]
 GitHost = Literal["github.com", "bitbucket.org"]
+ProtectedPath = Annotated[
+    str,
+    StringConstraints(min_length=1, max_length=4096, pattern=r"^(?:/|~/)[^\x00-\x1f\x7f]*$"),
+]
 
 
 class CliSandboxPolicy(BaseModel):
@@ -23,7 +27,7 @@ class CliSandboxPolicy(BaseModel):
     allow_additional_read_paths: bool = Field(alias="allowAdditionalReadPaths")
     allow_additional_write_paths: bool = Field(alias="allowAdditionalWritePaths")
     package_registry_hosts: tuple[RegistryHost, ...] = Field(alias="packageRegistryHosts")
-    protected_paths: tuple[str, ...] = Field(alias="protectedPaths")
+    protected_paths: tuple[ProtectedPath, ...] = Field(alias="protectedPaths", max_length=64)
 
 
 class SandboxSettings(BaseModel):
@@ -42,7 +46,7 @@ class SandboxSettings(BaseModel):
         alias="PACKAGE_REGISTRY_HOSTS",
         max_length=4,
     )
-    protected_paths: list[str] = Field(default_factory=list, alias="PROTECTED_PATHS", max_length=64)
+    protected_paths: list[ProtectedPath] = Field(default_factory=list, alias="PROTECTED_PATHS", max_length=64)
 
     def cli_config(self) -> CliSandboxPolicy:
         return CliSandboxPolicy(

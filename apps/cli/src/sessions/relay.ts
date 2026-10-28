@@ -6,8 +6,8 @@ import { BUILD_INFO } from "../build-info.ts";
 import type { AxonPaths } from "../product/paths.ts";
 import { projectSessionDirectory } from "../sandbox/session-paths.ts";
 import { emitProductEvent } from "../telemetry/product-events.ts";
-import { BackupApi } from "./api.ts";
-import { SessionBackups } from "./backup.ts";
+import { BackupApi, BackupApiError } from "./api.ts";
+import { BackupLocalSettingsError, BackupPolicyError, SessionBackups } from "./backup.ts";
 import { resumeSchema } from "./contracts.ts";
 import { assertInside } from "./files.ts";
 
@@ -66,7 +66,29 @@ export function createBackupRelay(paths: AxonPaths, cwd: string) {
         request.signal,
       );
       return reply({ status });
-    } catch {
+    } catch (error) {
+      // Domain failures are safe status messages, not failures of the loopback transport.
+      // Never relay arbitrary exception text: it may contain paths or credentials.
+      if (error instanceof BackupLocalSettingsError || error instanceof BackupPolicyError)
+        return reply({ status: error.message });
+      if (error instanceof BackupApiError) {
+        if (error.status === 401)
+          return reply({ status: "Backup login required; sign in to Axon and retry" });
+        if (error.status === 403)
+          return reply({
+            status: "Backup access denied; verify the signed-in account and permissions",
+          });
+        if (error.status === 503)
+          return reply({
+            status:
+              "Backup service is disabled or unavailable; check backend private storage configuration",
+          });
+        return reply({
+          status: `Backup service returned HTTP ${error.status}; retry later. Existing snapshots were retained`,
+        });
+      }
+      if (error instanceof z.ZodError || error instanceof SyntaxError)
+        return reply({ error: "Invalid backup request" }, 400);
       return reply({ error: "Backup action failed safely; existing snapshots were retained" }, 503);
     }
   };

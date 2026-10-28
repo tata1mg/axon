@@ -7,16 +7,46 @@ import { exitLikeChild, LAUNCHER_EXIT_STATUS } from "./exit-status.ts";
 
 const FORWARDED_SIGNALS = ["SIGTERM", "SIGHUP"] as const;
 
-/** Release sandbox resources, then preserve the child's exit or signal status without relaunching. */
-export async function spawnHarness(specification: LaunchSpec): Promise<never> {
+/** Restart only a revoked profile; normal exits, user signals and lease expiry never relaunch. */
+export async function spawnHarness(
+  specification: LaunchSpec,
+  restart?: () => Promise<LaunchSpec>,
+): Promise<never> {
+  let current = specification;
+  while (true) {
+    const result = await runHarness(current, restart !== undefined);
+    if (!result.restart || !restart) return exitLikeChild(result);
+    try {
+      current = await restart();
+    } catch (error) {
+      // A failed rebuild must close the relay and invocation resources retained for restart.
+      current.dispose?.();
+      throw error;
+    }
+  }
+}
+
+async function runHarness(
+  specification: LaunchSpec,
+  allowRestart: boolean,
+): Promise<{
+  readonly exitCode: number | null;
+  readonly signalCode: NodeJS.Signals | null;
+  readonly restart: boolean;
+}> {
   let subprocess: Bun.Subprocess<"inherit", "inherit", "inherit">;
   let spawnError: Error | undefined;
   const startedAt = Date.now();
+  // A read-capable session needs its own group so revocation reaches extensions too.
+  // Terminal interrupts are forwarded explicitly because this group is not foreground.
+  const detached = specification.revoked !== undefined;
 
   try {
+    specification.revoked?.throwIfAborted();
     subprocess = Bun.spawn([specification.executable, ...specification.arguments], {
       cwd: specification.cwd,
       env: specification.environment,
+      detached,
       stdin: "inherit",
       stdout: "inherit",
       stderr: "inherit",
@@ -46,17 +76,38 @@ export async function spawnHarness(specification: LaunchSpec): Promise<never> {
     outcome: "success",
     durationMs: Date.now() - startedAt,
   });
-  // The terminal sends SIGINT to the whole foreground process group, including the
-  // harness. Catch it in the wrapper so the harness can restore terminal state; do
-  // not forward it and accidentally deliver the signal twice.
-  const ignoreTerminalInterrupt = (): void => {};
-  process.on("SIGINT", ignoreTerminalInterrupt);
+  const signalGroup = (signal: NodeJS.Signals): void => {
+    try {
+      if (detached) process.kill(-subprocess.pid, signal);
+      else subprocess.kill(signal);
+    } catch (error) {
+      if (!(error instanceof Error && "code" in error && error.code === "ESRCH")) throw error;
+    }
+  };
+  let interrupted = false;
+  let revoked = false;
+  let expired = false;
+  let restarting = false;
+  const revoke = (): void => {
+    revoked = true;
+    // SIGTERM would leave revoked file grants usable during shutdown hooks.
+    signalGroup("SIGKILL");
+  };
+  specification.revoked?.addEventListener("abort", revoke, { once: true });
+  if (specification.revoked?.aborted) revoke();
+  const terminalInterrupt = (): void => {
+    interrupted = true;
+    // Non-detached administrative commands already receive the foreground signal.
+    if (detached) signalGroup("SIGINT");
+  };
+  process.on("SIGINT", terminalInterrupt);
 
   const forwardingHandlers = new Map<NodeJS.Signals, () => void>();
   for (const signal of FORWARDED_SIGNALS) {
     const forwardSignal = (): void => {
+      interrupted = true;
       if (subprocess.exitCode === null && subprocess.signalCode === null) {
-        subprocess.kill(signal);
+        signalGroup(signal);
       }
     };
 
@@ -70,12 +121,13 @@ export async function spawnHarness(specification: LaunchSpec): Promise<never> {
       ? undefined
       : setTimeout(
           () => {
+            expired = true;
             console.error(
               "axon: backend sandbox authorization expired; restart axon pi to continue",
             );
             // Closing parent-owned capabilities immediately revokes all brokered network access.
             specification.dispose?.();
-            subprocess.kill("SIGTERM");
+            signalGroup(detached ? "SIGKILL" : "SIGTERM");
             forceStop = setTimeout(() => {
               if (subprocess.exitCode === null && subprocess.signalCode === null)
                 subprocess.kill("SIGKILL");
@@ -88,12 +140,23 @@ export async function spawnHarness(specification: LaunchSpec): Promise<never> {
   } finally {
     if (expiry !== undefined) clearTimeout(expiry);
     if (forceStop !== undefined) clearTimeout(forceStop);
-    process.off("SIGINT", ignoreTerminalInterrupt);
+    specification.revoked?.removeEventListener("abort", revoke);
+    process.off("SIGINT", terminalInterrupt);
     for (const [signal, handler] of forwardingHandlers) {
       process.off(signal, handler);
     }
-    await flushProductTelemetry(resolveAxonPaths(), specification.offline ?? false);
-    specification.dispose?.();
+    // Reap extension descendants before granting the replacement profile.
+    if (detached) signalGroup("SIGKILL");
+    restarting =
+      allowRestart &&
+      revoked &&
+      !interrupted &&
+      !expired &&
+      spawnError === undefined &&
+      (specification.expiresAt === undefined || Date.now() < specification.expiresAt);
+    if (!restarting)
+      await flushProductTelemetry(resolveAxonPaths(), specification.offline ?? false);
+    specification.dispose?.({ restarting });
   }
 
   if (spawnError !== undefined) {
@@ -104,8 +167,9 @@ export async function spawnHarness(specification: LaunchSpec): Promise<never> {
     );
   }
 
-  return exitLikeChild({
+  return {
     exitCode: subprocess.exitCode,
     signalCode: subprocess.signalCode,
-  });
+    restart: restarting,
+  };
 }

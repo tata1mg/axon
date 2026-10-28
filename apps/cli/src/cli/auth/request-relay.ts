@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 
 import { BUILD_INFO } from "../../build-info.ts";
 import { applyPiDefaults } from "../../harnesses/pi/settings-defaults.ts";
+import type { SandboxResumeSession } from "../../launcher/contracts.ts";
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../../product/endpoints.ts";
 import type { AxonPaths } from "../../product/paths.ts";
 import { createSandboxConfigurationRelay } from "../../sandbox/configuration-relay.ts";
@@ -384,6 +385,7 @@ export function startAuthenticatedRequestRelay(
     readonly allowPiConfigRefresh?: boolean;
     readonly allowTelemetry?: boolean;
     readonly allowSandboxConfiguration?: boolean;
+    readonly prepareSandboxRestart?: (session: SandboxResumeSession) => () => void;
     readonly sandboxOperation?: (request: Request) => Promise<Response>;
     readonly cwd?: string;
   } = {},
@@ -394,7 +396,11 @@ export function startAuthenticatedRequestRelay(
   const diagnostics = createRelayDiagnostics(paths);
   const backupRelay = createBackupRelay(paths, options.cwd ?? process.cwd());
   const sandboxConfiguration = options.allowSandboxConfiguration
-    ? createSandboxConfigurationRelay(paths, options.cwd ?? process.cwd())
+    ? createSandboxConfigurationRelay(
+        paths,
+        options.cwd ?? process.cwd(),
+        options.prepareSandboxRestart,
+      )
     : undefined;
   const server = Bun.serve({
     hostname: "127.0.0.1",

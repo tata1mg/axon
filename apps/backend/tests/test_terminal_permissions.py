@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.core.config import ConfigurationError, _terminal_permissions
+from app.core.sandbox import SandboxSettings
 from app.core.terminal_permissions import TerminalPermissionsSettings, parse_terminal_permissions
 from app.core.web_search import WebSearchSettings
 from app.routers.cli_config import client_config
@@ -34,6 +35,7 @@ def test_terminal_preferences_are_projected_into_the_cli_response() -> None:
     response = asyncio.run(
         client_config(
             SimpleNamespace(
+                sandbox=SandboxSettings(),
                 cli_telemetry=None,
                 cli_pi=None,
                 cli_compaction=None,

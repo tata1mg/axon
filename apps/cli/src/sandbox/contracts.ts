@@ -25,7 +25,21 @@ export const sandboxPolicySchema = z.strictObject({
   allowAdditionalReadPaths: z.boolean(),
   allowAdditionalWritePaths: z.boolean(),
   packageRegistryHosts: z.array(z.enum(PACKAGE_REGISTRY_HOSTS)).max(4),
-  protectedPaths: z.array(z.string().min(1).max(4096)).max(64),
+  protectedPaths: z
+    .array(
+      z
+        .string()
+        .min(1)
+        .max(4096)
+        .regex(/^(?:\/|~\/)/)
+        .refine(
+          (path) =>
+            !Array.from(path).some(
+              (character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127,
+            ),
+        ),
+    )
+    .max(64),
 });
 
 export type SandboxPolicy = z.infer<typeof sandboxPolicySchema>;

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { lstat, realpath } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, isAbsolute, join, parse, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, parse, relative, resolve, sep } from "node:path";
 import { z } from "zod";
 
 import type { AxonPaths } from "../product/paths.ts";
@@ -78,7 +78,7 @@ function commitFilesystemPreferences(
 
 export function isWithin(root: string, path: string): boolean {
   const difference = relative(root, path);
-  return difference === "" || (!difference.startsWith("..") && !isAbsolute(difference));
+  return difference !== ".." && !difference.startsWith(`..${sep}`) && !isAbsolute(difference);
 }
 
 /** Resolve symlinks, including existing ancestors of not-yet-created deny targets. */
@@ -280,15 +280,4 @@ export async function saveFilesystemPreferences(
     throw sandboxFailure("Filesystem permissions changed; reopen the editor before saving");
   commitFilesystemPreferences(paths, destination, validated);
   return validated;
-}
-
-export async function updateFilesystemPreferences(
-  paths: AxonPaths,
-  cwd: string,
-  operation: FilesystemOperation,
-  value: string | readonly string[],
-): Promise<void> {
-  const preferences = await readFilesystemPreferences(paths, cwd);
-  const updated = await editFilesystemPreferences(paths, cwd, preferences, operation, value);
-  await saveFilesystemPreferences(paths, cwd, updated, preferences);
 }

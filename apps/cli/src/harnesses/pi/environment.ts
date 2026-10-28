@@ -9,8 +9,9 @@ const PI_PROCESS_OVERRIDES = Object.freeze({
   PI_AXON_CLI_VERSION: BUILD_INFO.version,
   // Only a live managed relay can supply a diagnostic destination.
   PI_AXON_RELAY_LOG_FILE: undefined,
-  // PI_* markers survive the launcher's final Axon-control-variable filter.
-  PI_AXON_BACKUP_SERVICE_ORIGIN: BUILD_INFO.serviceOrigin,
+  // Backup storage is parent-owned; discard obsolete inherited locations too.
+  PI_AXON_BACKUP_SERVICE_ORIGIN: undefined,
+  PI_AXON_BACKUP_HOME: undefined,
   PI_MODEL_RECOMMENDER_URL: resolveServiceUrl(
     BUILD_INFO.serviceOrigin,
     SERVICE_ENDPOINTS.models.recommendations,
@@ -69,7 +70,6 @@ function createPiDirectoryOverrides(paths: AxonPaths): EnvironmentOverrides {
   return Object.freeze({
     PI_CODING_AGENT_DIR: paths.pi,
     PI_CODING_AGENT_SESSION_DIR: paths.piSessions,
-    PI_AXON_BACKUP_HOME: paths.home,
   });
 }
 

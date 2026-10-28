@@ -11,9 +11,16 @@ export interface LaunchContext {
   readonly sandbox?: SandboxSession;
 }
 
+export interface SandboxResumeSession {
+  readonly sessionId: string;
+  readonly sessionFile?: string;
+}
+
 export interface HarnessLaunchContext extends LaunchContext {
   readonly registration: HarnessRegistration;
   readonly executable: string;
+  /** Register a validated resume target while the parent owns the sandbox editor. */
+  readonly prepareSandboxRestart?: (session: SandboxResumeSession) => () => void;
 }
 
 export interface LaunchSpec {
@@ -25,8 +32,10 @@ export interface LaunchSpec {
   readonly offline?: boolean;
   /** Backend-authorized session lease; no local setting may extend it. */
   readonly expiresAt?: number;
-  /** Release per-session resources before propagating the child's exit status. */
-  readonly dispose?: () => void;
+  /** Revocation of a compiled filesystem profile requires terminating its process group. */
+  readonly revoked?: AbortSignal;
+  /** Preserve invocation-owned resources only while replacing a revoked child. */
+  readonly dispose?: (options?: { readonly restarting: boolean }) => void;
 }
 
 export interface SandboxCommandOptions {
@@ -48,7 +57,10 @@ export interface SandboxCommandResult {
 export interface SandboxSession {
   /** Reuse startup configuration only while the verified credential is unchanged. */
   clientConfig(session: string): ClientConfig | undefined;
-  wrap(specification: LaunchSpec): Promise<LaunchSpec>;
+  wrap(
+    specification: LaunchSpec,
+    options?: { readonly packageAdministration: boolean },
+  ): Promise<LaunchSpec>;
   run(specification: LaunchSpec, options: SandboxCommandOptions): Promise<SandboxCommandResult>;
   dispose(): void;
 }

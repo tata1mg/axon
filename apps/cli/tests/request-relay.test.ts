@@ -298,7 +298,7 @@ test("deployment base paths reach auth, config, backups and upstream relay reque
     await api.request(api.endpoint("download", "fixture-session"), "POST");
     const { createPiEnvironment } = await import("./src/harnesses/pi/environment.ts");
     const environment = createPiEnvironment({}, paths);
-    assert.equal(environment.PI_AXON_BACKUP_SERVICE_ORIGIN, base);
+    assert.equal(environment.PI_AXON_BACKUP_SERVICE_ORIGIN, undefined);
     assert.equal(environment.PI_MODEL_RECOMMENDER_URL, base + "/api/v1/model-recommendations");
     const { createTelemetryOverrides } = await import("./src/harnesses/pi/telemetry-environment.ts");
     const telemetry = createTelemetryOverrides({}, {

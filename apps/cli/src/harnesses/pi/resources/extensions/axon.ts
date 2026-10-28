@@ -821,7 +821,7 @@ export default function axonExtension(pi: ExtensionAPI): void {
   });
 
   pi.registerCommand("sandbox", {
-    description: "Edit temporary filesystem access; apply immediately without restarting your chat",
+    description: "Edit temporary filesystem access; restart Pi and resume this chat safely",
     handler: async (args, ctx) => {
       if (args.trim()) {
         ctx.ui.notify(
@@ -839,10 +839,35 @@ export default function axonExtension(pi: ExtensionAPI): void {
         return;
       }
       if (sandboxEditorOpen) return;
-      if (!ctx.isIdle()) {
+      if (!ctx.isIdle() || ctx.hasPendingMessages()) {
         ctx.ui.notify("Wait for the current turn to finish, then run /sandbox.", "warning");
         return;
       }
+      const sessionId = ctx.sessionManager.getSessionId();
+      const sessionFile = ctx.sessionManager.getSessionFile();
+      const hasConversation = ctx.sessionManager
+        .getEntries()
+        .some(
+          (entry) =>
+            entry.type === "message" &&
+            (entry.message.role === "user" || entry.message.role === "assistant"),
+        );
+      if (hasConversation && !sessionFile) {
+        ctx.ui.notify(
+          "Save or resume a persisted session before changing sandbox permissions; an in-memory chat cannot survive Pi's required restart.",
+          "warning",
+        );
+        return;
+      }
+      if (hasConversation) {
+        // Native resume chooses the last entry. This harmless checkpoint preserves
+        // the selected branch, including a tree navigation without a subsequent turn.
+        pi.appendEntry("axon-sandbox-restart", {});
+      }
+      const resume = {
+        sessionId,
+        ...(hasConversation && sessionFile ? { sessionFile } : {}),
+      };
       sandboxEditorOpen = true;
       // Do not let a background login dialog compete with the parent-owned terminal editor.
       stopRecovery?.();
@@ -861,7 +886,7 @@ export default function axonExtension(pi: ExtensionAPI): void {
                   Authorization: `Bearer ${config.capability}`,
                   "Content-Type": "application/json",
                 },
-                body: JSON.stringify({}),
+                body: JSON.stringify(resume),
                 redirect: "error",
                 cache: "no-store",
               });
@@ -882,7 +907,7 @@ export default function axonExtension(pi: ExtensionAPI): void {
         );
         if (outcome.saved) {
           ctx.ui.notify(
-            "Sandbox permissions applied immediately for this Axon run. Your chat is unchanged; restarting Axon resets permissions.",
+            "Sandbox permissions saved. Axon will restart Pi and resume this chat under the new rules.",
             "info",
           );
           return;

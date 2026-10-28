@@ -1,7 +1,4 @@
-interface PiResumeSession {
-  readonly sessionId: string;
-  readonly sessionFile?: string;
-}
+import type { SandboxResumeSession } from "../../launcher/contracts.ts";
 
 // Mirror the pinned Pi CLI's value consumption so option values cannot become prompts.
 const VALUE_OPTIONS = new Set([
@@ -53,17 +50,22 @@ const BOOLEAN_OPTIONS = new Set([
 ]);
 const SESSION_OPTIONS = new Set(["--session", "--session-id", "--fork"]);
 const SESSION_SWITCHES = new Set(["--continue", "-c", "--resume", "-r"]);
+// A persisted session owns its current model, thinking level and user-visible name.
+const STARTUP_VALUE_OPTIONS = new Set(["--provider", "--model", "--thinking", "--name", "-n"]);
 
 /** Retain launch options, not startup messages/files, and resume exactly the current session. */
 export function piRestartArguments(
   original: readonly string[],
-  session: PiResumeSession,
+  session: SandboxResumeSession,
 ): readonly string[] {
   const retained: string[] = [];
   for (let index = 0; index < original.length; index++) {
     const argument = original[index];
     if (argument === undefined || argument === "--") break;
-    if (SESSION_OPTIONS.has(argument)) {
+    if (
+      SESSION_OPTIONS.has(argument) ||
+      (session.sessionFile && STARTUP_VALUE_OPTIONS.has(argument))
+    ) {
       index++;
       continue;
     }

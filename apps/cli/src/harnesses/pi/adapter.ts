@@ -166,6 +166,9 @@ export function createPiAdapter(): HarnessAdapter {
           allowPiConfigRefresh: !setup.offline,
           allowTelemetry: config?.telemetry?.enabled === true,
           allowSandboxConfiguration: setup.invocationKind === "interactive",
+          ...(context.prepareSandboxRestart
+            ? { prepareSandboxRestart: context.prepareSandboxRestart }
+            : {}),
           cwd: context.cwd,
         });
         telemetryOverrides = createTelemetryOverrides(
