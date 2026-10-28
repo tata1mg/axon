@@ -1,0 +1,24 @@
+apps/cli/src/product/tips.ts
+  s_3f0bb1da690a11::t_18cef4bb48bf04 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "27f5b7494e2d88aabe001eef4b54d23ccd0dd140",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_3f0bb1da690a11": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a182db-df41-73ce-a3e7-cc6757082e9d",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
