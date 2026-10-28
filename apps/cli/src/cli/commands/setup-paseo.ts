@@ -38,5 +38,5 @@ export async function runPaseoSetup(
   console.log(`Paseo Axon provider configured: ${result.configPath}`);
   if (result.backupPath !== undefined)
     console.log(`Previous config backed up to: ${result.backupPath}`);
-  console.log("Restart Paseo to load the Axon provider, then select Axon when creating an agent.");
+  console.log("Restart Paseo to load the Axon provider, then select Axon when starting a new chat.");
 }

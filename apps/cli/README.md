@@ -125,7 +125,7 @@ Invalid JSON, malformed parent sections, and symlink/non-regular configs are nev
 Writes are atomic, preserve existing config permissions, and save the previous contents to a
 private sibling `config.json.axon-backup.<timestamp>.<id>` file before changing an existing file.
 
-Restart Paseo after setup and select **Axon** when creating an agent. Setup does not choose
+Restart Paseo after setup and select **Axon** when starting a new chat. Setup does not choose
 a model or create an agent profile, and it never restarts Paseo or interrupts running agents.
 
 ### First-run login and client configuration
