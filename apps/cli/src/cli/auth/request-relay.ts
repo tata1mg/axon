@@ -101,7 +101,10 @@ interface RelaySession {
 const MAX_TRACKED_ROTATIONS = 16;
 
 /** Only credential persistence is serialized; upstream requests remain concurrent. */
-function createRelaySession(paths: AxonPaths): RelaySession {
+function createRelaySession(
+  paths: AxonPaths,
+  protectSecret: (value: string | null | undefined) => void,
+): RelaySession {
   let pendingRefresh = Promise.resolve();
   // Concurrent responses can each rotate the same credential, and only the first is saved.
   // Keep the others in memory in case the auth service honours only a later rotation.
@@ -140,9 +143,9 @@ function createRelaySession(paths: AxonPaths): RelaySession {
     // Concurrent rejections of one credential share a single verification round trip.
     let verification = verifications.get(encryptedSession);
     if (verification === undefined) {
-      verification = verifyEncryptedSession(encryptedSession, paths).finally(() =>
-        verifications.delete(encryptedSession),
-      );
+      verification = verifyEncryptedSession(encryptedSession, paths, {
+        onCredential: protectSecret,
+      }).finally(() => verifications.delete(encryptedSession));
       verifications.set(encryptedSession, verification);
     }
     return verification;
@@ -154,12 +157,15 @@ function createRelaySession(paths: AxonPaths): RelaySession {
         const refresh = pendingRefresh;
         await waitForAuthWork(refresh, signal);
         const session = await loadEncryptedSession(paths);
+        protectSecret(session);
         signal.throwIfAborted();
         // A rotation started during the read: wait for it and read the live credential again.
         if (refresh === pendingRefresh) return session;
       }
     },
     refresh(expectedSession, refreshedSession) {
+      protectSecret(expectedSession);
+      protectSecret(refreshedSession);
       track(expectedSession, refreshedSession);
       return serialized(async () => {
         if (await refreshEncryptedSession(paths, expectedSession, refreshedSession)) {
@@ -180,7 +186,11 @@ function createRelaySession(paths: AxonPaths): RelaySession {
         siblings.splice(siblings.indexOf(candidate), 1);
         // This credential is not the live saved session yet. A read-only probe
         // must not adopt or verify some other credential via the shared file.
-        if ((await verifyEncryptedSession(candidate)) !== "VERIFIED") continue;
+        if (
+          (await verifyEncryptedSession(candidate, undefined, { onCredential: protectSecret })) !==
+          "VERIFIED"
+        )
+          continue;
         // Conditional persistence: never replace a credential another login already changed.
         const adopted = await serialized(() =>
           refreshEncryptedSession(paths, rejectedSession, candidate),
@@ -220,7 +230,7 @@ async function forwardManagedRequest(
     request.signal.throwIfAborted();
     let encryptedSession: string | undefined;
     try {
-      // Never cache the real credential in Pi's environment or in this relay.
+      // Read the live credential for each attempt; never expose it to Pi.
       encryptedSession = await session.load(request.signal);
     } catch (error) {
       await diagnostic.failure("session_load", error);
@@ -247,6 +257,7 @@ async function forwardManagedRequest(
       return loginRequired();
     }
 
+    diagnostic.attempt(attempt + 1);
     const headers = new Headers(request.headers);
     for (const name of REMOVED_REQUEST_HEADERS) headers.delete(name);
     headers.set("Authorization", `Bearer ${encryptedSession}`);
@@ -274,6 +285,7 @@ async function forwardManagedRequest(
       );
     }
 
+    diagnostic.response(upstream);
     const refreshedSession = upstream.headers.get("x-session-refresh-token");
     // Authentication may rotate the session even if the model returns an error.
     if (refreshedSession) {
@@ -301,6 +313,7 @@ async function forwardManagedRequest(
       }
     }
     if (upstream.status === 401) {
+      await diagnostic.failure("upstream_response", undefined, upstream.status);
       await upstream.body?.cancel();
       if (!supportsRecovery) return loginRequired();
       try {
@@ -333,17 +346,25 @@ async function forwardManagedRequest(
       return loginRequired();
     }
 
-    if (upstream.status >= 500) {
+    if (upstream.status >= 400) {
       await diagnostic.failure("upstream_response", undefined, upstream.status);
     }
     const responseHeaders = new Headers(upstream.headers);
     for (const name of REMOVED_RESPONSE_HEADERS) responseHeaders.delete(name);
     responseHeaders.set("Cache-Control", "no-store");
-    return new Response(observeRelayResponse(upstream.body, diagnostic, upstream.status), {
-      status: upstream.status,
-      statusText: upstream.statusText,
-      headers: responseHeaders,
-    });
+    return new Response(
+      observeRelayResponse(
+        upstream.body,
+        diagnostic,
+        upstream.status,
+        upstream.headers.get("content-type") ?? "",
+      ),
+      {
+        status: upstream.status,
+        statusText: upstream.statusText,
+        headers: responseHeaders,
+      },
+    );
   }
   return loginRequired();
 }
@@ -353,26 +374,47 @@ async function refreshPiDefaults(
   request: Request,
   paths: AxonPaths,
   session: RelaySession,
+  diagnostic: RelayRequestDiagnostics,
 ): Promise<Response> {
   let expectedSession = await session.load(request.signal);
-  if (expectedSession === undefined)
+  if (expectedSession === undefined) {
+    await diagnostic.failure("pi_defaults_refresh", undefined, 401);
     return relayError(401, "Authentication required to refresh Pi defaults.");
+  }
   // Pi owns the terminal during reload, so invalid sections are recorded, never printed.
   let piInvalid = false;
+  let failureLogged = false;
+  diagnostic.attempt(1);
   const result = await fetchClientConfig(expectedSession, {
     onInvalidSection: (section) => {
       if (section === "pi") piInvalid = true;
     },
-    fetcher: (input, init) =>
-      fetch(input, {
-        ...init,
-        signal: AbortSignal.any([request.signal, ...(init?.signal ? [init.signal] : [])]),
-      }),
+    fetcher: async (input, init) => {
+      try {
+        const response = await fetch(input, {
+          ...init,
+          signal: AbortSignal.any([request.signal, ...(init?.signal ? [init.signal] : [])]),
+        });
+        diagnostic.response(response);
+        if (!response.ok) {
+          failureLogged = true;
+          await diagnostic.failure("pi_defaults_refresh", undefined, response.status);
+        }
+        return response;
+      } catch (error) {
+        failureLogged = true;
+        await diagnostic.failure("pi_defaults_refresh", error);
+        throw error;
+      }
+    },
   });
   // Preserve safe rotations even when the config body is invalid, just as at startup.
   if (result.sessionRefreshToken) {
     const outcome = await session.refresh(expectedSession, result.sessionRefreshToken);
-    if (outcome !== "saved") return relayError(409, "Pi defaults refresh was superseded.");
+    if (outcome !== "saved") {
+      await diagnostic.failure("pi_defaults_refresh", undefined, 409);
+      return relayError(409, "Pi defaults refresh was superseded.");
+    }
     expectedSession = result.sessionRefreshToken;
   }
   const beforeWrite = async () => {
@@ -383,8 +425,16 @@ async function refreshPiDefaults(
   };
   await beforeWrite();
   // An invalid pi section is a failed refresh, not "the backend has no Pi defaults".
-  if (!result.config || piInvalid)
+  if (!result.config || piInvalid) {
+    if (!failureLogged) {
+      await diagnostic.failure(
+        "pi_defaults_refresh",
+        new Error("Pi defaults unavailable or invalid"),
+        503,
+      );
+    }
     return relayError(503, "Could not refresh Pi defaults; current settings were preserved.");
+  }
   if (result.config.pi) await applyPiDefaults(paths, result.config.pi, { beforeWrite });
   return Response.json(
     { applied: result.config.pi !== undefined },
@@ -405,15 +455,17 @@ export function startAuthenticatedRequestRelay(
     paths,
     options.signedOut === undefined ? {} : { signedOut: options.signedOut },
   );
-  const session = createRelaySession(paths);
   const diagnostics = createRelayDiagnostics(paths);
+  diagnostics.protectSecret(capability);
+  const session = createRelaySession(paths, diagnostics.protectSecret);
   const server = Bun.serve({
     hostname: "127.0.0.1",
     port: 0,
     development: false,
     idleTimeout: 0,
     maxRequestBodySize: MAX_RELAY_REQUEST_BODY_BYTES,
-    error() {
+    async error(error) {
+      await diagnostics.serverFailure(error);
       return relayError(503, "Axon could not process this request safely");
     },
     async fetch(request) {
@@ -421,34 +473,40 @@ export function startAuthenticatedRequestRelay(
         return relayError(401, "Invalid local Axon request credential");
       }
       const url = new URL(request.url);
-      // Control calls never wait for authentication work so Pi can approve a pending login.
-      const controlResponse = await recovery.handle(request, url);
-      if (controlResponse !== undefined) return controlResponse;
-      if (url.pathname === "/_axon/pi-defaults/refresh") {
-        if (!options.allowPiConfigRefresh || request.method !== "POST" || url.search !== "") {
-          return relayError(404, "Axon endpoint is not available");
-        }
-        try {
-          return await refreshPiDefaults(request, paths, session);
-        } catch {
-          return relayError(503, "Could not refresh Pi defaults; current settings were preserved.");
-        }
-      }
-      const allowed =
-        url.pathname.startsWith("/litellm/") ||
-        (url.pathname === SERVICE_ENDPOINTS.models.recommendations && request.method === "POST");
-      if (!allowed) return relayError(404, "Axon endpoint is not available");
-
+      const diagnostic = diagnostics.start(request, url);
       try {
+        // Control calls never wait for authentication work so Pi can approve a pending login.
+        const controlResponse = await recovery.handle(request, url);
+        if (controlResponse !== undefined) return controlResponse;
+        if (url.pathname === "/_axon/pi-defaults/refresh") {
+          if (!options.allowPiConfigRefresh || request.method !== "POST" || url.search !== "") {
+            return relayError(404, "Axon endpoint is not available");
+          }
+          try {
+            return await refreshPiDefaults(request, paths, session, diagnostic);
+          } catch (error) {
+            await diagnostic.failure("pi_defaults_refresh", error);
+            return relayError(
+              503,
+              "Could not refresh Pi defaults; current settings were preserved.",
+            );
+          }
+        }
+        const allowed =
+          url.pathname.startsWith("/litellm/") ||
+          (url.pathname === SERVICE_ENDPOINTS.models.recommendations && request.method === "POST");
+        if (!allowed) return relayError(404, "Axon endpoint is not available");
+
         return await forwardManagedRequest(
           request,
           url,
           session,
           recovery,
-          diagnostics.start(request, url),
+          diagnostic,
           diagnostics.logLabel,
         );
-      } catch {
+      } catch (error) {
+        await diagnostic.failure("relay_handler", error);
         // Do not let Bun's development error page disclose request headers or locals.
         return relayError(503, "Axon could not process this request safely");
       }

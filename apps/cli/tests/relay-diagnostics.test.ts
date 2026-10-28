@@ -38,7 +38,7 @@ async function records(logFile: string) {
     .map((line) => JSON.parse(line));
 }
 
-test("logs transport metadata, never full URLs, headers, payloads, messages or stacks", async () => {
+test("logs error messages and stacks with transport/build context, not request bodies or credentials", async () => {
   const { logFile, cliSessionId, diagnostic } = setup();
   const error = Object.assign(new TypeError("https://private.test?key=error-secret"), {
     code: "ECONNRESET",
@@ -46,7 +46,7 @@ test("logs transport metadata, never full URLs, headers, payloads, messages or s
   });
   await diagnostic.failure("upstream_stream", error, 200, 123);
   const [record] = await records(logFile);
-  expect(record).toEqual({
+  expect(record).toMatchObject({
     timestamp: expect.any(String),
     cliSessionId,
     requestId: diagnostic.requestId,
@@ -58,9 +58,21 @@ test("logs transport metadata, never full URLs, headers, payloads, messages or s
     bytesReceived: 123,
     errorType: "TypeError",
     errorCode: "ECONNRESET",
+    schemaVersion: 2,
+    cliVersion: expect.any(String),
+    runtime: expect.stringContaining("bun/"),
+    pid: process.pid,
+    error: {
+      name: "TypeError",
+      message: "https://private.test?key=error-secret",
+      stack: "stack-secret",
+    },
   });
   expect(record.requestId).toMatch(/^[a-f0-9-]{36}$/);
-  expect(await readFile(logFile, "utf8")).not.toContain("secret");
+  const log = await readFile(logFile, "utf8");
+  for (const credential of ["session-secret", "caller-secret", "prompt-secret", "query-secret"]) {
+    expect(log).not.toContain(credential);
+  }
   expect((await stat(logFile)).mode & 0o777).toBe(0o600);
   expect((await stat(join(home, "logs"))).mode & 0o777).toBe(0o700);
 });
@@ -92,7 +104,7 @@ test.each([
   "/litellm/files/file_xyz789",
   "/litellm/v1/models/",
 ])(
-  "logs pathname %s, but not query strings, fragments or untrusted exception names/codes",
+  "logs pathname %s and custom exception names/codes without request queries or fragments",
   async (path) => {
     const { logFile, diagnostic } = setup(`${path}?key=query-secret#fragment-secret`);
     await diagnostic.failure(
@@ -104,13 +116,16 @@ test.each([
     );
     const [record] = await records(logFile);
     expect(record.endpoint).toBe(path);
-    expect(record.errorType).toBe("unknown");
-    expect(record.errorCode).toBe("unknown");
-    expect(await readFile(logFile, "utf8")).not.toContain("secret");
+    expect(record.errorType).toBe("name-secret");
+    expect(record.errorCode).toBe("code-secret");
+    expect(record.error.message).toBe("secret");
+    const log = await readFile(logFile, "utf8");
+    expect(log).not.toContain("query-secret");
+    expect(log).not.toContain("fragment-secret");
   },
 );
 
-test("extracts an allowlisted connection code from a wrapped fetch error", async () => {
+test("extracts a connection code and preserves the cause of a wrapped fetch error", async () => {
   const { logFile, diagnostic } = setup();
   await diagnostic.failure(
     "upstream_fetch",
