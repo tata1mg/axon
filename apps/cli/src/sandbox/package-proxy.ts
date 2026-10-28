@@ -6,6 +6,8 @@ import { BlockList, connect, createServer as createTcpServer, type Socket } from
 import type { SandboxPolicy } from "./policy.ts";
 
 const blockedAddresses = new BlockList();
+// These hardcoded addresses define blocked private, local, and special-purpose IPv4
+// subnets, not proxy endpoints. Blocking these ranges helps prevent SSRF.
 for (const [address, prefix] of [
   ["0.0.0.0", 8],
   ["10.0.0.0", 8],
