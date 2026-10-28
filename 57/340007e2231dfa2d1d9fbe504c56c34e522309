@@ -1,0 +1,61 @@
+apps/cli/src/harnesses/pi/restart.ts
+  b96f2cc33493e34a 1,53-54,59,66-67
+apps/cli/src/sandbox/launch.ts
+  b96f2cc33493e34a 96,100-105,109,132,185,277-278,281,320,324-327,330,375,405,426-427,443,479,487-494,499,524-527,545-549
+apps/cli/src/cli/commands/sandbox.ts
+  b96f2cc33493e34a 77,297
+apps/cli/src/harnesses/pi/resources/extensions/axon.ts
+  b96f2cc33493e34a 824,842,846-870,889,910
+apps/cli/src/sandbox/filesystem.ts
+  b96f2cc33493e34a 4,81
+apps/cli/src/cli/auth/request-relay.ts
+  b96f2cc33493e34a 5,388,401-402
+apps/backend/app/core/sandbox.py
+  b96f2cc33493e34a 3,5,9-12,30,49
+apps/cli/src/sandbox/operations.ts
+  b96f2cc33493e34a 17,71,76,99
+apps/cli/src/harnesses/pi/environment.ts
+  b96f2cc33493e34a 12-14
+apps/cli/src/launcher/launch-harness.ts
+  b96f2cc33493e34a 1,5,14,60-61,69-76,132-134,137-138,141-147,150,172-180
+apps/cli/src/sandbox/contracts.ts
+  b96f2cc33493e34a 34-40
+apps/cli/src/sessions/relay.ts
+  b96f2cc33493e34a 9-10,69-91
+apps/cli/tests/request-relay.test.ts
+  b96f2cc33493e34a 301
+apps/cli/src/launcher/contracts.ts
+  b96f2cc33493e34a 14-18,22-23,35-38,61-62
+apps/cli/src/sandbox/session.ts
+  b96f2cc33493e34a 1-2,20-22,26-30,39,50,99,101,104-113,115-122,125-130,170-173,197-198,209-239,252-258,260-261,271-291,294-297
+apps/cli/src/sandbox/configuration-relay.ts
+  b96f2cc33493e34a 1-3,8,10-11,14-15,18-45,50-51,78,88,90,94,96-97,104-105
+apps/cli/src/launcher/spawn-harness.ts
+  b96f2cc33493e34a 10-36,40-42,45,49,79-101,103,108,110,124,130,143-144,148-157,159,173-174
+apps/backend/tests/test_terminal_permissions.py
+  b96f2cc33493e34a 11,38
+apps/cli/src/harnesses/pi/adapter.ts
+  b96f2cc33493e34a 169-171
+apps/backend/tests/test_cli_config.py
+  b96f2cc33493e34a 24,62-63,65,93,112,123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "57340007e2231dfa2d1d9fbe504c56c34e522309",
+  "prompts": {
+    "b96f2cc33493e34a": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "497724",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 516,
+      "total_deletions": 167,
+      "accepted_lines": 429,
+      "overriden_lines": 0
+    }
+  }
+}
