@@ -1,5 +1,7 @@
 import { join } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 
+import { loadEncryptedSession } from "../cli/auth/session.ts";
 import type {
   LaunchContext,
   LaunchSpec,
@@ -71,6 +73,40 @@ export async function createSandboxSession(
     profiles.clear();
   });
   let disposed = false;
+  let operationAuthorization: SandboxAuthorization | undefined;
+  let pendingAuthorization: Promise<SandboxAuthorization> | undefined;
+
+  // The login UI and setup may use the public boundary, but project operations may not.
+  // A fresh authenticated policy must match the already-compiled boundary exactly.
+  const authorizeOperation = async (): Promise<void> => {
+    if (!authorization.bootstrap) return;
+    const session = await loadEncryptedSession(context.paths);
+    if (!session) throw sandboxFailure("Sign in to Axon before running sandbox operations");
+    if (operationAuthorization?.session !== session) {
+      const pending = pendingAuthorization ?? authorizeSandbox(context.paths);
+      pendingAuthorization = pending;
+      try {
+        const verified = await pending;
+        if (!isDeepStrictEqual(verified.policy, authorization.policy)) {
+          throw sandboxFailure(
+            "Sandbox policy changed after login; restart the agent for fresh authorization",
+          );
+        }
+        operationAuthorization = verified;
+      } finally {
+        if (pendingAuthorization === pending) pendingAuthorization = undefined;
+      }
+    }
+    if (
+      !operationAuthorization ||
+      Date.now() >= operationAuthorization.expiresAt ||
+      (await loadEncryptedSession(context.paths)) !== operationAuthorization.session
+    ) {
+      throw sandboxFailure(
+        "Axon sandbox identity changed or authorization expired; retry after signing in",
+      );
+    }
+  };
 
   const assertActive = (): void => {
     if (disposed || Date.now() >= authorization.expiresAt)
@@ -101,6 +137,8 @@ export async function createSandboxSession(
       const revision = filesystemPreferencesRevision(context.paths);
       const wrapped = await createSandboxLaunchSpec(specification, context.paths, authorization, {
         resources,
+        ...(context.catalogOnly ? { catalogOnly: true } : {}),
+        ...(options?.runtimeReadPaths ? { runtimeReadPaths: options.runtimeReadPaths } : {}),
         ...(options?.packageAdministration
           ? {
               purpose: "administration" as const,
@@ -137,6 +175,13 @@ export async function createSandboxSession(
       };
     },
     async run(specification, options) {
+      assertActive();
+      options.signal?.throwIfAborted();
+      if (options.purpose === "operation") {
+        if (context.catalogOnly)
+          throw sandboxFailure("RPC catalog probes cannot run project operations");
+        await authorizeOperation();
+      }
       assertActive();
       options.signal?.throwIfAborted();
       const revision = filesystemPreferencesRevision(context.paths);
@@ -317,9 +362,10 @@ export async function withSandboxSession<Result>(
   operation: (
     sandboxedContext: LaunchContext & { readonly sandbox: SandboxSession },
   ) => Promise<Result>,
+  suppliedAuthorization?: SandboxAuthorization,
 ): Promise<Result> {
   if (context.sandbox) return operation({ ...context, sandbox: context.sandbox });
-  const sandbox = await createSandboxSession(context);
+  const sandbox = await createSandboxSession(context, suppliedAuthorization);
   try {
     return await operation({ ...context, sandbox });
   } finally {

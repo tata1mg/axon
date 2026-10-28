@@ -18,6 +18,9 @@ const PASSTHROUGH = [
   "LINES",
   "SDKROOT",
   "DEVELOPER_DIR",
+  // Non-secret RPC client markers are needed for dialog recovery and model selection.
+  "PASEO_AGENT_ID",
+  "PI_MODEL_RECOMMENDER_RPC",
   "PI_AXON_CLI_VERSION",
   "PI_AXON_LAUNCH_STARTED_AT",
   "PI_CODING_AGENT_DIR",

@@ -1,9 +1,20 @@
+import { homedir } from "node:os";
+
 import { piRestartArguments } from "../harnesses/pi/restart.ts";
-import { isPiOffline } from "../harnesses/pi/setup/packages/invocation.ts";
+import {
+  isPiOffline,
+  isPiRpcMode,
+  piOptionTokens,
+} from "../harnesses/pi/setup/packages/invocation.ts";
 import { loadHarnessAdapter } from "../harnesses/registry.ts";
 import { resolveAxonPaths } from "../product/paths.ts";
 import { validateSandboxResumeSession } from "../sandbox/configuration-relay.ts";
-import { assertSandboxSupported, sandboxFailure } from "../sandbox/policy.ts";
+import { canonicalPath } from "../sandbox/filesystem.ts";
+import {
+  assertSandboxSupported,
+  authorizeSandboxBootstrap,
+  sandboxFailure,
+} from "../sandbox/policy.ts";
 import { withSandboxSession } from "../sandbox/session.ts";
 import { emitProductEvent } from "../telemetry/product-events.ts";
 import type {
@@ -37,8 +48,34 @@ export async function launchRegisteredHarness(
       "Offline Pi launches are disabled: fresh backend sandbox authorization is required",
     );
   }
-  return withSandboxSession({ cwd, environment: inheritedEnvironment, paths }, (context) =>
-    launchSandboxedHarness(registration, userArguments, Date.now(), context, options),
+  const authorization = options.authenticationDeferred
+    ? await authorizeSandboxBootstrap()
+    : undefined;
+  // Paseo's global catalog starts in homedir(), not a user-selected project.
+  // Give that process only a private temporary cwd, never a grant to the home directory.
+  const catalogOnly =
+    isPiRpcMode(userArguments) &&
+    !inheritedEnvironment["PASEO_AGENT_ID"] &&
+    (await canonicalPath(cwd)) === (await canonicalPath(homedir())) &&
+    !piOptionTokens(userArguments).some((argument) =>
+      ["--session", "--continue", "-c", "--resume", "-r", "--extension", "-e"].includes(argument),
+    );
+  return withSandboxSession(
+    {
+      cwd,
+      environment: inheritedEnvironment,
+      paths,
+      ...(catalogOnly ? { catalogOnly: true } : {}),
+    },
+    (context) =>
+      launchSandboxedHarness(
+        registration,
+        catalogOnly ? [...userArguments, "--no-session"] : userArguments,
+        Date.now(),
+        context,
+        options,
+      ),
+    authorization,
   );
 }
 
@@ -134,6 +171,16 @@ async function launchSandboxedHarness(
   // Only the launcher may wrap the already-validated managed executable.
   // Keep the parent-owned relay and its environment stable across child replacements.
   const originalSpecification = specification;
+  // RPC clients supply a generated integration extension and sometimes an MCP file
+  // outside the project. Grant only those explicit files, not their temporary directory.
+  const runtimeReadPaths: string[] = [];
+  const optionTokens = piOptionTokens(userArguments);
+  for (let index = 0; index < optionTokens.length; index++) {
+    if (["--extension", "-e", "--mcp-config"].includes(optionTokens[index] ?? "")) {
+      const path = optionTokens[++index];
+      if (path) runtimeReadPaths.push(path);
+    }
+  }
   const wrap = (candidate: LaunchSpec): Promise<LaunchSpec> =>
     sandboxedContext.sandbox.wrap(
       {
@@ -143,6 +190,7 @@ async function launchSandboxedHarness(
         }),
       },
       {
+        runtimeReadPaths,
         // Pi dispatches package subcommands only from the first argument.
         packageAdministration: ["install", "remove", "uninstall", "update"].includes(
           userArguments[0] ?? "",

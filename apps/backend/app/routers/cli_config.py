@@ -1,8 +1,8 @@
-"""Protected CLI preferences. Browser login and releases remain separate APIs."""
+"""Protected CLI preferences and the policy-only sandbox bootstrap for RPC login."""
 
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 from pydantic import BaseModel, Field
 
 from app.authentication import require_authenticated_user
@@ -18,7 +18,12 @@ from app.core.sandbox import CliSandboxPolicy
 from app.core.terminal_permissions import CliTerminalPermissionsConfig
 from app.core.web_search import CliWebSearchConfig
 
-router = APIRouter(prefix="/api/v1/cli/config", tags=["cli-config"], dependencies=[Depends(require_authenticated_user)])
+router = APIRouter(prefix="/api/v1/cli/config", tags=["cli-config"])
+
+
+class CliSandboxBootstrapResponse(BaseModel):
+    schema_version: Literal[1] = Field(default=1, alias="schemaVersion")
+    sandbox: CliSandboxPolicy
 
 
 class CliConfigResponse(BaseModel):
@@ -33,7 +38,22 @@ class CliConfigResponse(BaseModel):
     terminal_permissions: CliTerminalPermissionsConfig | None = Field(default=None, alias="terminalPermissions")
 
 
-@router.get("", response_model=CliConfigResponse, response_model_exclude_none=True)
+@router.get("/sandbox-bootstrap", response_model=CliSandboxBootstrapResponse)
+async def sandbox_bootstrap(
+    settings: Annotated[Settings, Depends(get_settings)], response: Response
+) -> CliSandboxBootstrapResponse:
+    # RPC must start inside Safehouse before its chat can offer browser login.
+    # Publish only the sandbox boundary: preferences and managed APIs still require auth.
+    response.headers["Cache-Control"] = "no-store"
+    return CliSandboxBootstrapResponse(sandbox=settings.sandbox.cli_config())
+
+
+@router.get(
+    "",
+    response_model=CliConfigResponse,
+    response_model_exclude_none=True,
+    dependencies=[Depends(require_authenticated_user)],
+)
 async def client_config(settings: Annotated[Settings, Depends(get_settings)]) -> CliConfigResponse:
     # Explicit projection only: never return auth_data, refresh tokens, or backend settings.
     return CliConfigResponse(

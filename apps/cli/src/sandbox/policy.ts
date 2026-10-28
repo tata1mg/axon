@@ -1,5 +1,9 @@
 import { loadEncryptedSession, refreshEncryptedSession } from "../cli/auth/session.ts";
-import { type ClientConfig, fetchClientConfig } from "../cli/client-config.ts";
+import {
+  type ClientConfig,
+  fetchClientConfig,
+  fetchSandboxBootstrap,
+} from "../cli/client-config.ts";
 import { LauncherError } from "../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../launcher/exit-status.ts";
 import type { AxonPaths } from "../product/paths.ts";
@@ -11,6 +15,8 @@ export interface SandboxAuthorization {
   readonly expiresAt: number;
   readonly session?: string;
   readonly clientConfig?: ClientConfig;
+  /** Starts the RPC login UI only; operations still need authenticated authorization. */
+  readonly bootstrap?: boolean;
 }
 
 export function sandboxFailure(message: string, cause?: unknown): LauncherError {
@@ -28,6 +34,19 @@ export function assertSandboxSupported(): void {
       LAUNCHER_EXIT_STATUS.unsupportedEnvironment,
     );
   }
+}
+
+/** Signed-out RPC still fetches a fresh backend policy; no local fallback or sandbox bypass. */
+export async function authorizeSandboxBootstrap(): Promise<SandboxAuthorization> {
+  const requestedAt = Date.now();
+  const policy = await fetchSandboxBootstrap({ timeoutMs: 5_000 });
+  if (!policy)
+    throw sandboxFailure("Required backend sandbox bootstrap policy is missing or invalid");
+  return {
+    policy,
+    expiresAt: requestedAt + policy.maxSessionSeconds * 1_000,
+    bootstrap: true,
+  };
 }
 
 /** Security policy is required, never cached or replaced with optional preferences. */

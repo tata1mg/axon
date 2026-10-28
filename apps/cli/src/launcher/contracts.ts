@@ -9,6 +9,8 @@ export interface LaunchContext {
   readonly paths: AxonPaths;
   /** Owned by Axon for the entire invocation, before any Pi executable runs. */
   readonly sandbox?: SandboxSession;
+  /** Global RPC discovery has no project and must never execute project operations. */
+  readonly catalogOnly?: boolean;
 }
 
 export interface SandboxResumeSession {
@@ -61,7 +63,10 @@ export interface SandboxSession {
   clientConfig(session: string): ClientConfig | undefined;
   wrap(
     specification: LaunchSpec,
-    options?: { readonly packageAdministration: boolean },
+    options?: {
+      readonly packageAdministration: boolean;
+      readonly runtimeReadPaths?: readonly string[];
+    },
   ): Promise<LaunchSpec>;
   run(specification: LaunchSpec, options: SandboxCommandOptions): Promise<SandboxCommandResult>;
   dispose(): void;

@@ -133,6 +133,8 @@ interface SandboxLaunchOptions {
   readonly purpose?: "session" | "probe" | "provision" | "administration" | "operation";
   readonly project?: string;
   readonly writePaths?: readonly string[];
+  readonly runtimeReadPaths?: readonly string[];
+  readonly catalogOnly?: boolean;
   readonly resources?: SandboxResources;
 }
 
@@ -280,12 +282,18 @@ export async function createSandboxLaunchSpec(
   const purpose = options.purpose ?? "session";
   const brokeredSession =
     purpose === "session" && specification.environment["PI_AXON_SANDBOX_OPERATIONS"] === "1";
+  const catalogOnly = options.catalogOnly === true && purpose === "session";
+  const catalogDirectory = catalogOnly ? options.resources?.temporary : undefined;
+  if (catalogOnly && !catalogDirectory)
+    throw sandboxFailure("RPC catalog requires an owned sandbox");
   const projectAccess =
-    purpose === "operation" || purpose === "administration" || purpose === "session";
+    !catalogOnly &&
+    (purpose === "operation" || purpose === "administration" || purpose === "session");
   const provisioning = purpose === "provision" || purpose === "administration";
   if (Date.now() >= expiresAt) throw sandboxFailure("Sandbox authorization expired during startup");
-  const project =
-    purpose === "session" || purpose === "operation" || purpose === "administration"
+  const project = catalogDirectory
+    ? await canonicalPath(catalogDirectory)
+    : purpose === "session" || purpose === "operation" || purpose === "administration"
       ? await validateFilesystemProject(paths, options.project ?? specification.cwd)
       : await canonicalPath(specification.cwd);
   const home = await canonicalPath(homedir());
@@ -379,7 +387,8 @@ export async function createSandboxLaunchSpec(
     if (purpose !== "probe")
       rules.push(`(allow network-outbound (remote tcp ${quoted(`localhost:${proxyPort}`)}))`);
     const ssh =
-      purpose === "session" || purpose === "operation" || purpose === "administration"
+      !catalogOnly &&
+      (purpose === "session" || purpose === "operation" || purpose === "administration")
         ? resources.ssh
         : undefined;
     if (ssh) {
@@ -397,6 +406,13 @@ export async function createSandboxLaunchSpec(
     }
     rules.push(...(await readGrant(resources.gitBin)));
     for (const path of SYSTEM_READ_PATHS) rules.push(...(await readGrant(path)));
+    for (const path of options.runtimeReadPaths ?? []) {
+      const file = await canonicalPath(path, specification.cwd);
+      // Extension directories keep their existing project grants; never grant an
+      // arbitrary external directory merely because it appeared in the launch args.
+      if (!(await lstat(file)).isFile()) continue;
+      rules.push(...ancestorRules(file), `(allow file-read* (literal ${quoted(file)}))`);
+    }
     for (const path of DEVICE_WRITE_PATHS) rules.push(pathRule("allow file-write*", path));
     rules.push('(allow file-write* (regex #"^/dev/(ttys|pty)[^/]*$"))');
     // Persistent Pi state is writable; executable packages remain read-only.
@@ -416,7 +432,7 @@ export async function createSandboxLaunchSpec(
     }
     const writableDirectories = [temporary];
     if (purpose === "session") {
-      await privateDirectory(projectSessionDirectory(paths, project));
+      if (!catalogOnly) await privateDirectory(projectSessionDirectory(paths, project));
       // Keep Pi's normal persistent session picker/resume behavior across projects.
       writableDirectories.push(...PI_STATE_DIRECTORIES.map((directory) => join(piRoot, directory)));
     } else {
@@ -644,6 +660,7 @@ export async function createSandboxLaunchSpec(
     let disposed = false;
     return Object.freeze({
       ...specification,
+      cwd: catalogOnly ? project : specification.cwd,
       executable: "/usr/bin/sandbox-exec",
       arguments: ["-f", profile, specification.executable, ...specification.arguments],
       environment,

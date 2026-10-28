@@ -399,7 +399,8 @@ function createSandboxScopeDisplay(ctx: ExtensionContext) {
         const contentWidth = width - padding * 2;
         const lines = [
           theme.fg("mdHeading", "[Sandbox]"),
-          settingLine("Scope", "this Axon run", "accent") + theme.fg("dim", " · resets on exit"),
+          settingLine("Scope", "this Axon session", "accent") +
+            theme.fg("dim", " · resets on exit"),
         ];
         if (scope === undefined) {
           lines.push(

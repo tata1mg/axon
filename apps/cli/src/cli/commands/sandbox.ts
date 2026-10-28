@@ -18,7 +18,7 @@ import { formatHomePath } from "../../sessions/display.ts";
 
 type SandboxMenuUI = Pick<
   typeof prompts,
-  "select" | "autocomplete" | "text" | "confirm" | "intro" | "outro" | "cancel" | "note"
+  "select" | "autocomplete" | "text" | "intro" | "outro" | "cancel" | "note"
 >;
 type MenuAction = "mode" | "allow-read" | "allow-write" | "deny" | "manage" | "save" | "discard";
 
@@ -46,13 +46,13 @@ export function formatFilesystemPermissions(
 ): string {
   const lines = [
     `${colors.bold("Project")}      ${colors.cyan(formatHomePath(project))} (${formatFilesystemAccess(preferences.projectMode)})`,
-    colors.dim("Project/path rules only; required runtime access is not listed."),
+    colors.dim("Project and directory/file rules only; required runtime access is not listed."),
     "",
   ];
   for (const [label, entries, color] of [
-    ["Additional read-only paths", preferences.readPaths, colors.green],
-    ["Additional read/write paths", preferences.writePaths, colors.yellow],
-    ["Blocked paths", preferences.denyPaths, colors.red],
+    ["Additional read-only directories/files", preferences.readPaths, colors.green],
+    ["Additional read/write directories/files", preferences.writePaths, colors.yellow],
+    ["Blocked directories/files", preferences.denyPaths, colors.red],
   ] as const) {
     lines.push(
       colors.bold(color(label)),
@@ -64,13 +64,11 @@ export function formatFilesystemPermissions(
   }
   lines.push(
     colors.bold(colors.cyan("Rules and safeguards")),
-    colors.dim("Read-only path rules override write grants; blocked/protected paths are excluded."),
+    colors.dim(
+      "Read-only rules override write grants; blocked/protected directories/files are excluded.",
+    ),
     colors.dim("Built-in protected locations include DeputyDev, SSH, cloud and Keychain storage."),
     colors.dim("Managed packages and runtime code remain read-only during your chat."),
-    colors.dim("Git and network restrictions are backend-managed and unchanged by this editor."),
-    colors.yellow(
-      "Saving requires fresh backend authorization and validation of filesystem rules.",
-    ),
     colors.yellow(
       "Saving stops running file/shell operations; new operations use the saved rules.",
     ),
@@ -109,7 +107,7 @@ function formatFilesystemChanges(
       );
     }
   }
-  if (lines.length === 0) return "No access changes; only path rule ordering changed.";
+  if (lines.length === 0) return "No access changes; only directory/file rule ordering changed.";
   lines.push("", "Removing an explicit rule leaves parent grants and baseline access in effect.");
   return lines.join("\n");
 }
@@ -157,31 +155,31 @@ export async function runSandboxMenu(
         },
         {
           value: "allow-read",
-          label: colors.green("Add read-only paths"),
-          hint: "enter a file or directory path",
+          label: colors.green("Add read-only directories/files"),
+          hint: "allow the agent to inspect directories/files without changing them",
         },
         {
           value: "allow-write",
-          label: colors.yellow("Add read/write paths"),
+          label: colors.yellow("Add read/write directories/files"),
           hint: "allow the agent to edit, create and remove files",
         },
         {
           value: "deny",
-          label: colors.red("Block paths"),
+          label: colors.red("Block directories/files"),
           hint: "exclude sensitive files or subdirectories",
         },
-        { value: "manage", label: "Change or remove a path rule" },
+        { value: "manage", label: "Change or remove a directory/file rule" },
         {
           value: "save",
           label: "Review changes and save",
         },
-        { value: "discard", label: changed() ? "Discard changes and exit" : "Exit" },
+        { value: "discard", label: changed() ? "← Back (discard changes)" : "← Back" },
       ],
     });
     if (cancelled(action)) return false;
     try {
       if (action === "mode") {
-        const mode = await ui.select<FilesystemPreferences["projectMode"]>({
+        const mode = await ui.select<FilesystemPreferences["projectMode"] | "back">({
           ...cancellation,
           message: "How may Pi access the project directory?",
           initialValue: draft.projectMode,
@@ -196,19 +194,38 @@ export async function runSandboxMenu(
               label: colors.yellow("Read/write"),
               hint: "edit, create and remove project files",
             },
+            { value: "back", label: "← Back" },
           ],
         });
         if (cancelled(mode)) return false;
+        if (mode === "back") continue;
         draft = await editFilesystemPreferences(paths, project, draft, "mode", mode);
       } else if (action === "allow-read" || action === "allow-write" || action === "deny") {
-        const selected = await ui.text({
-          ...cancellation,
-          message: "Enter a file or directory path",
-          placeholder: "~/projects/another-repository",
-          validate: (value) => (value?.trim() ? undefined : "Enter a path."),
-        });
-        if (cancelled(selected)) return false;
-        draft = await editFilesystemPreferences(paths, project, draft, action, selected);
+        while (!signal?.aborted) {
+          const entry = await ui.select<"enter" | "back">({
+            ...cancellation,
+            message:
+              action === "deny"
+                ? "Block directories/files"
+                : action === "allow-read"
+                  ? "Add read-only directories/files"
+                  : "Add read/write directories/files",
+            options: [
+              { value: "enter", label: "Enter a directory/file" },
+              { value: "back", label: "← Back" },
+            ],
+          });
+          if (cancelled(entry)) return false;
+          if (entry === "back") break;
+          const selected = await ui.text({
+            ...cancellation,
+            message: "Enter a directory/file (leave empty to go back)",
+            placeholder: "~/projects/another-repository",
+          });
+          if (cancelled(selected)) return false;
+          if (!selected.trim()) continue;
+          draft = await editFilesystemPreferences(paths, project, draft, action, selected);
+        }
       } else if (action === "manage") {
         const entries = [
           ...draft.readPaths.map((path) => ({
@@ -229,49 +246,56 @@ export async function runSandboxMenu(
         ];
         if (!entries.length) {
           ui.note(
-            "No path rules configured. Add read-only, read/write or blocked paths first.",
-            "Paths",
+            "No directory/file rules configured. Add read-only, read/write or blocked directories/files first.",
+            "Directories/files",
           );
           continue;
         }
-        const selected = await ui.autocomplete<string>({
-          ...cancellation,
-          message: "Which path?",
-          placeholder: "Search configured paths",
-          maxItems: 8,
-          options: [...entries, { value: "back", label: "← Back", hint: "" }],
-        });
-        if (cancelled(selected)) return false;
-        if (selected === "back") continue;
-        const operation = await ui.select<Exclude<FilesystemOperation, "mode"> | "back">({
-          ...cancellation,
-          message: formatHomePath(selected),
-          options: [
-            { value: "allow-read", label: colors.green("Read-only") },
-            { value: "allow-write", label: colors.yellow("Read/write") },
-            { value: "deny", label: colors.red("Blocked") },
-            {
-              value: "revoke",
-              label: "Remove explicit rule",
-              hint: "parent grants and baseline access still apply",
-            },
-            { value: "back", label: "← Back" },
-          ],
-        });
-        if (cancelled(operation)) return false;
-        // Drafts may temporarily conflict with backend policy while removing old grants.
-        // The complete draft is validated against fresh backend limits before saving.
-        if (operation !== "back")
+        while (!signal?.aborted) {
+          const selected = await ui.autocomplete<string>({
+            ...cancellation,
+            message: "Which directory/file?",
+            placeholder: "Search configured directories/files",
+            maxItems: 8,
+            options: [...entries, { value: "back", label: "← Back", hint: "" }],
+          });
+          if (cancelled(selected)) return false;
+          if (selected === "back") break;
+          const operation = await ui.select<Exclude<FilesystemOperation, "mode"> | "back">({
+            ...cancellation,
+            message: formatHomePath(selected),
+            options: [
+              { value: "allow-read", label: colors.green("Read-only") },
+              { value: "allow-write", label: colors.yellow("Read/write") },
+              { value: "deny", label: colors.red("Blocked") },
+              {
+                value: "revoke",
+                label: "Remove explicit rule",
+                hint: "parent grants and baseline access still apply",
+              },
+              { value: "back", label: "← Back" },
+            ],
+          });
+          if (cancelled(operation)) return false;
+          if (operation === "back") continue;
+          // Drafts may temporarily conflict with backend policy while removing old grants.
+          // The complete draft is validated against fresh backend limits before saving.
           draft = await editFilesystemPreferences(paths, project, draft, operation, selected);
+          break;
+        }
       } else if (action === "discard") {
         if (changed()) {
-          const discard = await ui.confirm({
+          const discard = await ui.select<"discard" | "back">({
             ...cancellation,
             message: "Discard all unsaved changes?",
-            initialValue: false,
+            initialValue: "back",
+            options: [
+              { value: "discard", label: "Discard changes and return to chat" },
+              { value: "back", label: "← Back", hint: "keep editing" },
+            ],
           });
           if (cancelled(discard)) return false;
-          if (!discard) continue;
+          if (discard === "back") continue;
         }
         ui.outro("No changes saved.");
         return false;
@@ -281,20 +305,24 @@ export async function runSandboxMenu(
           return false;
         }
         ui.note(formatFilesystemChanges(original, draft), "Review changes before saving");
-        const save = await ui.confirm({
+        const save = await ui.select<"save" | "back">({
           ...cancellation,
           message: "Apply these permissions now, until Axon exits?",
-          initialValue: false,
+          initialValue: "back",
+          options: [
+            { value: "save", label: "Apply permissions" },
+            { value: "back", label: "← Back", hint: "keep editing" },
+          ],
         });
         if (cancelled(save)) return false;
-        if (!save) continue;
+        if (save === "back") continue;
         signal?.throwIfAborted();
         // Fetch current backend restrictions before committing any permissions.
         const currentPolicy = (await authorizeSandbox(paths)).policy;
         signal?.throwIfAborted();
         await saveFilesystemPreferences(paths, project, draft, original, currentPolicy);
         ui.outro(
-          "Sandbox permissions applied for this Axon run. Restarting Pi to resume your chat safely.",
+          "Sandbox permissions applied for this Axon session. Restarting Pi to resume your chat safely.",
         );
         return true;
       }

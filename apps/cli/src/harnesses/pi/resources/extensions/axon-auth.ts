@@ -358,7 +358,10 @@ function startAuthSession(
     }
   };
 
-  void poll();
+  // Paseo attaches its event subscriber after the initial get_state response.
+  // A one-shot dialog emitted immediately from session_start can otherwise be lost.
+  if (rpc) timer = setTimeout(() => void poll(), settings.pollIntervalMs);
+  else void poll();
   return {
     login() {
       command ??= runCommand().finally(() => {

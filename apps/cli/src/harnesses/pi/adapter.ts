@@ -92,7 +92,7 @@ export function createPiAdapter(): HarnessAdapter {
         let config: ClientConfig | undefined;
         // The mandatory sandbox fetch already contains these preferences. Reuse it only
         // for the same verified credential; identity changes require fresh authorization.
-        if (encryptedSession && !setup.offline) {
+        if (encryptedSession && !setup.offline && !context.authenticationDeferred) {
           const authorizedConfig = context.sandbox?.clientConfig(encryptedSession);
           const result = authorizedConfig
             ? { config: authorizedConfig, sessionRefreshToken: undefined }
@@ -195,6 +195,7 @@ export function createPiAdapter(): HarnessAdapter {
         // Keep the cache intact whenever the provider will not discover replacements.
         if (
           encryptedSession &&
+          !context.authenticationDeferred &&
           !setup.offline &&
           effectiveProviderEnvironment["PI_OFFLINE"] === undefined &&
           effectiveProviderEnvironment["LITELLM_OFFLINE"] !== "1" &&
