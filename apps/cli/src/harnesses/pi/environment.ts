@@ -3,6 +3,7 @@ import { createHarnessEnvironment, type EnvironmentOverrides } from "../../launc
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../../product/endpoints.ts";
 import { PRODUCT_IDENTITY } from "../../product/identity.ts";
 import type { AxonPaths } from "../../product/paths.ts";
+import { randomStartupTip } from "../../product/tips.ts";
 
 const PI_PROCESS_OVERRIDES = Object.freeze({
   PI_SKIP_VERSION_CHECK: "1",
@@ -85,6 +86,8 @@ export function createPiEnvironment(
     createPiDirectoryOverrides(paths),
     PI_PROCESS_OVERRIDES,
     {
+      // Select once per launch; header renders and status updates keep the same tip.
+      PI_AXON_STARTUP_TIP: randomStartupTip(),
       // The provider extension gives settings.json displayName precedence.
       // Preserve explicit env values; brand only an otherwise unconfigured label.
       LITELLM_DISPLAY_NAME:

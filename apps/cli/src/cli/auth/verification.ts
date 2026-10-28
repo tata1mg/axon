@@ -4,6 +4,7 @@ import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../../product/endpoints.ts";
 import type { AxonPaths } from "../../product/paths.ts";
 import { emitProductEvent } from "../../telemetry/product-events.ts";
+import { createRelayRedactor, relayErrorDetails } from "./relay-error-details.ts";
 import { isEncryptedSession, loadEncryptedSession, refreshEncryptedSession } from "./session.ts";
 
 export type SessionVerificationStatus = "VERIFIED" | "NOT_VERIFIED" | "EXPIRED";
@@ -12,11 +13,20 @@ export type SessionVerificationStatus = "VERIFIED" | "NOT_VERIFIED" | "EXPIRED";
 export async function verifyEncryptedSession(
   encryptedSession: string,
   paths?: AxonPaths,
+  options: { readonly onCredential?: (value: string) => void } = {},
 ): Promise<SessionVerificationStatus> {
   const startedAt = Date.now();
+  // LauncherError causes may also be printed by AXON_DEBUG outside the relay.
+  // Preserve a sanitized snapshot, never an original exception holding a token.
+  const redactor = createRelayRedactor();
+  const protectCredential = (value: string) => {
+    redactor.protectSecret(value);
+    options.onCredential?.(value);
+  };
   try {
     // A concurrent login/refresh must be verified, never overwritten or treated as expired.
     for (let attempt = 0; attempt < 3; attempt += 1) {
+      protectCredential(encryptedSession);
       const response = await fetch(
         resolveServiceUrl(
           BUILD_INFO.serviceOrigin,
@@ -31,6 +41,8 @@ export async function verifyEncryptedSession(
           signal: AbortSignal.timeout(10_000),
         },
       );
+      const refreshedSession = response.headers.get("x-session-refresh-token");
+      if (refreshedSession !== null) protectCredential(refreshedSession);
       let status: SessionVerificationStatus | undefined;
       let invalidResponse = false;
       if (response.status === 401 || response.status === 403) {
@@ -53,7 +65,6 @@ export async function verifyEncryptedSession(
       }
 
       if (paths) {
-        const refreshedSession = response.headers.get("x-session-refresh-token");
         if (refreshedSession !== null) {
           if (
             (status !== undefined && status !== "VERIFIED") ||
@@ -64,7 +75,7 @@ export async function verifyEncryptedSession(
           let saved: boolean;
           try {
             saved = await refreshEncryptedSession(paths, encryptedSession, refreshedSession);
-          } catch {
+          } catch (error) {
             emitProductEvent({
               category: "auth",
               stage: "refresh",
@@ -74,7 +85,10 @@ export async function verifyEncryptedSession(
             throw new LauncherError(
               "Your refreshed Axon session could not be saved safely",
               LAUNCHER_EXIT_STATUS.profileFailure,
-              { remediation: "Check permissions on the shared authentication file, then retry." },
+              {
+                cause: relayErrorDetails(error, redactor).error,
+                remediation: "Check permissions on the shared authentication file, then retry.",
+              },
             );
           }
           emitProductEvent({
@@ -86,6 +100,7 @@ export async function verifyEncryptedSession(
           if (saved) encryptedSession = refreshedSession;
         }
         const currentSession = await loadEncryptedSession(paths);
+        if (currentSession !== undefined) protectCredential(currentSession);
         if (currentSession !== encryptedSession) {
           if (currentSession === undefined)
             throw new Error("Saved session changed during verification");
@@ -122,7 +137,10 @@ export async function verifyEncryptedSession(
     throw new LauncherError(
       "Could not verify your Axon session",
       LAUNCHER_EXIT_STATUS.profileFailure,
-      { remediation: "Check connectivity and the auth service, then retry." },
+      {
+        cause: relayErrorDetails(error, redactor).error,
+        remediation: "Check connectivity and the auth service, then retry.",
+      },
     );
   }
 }

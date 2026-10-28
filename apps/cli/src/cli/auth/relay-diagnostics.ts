@@ -3,46 +3,16 @@ import { lstat, mkdir, open, rename } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative, sep } from "node:path";
 
+import { BUILD_INFO } from "../../build-info.ts";
 import { withFileLock } from "../../launcher/file-lock.ts";
 import { PRODUCT_IDENTITY } from "../../product/identity.ts";
 import type { AxonPaths } from "../../product/paths.ts";
+import { createRelayRedactor, relayErrorDetails } from "./relay-error-details.ts";
 
 const MAX_LOG_BYTES = 1024 * 1024;
-const ERROR_TYPES = new Set(["Error", "TypeError", "TimeoutError", "AbortError"]);
-const ERROR_CODES = new Set([
-  "ECONNRESET",
-  "ECONNREFUSED",
-  "ECONNABORTED",
-  "EPIPE",
-  "ETIMEDOUT",
-  "ENOTFOUND",
-  "EAI_AGAIN",
-  // Bun's native fetch reports these instead of the Node/undici errno names.
-  "ConnectionClosed",
-  "ConnectionRefused",
-  "FailedToOpenSocket",
-  // TLS verification failures, e.g. a missing corporate proxy CA.
-  "UNABLE_TO_GET_ISSUER_CERT",
-  "UNABLE_TO_GET_ISSUER_CERT_LOCALLY",
-  "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
-  "SELF_SIGNED_CERT_IN_CHAIN",
-  "DEPTH_ZERO_SELF_SIGNED_CERT",
-  "CERT_HAS_EXPIRED",
-  "ERR_TLS_CERT_ALTNAME_INVALID",
-  "UND_ERR_SOCKET",
-  "UND_ERR_CONNECT_TIMEOUT",
-  "UND_ERR_HEADERS_TIMEOUT",
-  "UND_ERR_BODY_TIMEOUT",
-  "EACCES",
-  "EPERM",
-  "EROFS",
-  "ENOSPC",
-  "EDQUOT",
-  "EIO",
-  "EBUSY",
-  "EMFILE",
-  "ENFILE",
-]);
+const MAX_RECORD_BYTES = 64 * 1024;
+const MAX_ERROR_BODY_BYTES = 8192;
+type DiagnosticContext = Record<string, string | number | boolean | null>;
 
 type FailureStage =
   | "upstream_fetch"
@@ -50,36 +20,24 @@ type FailureStage =
   | "upstream_response"
   | "session_load"
   | "session_refresh"
-  | "session_verify";
+  | "session_verify"
+  | "upstream_response_body"
+  | "pi_defaults_refresh"
+  | "relay_handler"
+  | "relay_server";
 
 export interface RelayRequestDiagnostics {
   readonly requestId: string;
+  attempt(attempt: number): void;
+  response(response: Response): void;
+  chunk(bytes: number): void;
   failure(
     stage: FailureStage,
     error?: unknown,
     status?: number,
     bytesReceived?: number,
+    context?: DiagnosticContext,
   ): Promise<void>;
-}
-
-/** Never serialize an exception: its message, stack, URL and cause may contain credentials. */
-function errorFields(error: unknown): { errorType: string; errorCode: string } {
-  try {
-    const name = error instanceof Error ? error.name : undefined;
-    let code: unknown;
-    let current = error;
-    for (let depth = 0; depth < 3 && current !== null && typeof current === "object"; depth++) {
-      code = Reflect.get(current, "code");
-      if (typeof code === "string" && ERROR_CODES.has(code)) break;
-      current = Reflect.get(current, "cause");
-    }
-    return {
-      errorType: typeof name === "string" && ERROR_TYPES.has(name) ? name : "unknown",
-      errorCode: typeof code === "string" && ERROR_CODES.has(code) ? code : "unknown",
-    };
-  } catch {
-    return { errorType: "unknown", errorCode: "unknown" };
-  }
 }
 
 async function appendDiagnostic(paths: AxonPaths, logFile: string, line: string): Promise<void> {
@@ -158,19 +116,38 @@ export function createRelayDiagnostics(paths: AxonPaths): {
   readonly logFile: string;
   readonly logLabel: string;
   readonly cliSessionId: string;
+  protectSecret(value: string | null | undefined): void;
+  serverFailure(error: unknown): Promise<void>;
   start(request: Request, url: URL): RelayRequestDiagnostics;
 } {
   const logFile = join(paths.home, "logs", "relay.log");
+  // Preserve more than the runtime's usual ten frames for errors created after
+  // relay startup, without allowing unbounded stacks in recursive code.
+  Error.stackTraceLimit = Math.max(Error.stackTraceLimit ?? 10, 50);
   // One diagnostics instance belongs to one CLI launch, not a saved Pi conversation
   // or authentication session. Never derive this identifier from credentials.
   const cliSessionId = crypto.randomUUID();
-  return {
+  const redactor = createRelayRedactor();
+  const diagnostics = {
+    protectSecret: redactor.protectSecret,
+    async serverFailure(error: unknown) {
+      const url = new URL("http://localhost/_axon/relay");
+      await diagnostics.start(new Request(url.toString()), url).failure("relay_server", error);
+    },
     logFile,
     cliSessionId,
     logLabel: relayLogLabel(paths, logFile),
-    start(request, url) {
+    start(request: Request, url: URL): RelayRequestDiagnostics {
+      redactor.protectSecret(request.headers.get("authorization")?.replace(/^Bearer\s+/i, ""));
+      redactor.protectSecret(request.headers.get("x-api-key"));
       const requestId = crypto.randomUUID();
       const started = performance.now();
+      let attempt = 0;
+      let fetchStarted = started;
+      let headersMs: number | null = null;
+      let firstByteMs: number | null = null;
+      let lastByteAt: number | null = null;
+      let responseContext: DiagnosticContext = {};
       // Keep resource IDs for debugging, but never include query strings or fragments.
       const endpoint = url.pathname;
       const method = /^(GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS)$/.test(request.method)
@@ -178,28 +155,113 @@ export function createRelayDiagnostics(paths: AxonPaths): {
         : "<other>";
       return {
         requestId,
-        async failure(stage, error, status, bytesReceived = 0) {
+        attempt(value) {
+          attempt = value;
+          fetchStarted = performance.now();
+          headersMs = null;
+          firstByteMs = null;
+          lastByteAt = null;
+          responseContext = {};
+        },
+        response(response) {
+          headersMs = Math.round(performance.now() - fetchStarted);
+          for (const header of [
+            "x-session-refresh-token",
+            "new_session_data",
+            "x-encrypted-session-data",
+            "x-auth-context",
+            "authorization",
+            "x-api-key",
+            "api-key",
+          ]) {
+            redactor.protectSecret(response.headers.get(header)?.replace(/^Bearer\s+/i, ""));
+          }
+          responseContext = {
+            contentType: response.headers.get("content-type"),
+            upstreamRequestId: response.headers.get("x-request-id"),
+            litellmCallId: response.headers.get("x-litellm-call-id"),
+          };
+        },
+        chunk(bytes) {
+          if (bytes === 0) return;
+          const now = performance.now();
+          firstByteMs ??= Math.round(now - fetchStarted);
+          lastByteAt = now;
+        },
+        async failure(stage, error, status, bytesReceived = 0, context = {}) {
           if (request.signal.aborted) return;
-          await appendDiagnostic(
-            paths,
-            logFile,
-            `${JSON.stringify({
+          // Serialization is best effort too: a hostile exception must never
+          // replace the actual model/storage error or escape onto the terminal.
+          try {
+            const now = performance.now();
+            const safeContext = Object.fromEntries(
+              Object.entries({ ...responseContext, ...context }).map(([key, value]) => [
+                key,
+                typeof value === "string"
+                  ? redactor.text(value, key === "responseBody" ? MAX_ERROR_BODY_BYTES : 1024)
+                  : value,
+              ]),
+            );
+            const fields = relayErrorDetails(error, redactor);
+            const record: Record<string, unknown> = {
+              schemaVersion: 2,
               timestamp: new Date().toISOString(),
               cliSessionId,
               requestId,
-              endpoint,
+              endpoint: redactor.text(endpoint, 2048),
               method,
               stage,
               status: status ?? null,
-              durationMs: Math.round(performance.now() - started),
+              durationMs: Math.round(now - started),
+              attempt,
+              headersMs,
+              firstByteMs,
+              idleMs: lastByteAt === null ? null : Math.round(now - lastByteAt),
               bytesReceived,
-              ...errorFields(error),
-            })}\n`,
-          );
+              cliVersion: redactor.text(BUILD_INFO.version, 256),
+              commit: redactor.text(BUILD_INFO.commit, 256),
+              runtime: redactor.text(`bun/${Bun.version}`, 256),
+              platform: `${process.platform}-${process.arch}`,
+              pid: process.pid,
+              upstreamOrigin: redactor.text(new URL(BUILD_INFO.serviceOrigin).origin, 1024),
+              ...safeContext,
+              ...fields,
+              errorType: redactor.text(fields.errorType, 256),
+              errorCode:
+                typeof fields.errorCode === "string"
+                  ? redactor.text(fields.errorCode, 256)
+                  : fields.errorCode,
+            };
+            let line = JSON.stringify(record);
+            if (Buffer.byteLength(line) > MAX_RECORD_BYTES - 1) {
+              record["error"] = { omitted: "record size limit" };
+              delete record["responseBody"];
+              record["detailsTruncated"] = true;
+              line = JSON.stringify(record);
+            }
+            await appendDiagnostic(paths, logFile, `${line}\n`);
+          } catch {
+            // No recursive logging and no console output.
+          }
         },
       };
     },
   };
+  return diagnostics;
+}
+
+function errorBodyText(chunks: Uint8Array[], contentType: string): string {
+  const text = new TextDecoder().decode(Buffer.concat(chunks));
+  if (/json/i.test(contentType)) {
+    try {
+      // Canonicalize JSON escapes (including partially Unicode-escaped tokens)
+      // before exact-value redaction. The forwarded response is never changed.
+      return JSON.stringify(JSON.parse(text));
+    } catch {
+      // Non-JSON error pages still have useful text; redact them normally.
+    }
+  }
+  return text;
 }
 
 /**
@@ -212,11 +274,18 @@ export function observeRelayResponse(
   body: ReadableStream<Uint8Array> | null,
   diagnostic: RelayRequestDiagnostics,
   status: number,
+  contentType = "",
 ): ReadableStream<Uint8Array> | null {
   if (body === null) return null;
   const reader = body.getReader();
   let finished = false;
   let bytesReceived = 0;
+  // Only complete, small textual HTTP error bodies are retained. A raw prefix
+  // could end in half a credential, defeating exact-value redaction. No tees,
+  // eager draining, successful chat payloads or SSE transcript buffering.
+  const captureBody =
+    status >= 400 && /json|^text\//i.test(contentType) && !/event-stream/i.test(contentType);
+  let chunks: Uint8Array[] = [];
   return new ReadableStream<Uint8Array>({
     async pull(controller) {
       try {
@@ -225,21 +294,42 @@ export function observeRelayResponse(
         if (result.done) {
           finished = true;
           reader.releaseLock();
+          if (captureBody) {
+            const context =
+              bytesReceived > MAX_ERROR_BODY_BYTES
+                ? { responseBodyOmitted: "size limit" }
+                : { responseBody: errorBodyText(chunks, contentType) };
+            chunks = [];
+            await diagnostic.failure(
+              "upstream_response_body",
+              undefined,
+              status,
+              bytesReceived,
+              context,
+            );
+          }
           controller.close();
         } else {
           bytesReceived += result.value.byteLength;
+          diagnostic.chunk(result.value.byteLength);
+          if (captureBody) {
+            if (bytesReceived > MAX_ERROR_BODY_BYTES) chunks = [];
+            else if (result.value.byteLength > 0) chunks.push(result.value.slice());
+          }
           controller.enqueue(result.value);
         }
       } catch (error) {
         if (finished) return;
         finished = true;
         reader.releaseLock();
+        chunks = [];
         await diagnostic.failure("upstream_stream", error, status, bytesReceived);
         controller.error(new Error("Axon upstream stream interrupted"));
       }
     },
     async cancel(reason) {
       finished = true;
+      chunks = [];
       try {
         await reader.cancel(reason);
       } catch {

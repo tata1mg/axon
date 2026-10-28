@@ -74,6 +74,10 @@ function createAxonHeader(
   const version =
     rawVersion && /^[a-zA-Z0-9][a-zA-Z0-9.+-]{0,79}$/.test(rawVersion) ? ` v${rawVersion}` : "";
   const directory = displayDirectory(cwd);
+  // The launcher selects from src/product/tips.ts; keep this extension standalone.
+  const tip = process.env["PI_AXON_STARTUP_TIP"]
+    ?.replace(/\p{Cc}/gu, (character) => (character === "\n" ? "\n" : "?"))
+    .trim();
   let expanded = false;
 
   const shortcut = (action: AppKeybinding, description: string): Shortcut | undefined => {
@@ -132,7 +136,8 @@ function createAxonHeader(
 
   /** Share the title row when possible; stack terminal status on smaller screens. */
   const heading = (width: number): { title: string; overflow: string[] } => {
-    const title = theme.bold(theme.fg("accent", "Axon")) + theme.fg("dim", version);
+    const title =
+      theme.bold(theme.fg("accent", "Axon")) + theme.fg("dim", ` by DeputyDev${version}`);
     const backup = backupBadge();
     const terminal = terminalBadge();
     const badges = [backup, terminal].filter((badge): badge is string => badge !== undefined);
@@ -210,7 +215,7 @@ function createAxonHeader(
       const content = `${mark[index] ?? " ".repeat(LOGO_WIDTH)}  ${row}`;
       return `${border("│")}  ${content}${" ".repeat(Math.max(0, inner - visibleWidth(content)))}  ${border("│")}`;
     });
-    const attribution = ` DeputyDev · Powered by Pi v${VERSION} `;
+    const attribution = ` Powered by Pi v${VERSION} `;
     const bottomRule = width - 2 - visibleWidth(attribution) - 2;
     const bottom =
       bottomRule >= 2
@@ -225,7 +230,7 @@ function createAxonHeader(
       title,
       ...overflow,
       theme.fg("muted", truncateToWidth("TATA 1mg", width)),
-      theme.fg("dim", truncateToWidth(`DeputyDev · Powered by Pi v${VERSION}`, width)),
+      theme.fg("dim", truncateToWidth(`Powered by Pi v${VERSION}`, width)),
     ];
   };
 
@@ -281,7 +286,17 @@ function createAxonHeader(
             ]),
             brandWidth,
           );
-      return [...brand, "", ...help].map((line) =>
+      const tipPadding = brandWidth > 2 ? 2 : 0;
+      const tips = tip
+        ? [
+            "",
+            theme.fg("accent", "[Tips]"),
+            ...wrapTextWithAnsi(tip, brandWidth - tipPadding).map(
+              (line) => " ".repeat(tipPadding) + theme.fg("muted", line),
+            ),
+          ]
+        : [];
+      return [...brand, "", ...help, ...tips].map((line) =>
         line ? " ".repeat(padding) + truncateToWidth(line, contentWidth) : "",
       );
     },

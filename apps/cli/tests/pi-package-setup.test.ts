@@ -157,9 +157,9 @@ describe("Pi package manifest", () => {
       },
       {
         id: "pi-provider-litellm",
-        installTarget: "npm:pi-provider-litellm@4.5.0",
+        installTarget: "npm:pi-provider-litellm@4.6.0",
         updateOwner: "axon",
-        versionPolicy: { kind: "exact", version: "4.5.0" },
+        versionPolicy: { kind: "exact", version: "4.6.0" },
       },
       {
         id: "pi-review",
