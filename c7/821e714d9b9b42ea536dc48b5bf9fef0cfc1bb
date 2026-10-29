@@ -1,0 +1,61 @@
+apps/cli/src/cli/launcher-program.ts
+  s_ad67ff7ab4a9ff::t_6c11924bcaaec6 132
+apps/cli/src/integrations/paseo.ts
+  s_ad67ff7ab4a9ff::t_6b425aa75b7921 24-30,108-111,115-125,192,265
+  s_ad67ff7ab4a9ff::t_3513482b35efd2 112-114
+  s_ad67ff7ab4a9ff::t_f3824a8ff3a36f 252-255
+  s_ad67ff7ab4a9ff::t_9c0edf21f23598 14-23,224,234-251,256-264,266-284,289
+apps/cli/src/cli/commands/setup-paseo.ts
+  s_ad67ff7ab4a9ff::t_1658ae122db56c 48
+  s_ad67ff7ab4a9ff::t_fcc902c96773ab 35-37,43-45,49-51
+  s_ad67ff7ab4a9ff::t_383d63a3af8e75 21,46
+  s_ad67ff7ab4a9ff::t_e5fbdded675977 47
+apps/cli/package.json
+  s_ad67ff7ab4a9ff::t_fba6e645a363a8 3
+apps/backend/pyproject.toml
+  s_c08203a6493b16::t_1ee200a00bb97d 3
+apps/cli/README.md
+  s_ad67ff7ab4a9ff::t_06d3fef22c7866 124
+  s_ad67ff7ab4a9ff::t_0d292261a3d14c 131-145
+  s_ad67ff7ab4a9ff::t_53b55e7738ad25 94,109,120-123,125-130,146-148
+apps/cli/tests/paseo-setup.test.ts
+  s_ad67ff7ab4a9ff::t_38fe333fa1d193 47,58-59,67-71,73-75,77-86,91,99,105,119-120,122,124-131,133-144,154-161,163-165,167,170-171,181-182,214,222-224,229-230,313-316,320-334,336-345,348-355,360-363,366-369,438-441,445-446
+  s_ad67ff7ab4a9ff::t_19cd9692e646d2 60-66,76,121,166,225-228,246-278,286-309,447-449,529
+  s_ad67ff7ab4a9ff::t_fcc902c96773ab 106-116,172-180,317-319,356-359,450,530-536
+  s_ad67ff7ab4a9ff::t_be32b45e0084dc 132,346-347,364-365,527
+  s_ad67ff7ab4a9ff::t_3513482b35efd2 279-285,310-312
+  s_ad67ff7ab4a9ff::t_0ab350d67fc0cb 72,123,162,335,442-444,528
+apps/backend/uv.lock
+  s_c08203a6493b16::t_ba042bcc4996d8 64
+bun.lock
+  s_ad67ff7ab4a9ff::t_499a5c26b80808 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c7821e714d9b9b42ea536dc48b5bf9fef0cfc1bb",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_ad67ff7ab4a9ff": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a1863d-e164-727b-8712-564891045011",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_c08203a6493b16": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a182dd-1767-7590-bf69-95941390b9a3",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
