@@ -27,7 +27,7 @@
     "release:metadata": "bun run scripts/generate-release-metadata.ts",
     "release:prepare-s3": "bun run telemetry:check && bun run terminal:check && bun run scripts/prepare-s3-release.ts",
     "release:publish-s3": "bun run scripts/publish-s3-release.ts",
-    "test": "bun test",
+    "test": "bun test --parallel=4",
     "test:installer": "bun test tests/installer",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.pi-resources.json",
     "check": "bun run pi-version:check && bun run telemetry:check && bun run backups:check && bun run terminal:check && bun run typecheck"

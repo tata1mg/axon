@@ -563,11 +563,13 @@ Bun must be available in your shell. The repository pins Bun `1.4.1`. Dependenci
 bun install --frozen-lockfile   # at the repository root
 cd apps/cli
 bun run check                   # generated extension bundle checks and typecheck
-bun test
+bun run test                    # test files in four isolated workers
 bun run dev -- --version
 bun run build
 ./dist/axon --version
 ```
+
+`bun run test` (or `bun run test:cli` from the repository root) runs test files in four isolated worker processes, keeping tests within each file sequential to avoid races in environment variables and mocks. CI and release checks use the same command. For serial debugging, run `bun test`; to choose another worker count, run `bun test --parallel=2`.
 
 Terminal permissions ship as a generated standalone `.mjs` asset so the launcher can import the TypeScript command validator without colliding with Bun's file loader. After editing `src/harnesses/pi/resources/extensions/terminal-permissions.ts`, run `bun run terminal:build` and commit the generated bundle. Development/release builds and `bun run check` reject stale bundles with `terminal:check`.
 
