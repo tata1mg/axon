@@ -1,0 +1,31 @@
+apps/cli/package.json
+  s_ac164f2ab5b78b::t_d7c0ca88b0c66e 30
+.github/workflows/release.yml
+  s_ac164f2ab5b78b::t_3fe84ba293bcdb 135
+apps/cli/README.md
+  s_ac164f2ab5b78b::t_5abd1baf513d66 566,572
+  s_ac164f2ab5b78b::t_b9c1a71845aa5a 573
+.github/workflows/ci.yml
+  s_ac164f2ab5b78b::t_00b4beccb2e42b 80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f52acd9682b200fc2533284984131314b9f6682f",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_ac164f2ab5b78b": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a1872a-e3f5-733b-a407-a955218d7252",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
