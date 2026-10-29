@@ -136,6 +136,98 @@ test("extracts a connection code and preserves the cause of a wrapped fetch erro
   expect((await records(logFile))[0].errorCode).toBe("UND_ERR_SOCKET");
 });
 
+test.each([401, 403, 429, 503])(
+  "HTTP %s failures have explicit types/codes without exceptions",
+  async (status) => {
+    const { logFile, diagnostic } = setup();
+    diagnostic.attempt(1);
+    await diagnostic.failure("upstream_response", undefined, status);
+    const [record] = await records(logFile);
+    expect(record).toMatchObject({ status, errorType: "HTTPError", errorCode: `HTTP_${status}` });
+    expect(record.error).toBeUndefined();
+  },
+);
+
+test("records edge correlation headers and consistent HTTP classifications in both failure stages", async () => {
+  const { logFile, diagnostic } = setup();
+  const response = new Response("challenge page", {
+    status: 403,
+    headers: {
+      "content-type": "text/html",
+      server: "cloudflare",
+      "cf-ray": "a51cd4c2cc301849-BOM",
+      "cf-mitigated": "challenge",
+      "retry-after": "120",
+    },
+  });
+  diagnostic.attempt(1);
+  diagnostic.response(response);
+  await diagnostic.failure("upstream_response", undefined, response.status);
+  expect(
+    await new Response(observeRelayResponse(response.body, diagnostic, 403, "text/html")).text(),
+  ).toBe("challenge page");
+  const entries = await records(logFile);
+  expect(entries.map((entry) => entry.stage)).toEqual([
+    "upstream_response",
+    "upstream_response_body",
+  ]);
+  for (const record of entries) {
+    expect(record).toMatchObject({
+      requestId: diagnostic.requestId,
+      status: 403,
+      errorType: "CloudflareError",
+      errorCode: "CLOUDFLARE_CHALLENGE",
+      upstreamServer: "cloudflare",
+      cfRay: "a51cd4c2cc301849-BOM",
+      cfMitigated: "challenge",
+      retryAfter: "120",
+    });
+  }
+});
+
+test("clears response headers and HTTP classification between attempts", async () => {
+  const { logFile, diagnostic } = setup();
+  diagnostic.attempt(1);
+  diagnostic.response(
+    new Response(null, {
+      status: 403,
+      headers: { "cf-mitigated": "challenge", "cf-ray": "first-ray", "retry-after": "90" },
+    }),
+  );
+  await diagnostic.failure("upstream_response", undefined, 403);
+  diagnostic.attempt(2);
+  await diagnostic.failure("upstream_response", undefined, 503);
+  const [, record] = await records(logFile);
+  expect(record).toMatchObject({ attempt: 2, errorType: "HTTPError", errorCode: "HTTP_503" });
+  expect(record.cfRay).toBeUndefined();
+  expect(record.cfMitigated).toBeUndefined();
+  expect(record.retryAfter).toBeUndefined();
+  expect(record.headersMs).toBeNull();
+});
+
+test("a failed HTTP error-body read retains the actual network exception", async () => {
+  const { logFile, diagnostic } = setup();
+  diagnostic.response(
+    new Response(null, { status: 403, headers: { "cf-mitigated": "challenge" } }),
+  );
+  const source = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.error(Object.assign(new TypeError("socket reset"), { code: "ECONNRESET" }));
+    },
+  });
+  await expect(
+    new Response(observeRelayResponse(source, diagnostic, 403, "text/html")).text(),
+  ).rejects.toThrow("Axon upstream stream interrupted");
+  const [record] = await records(logFile);
+  expect(record).toMatchObject({
+    stage: "upstream_stream",
+    status: 403,
+    errorType: "TypeError",
+    errorCode: "ECONNRESET",
+  });
+  expect(record.responseBody).toBeUndefined();
+});
+
 test("rotates at 1 MiB and retains only one backup", async () => {
   const { logFile, diagnostic } = setup();
   await mkdir(join(home, "logs"), { mode: 0o700 });

@@ -44,6 +44,7 @@ function expectedProvider(environment: NodeJS.ProcessEnv) {
   const paths = resolveAxonPaths(environment);
   return {
     extends: "pi",
+    enabled: true,
     label: "Axon",
     command: [paths.managedBinary, "pi"],
     env: {
@@ -54,11 +55,40 @@ function expectedProvider(environment: NodeJS.ProcessEnv) {
   };
 }
 
+const disabledProviderIds = ["pi", "opencode", "copilot", "codex", "claude", "muse", "antigravity"];
+
+const expectedTerminalProfile = {
+  id: "profile_mvt5ic5u_nj5mgc6ucq",
+  name: "Axon",
+  command: "axon",
+  args: ["pi", "{{{prompt}}}"],
+};
+
+function expectedIntegration(environment: NodeJS.ProcessEnv) {
+  return {
+    features: { dictation: { enabled: true }, voiceMode: { enabled: true } },
+    pluginsEnabled: true,
+    daemon: {
+      relay: { enabled: true },
+      mcp: { injectIntoAgents: true },
+      browserTools: { enabled: true },
+      enableTerminalAgentHooks: true,
+      terminalProfiles: [expectedTerminalProfile],
+    },
+    agents: {
+      providers: {
+        ...Object.fromEntries(disabledProviderIds.map((id) => [id, { enabled: false }])),
+        axon: expectedProvider(environment),
+      },
+    },
+  };
+}
+
 async function readConfig(path: string) {
   return JSON.parse(await readFile(path, "utf8"));
 }
 
-describe("Paseo provider setup", () => {
+describe("Paseo integration setup", () => {
   test("detects the CLI and creates a private config with user-specific Axon paths", async () => {
     const { environment, configPath } = await fixture("first install with spaces");
     const result = await configurePaseo({ environment });
@@ -66,18 +96,52 @@ describe("Paseo provider setup", () => {
     expect(result).toEqual({ status: "created", configPath });
     expect(await readConfig(configPath)).toEqual({
       version: 1,
-      agents: { providers: { axon: expectedProvider(environment) } },
+      ...expectedIntegration(environment),
     });
     expect((await stat(configPath)).mode & 0o777).toBe(0o600);
     expect(await readdir(dirname(configPath))).toEqual(["config.json"]);
   });
 
-  test("merges only the provider, preserving all other Paseo configuration and file mode", async () => {
+  test("merges managed settings, preserving unrelated configuration and file mode", async () => {
+    const providerOverrides = Object.fromEntries(
+      disabledProviderIds.map((id) => [
+        id,
+        {
+          enabled: true,
+          command: [`/custom/${id}`],
+          env: { EXTRA: "keep" },
+          options: { customSetting: true },
+        },
+      ]),
+    );
     const original = {
       version: 1,
-      daemon: { agentProfiles: [{ name: "personal", provider: "pi" }], listen: "127.0.0.1:6767" },
-      agents: { other: true, providers: { personal: { extends: "pi", label: "Personal" } } },
-      features: { voiceMode: { enabled: true } },
+      daemon: {
+        agentProfiles: [{ name: "personal", provider: "pi" }],
+        terminalProfiles: [{ id: "shell", name: "Shell", command: "zsh" }],
+        listen: "127.0.0.1:6767",
+        relay: { enabled: false, endpoint: "wss://relay.example.test/ws" },
+        mcp: { enabled: false, injectIntoAgents: false },
+        browserTools: { enabled: false, customSetting: true },
+        enableTerminalAgentHooks: false,
+      },
+      agents: {
+        other: true,
+        providers: {
+          personal: { extends: "pi", label: "Personal" },
+          ...providerOverrides,
+        },
+      },
+      features: {
+        dictation: { enabled: false, stt: { provider: "local", language: "en" } },
+        voiceMode: {
+          enabled: false,
+          llm: { provider: "axon", model: "custom-model" },
+          tts: { provider: "local", speed: 1.25 },
+        },
+        webUi: { enabled: false },
+      },
+      pluginsEnabled: false,
     };
     const content = JSON.stringify(original);
     const { environment, configPath } = await fixture("merge", content);
@@ -87,9 +151,35 @@ describe("Paseo provider setup", () => {
     expect(result.status).toBe("updated");
     expect(await readConfig(configPath)).toEqual({
       ...original,
+      features: {
+        ...original.features,
+        dictation: { ...original.features.dictation, enabled: true },
+        voiceMode: { ...original.features.voiceMode, enabled: true },
+      },
+      pluginsEnabled: true,
+      daemon: {
+        ...original.daemon,
+        relay: { ...original.daemon.relay, enabled: true },
+        mcp: { ...original.daemon.mcp, injectIntoAgents: true },
+        browserTools: { ...original.daemon.browserTools, enabled: true },
+        enableTerminalAgentHooks: true,
+        terminalProfiles: [...original.daemon.terminalProfiles, expectedTerminalProfile],
+      },
       agents: {
         ...original.agents,
-        providers: { ...original.agents.providers, axon: expectedProvider(environment) },
+        providers: {
+          ...original.agents.providers,
+          ...Object.fromEntries(
+            disabledProviderIds.map((id) => [
+              id,
+              {
+                ...providerOverrides[id],
+                enabled: false,
+              },
+            ]),
+          ),
+          axon: expectedProvider(environment),
+        },
       },
     });
     const backupPath = result.backupPath;
@@ -121,7 +211,7 @@ describe("Paseo provider setup", () => {
     );
   });
 
-  test("an already configured provider is a byte-for-byte no-op, including custom extras", async () => {
+  test("an already configured integration is a byte-for-byte no-op, including custom extras", async () => {
     const { environment, configPath } = await fixture("no op");
     const provider = {
       ...expectedProvider(environment),
@@ -129,7 +219,15 @@ describe("Paseo provider setup", () => {
       env: { EXTRA: "keep", ...expectedProvider(environment).env },
     };
     await mkdir(dirname(configPath), { recursive: true });
-    const content = JSON.stringify({ agents: { providers: { axon: provider } } });
+    const integration = expectedIntegration(environment);
+    const content = JSON.stringify({
+      ...integration,
+      daemon: {
+        ...integration.daemon,
+        terminalProfiles: [{ ...expectedTerminalProfile, icon: "terminal", customSetting: true }],
+      },
+      agents: { providers: { ...integration.agents.providers, axon: provider } },
+    });
     await writeFile(configPath, content);
     const before = await stat(configPath);
     const result = await configurePaseo({
@@ -143,6 +241,130 @@ describe("Paseo provider setup", () => {
     expect(await readFile(configPath, "utf8")).toBe(content);
     expect((await stat(configPath)).mtimeMs).toBe(before.mtimeMs);
     expect(await readdir(dirname(configPath))).toEqual(["config.json"]);
+  });
+
+  test("adds the terminal profile to an otherwise configured integration and reruns are a no-op", async () => {
+    const { environment, configPath } = await fixture("terminal profile missing", "{}");
+    const integration = expectedIntegration(environment);
+    const shell = { id: "shell", name: "Shell", command: "zsh" };
+    const content = JSON.stringify({
+      ...integration,
+      daemon: { ...integration.daemon, terminalProfiles: [shell] },
+    });
+    await writeFile(configPath, content);
+    await expect(configurePaseo({ environment })).rejects.toMatchObject({ exitStatus: 120 });
+    expect(await readFile(configPath, "utf8")).toBe(content);
+
+    expect((await configurePaseo({ environment, yes: true })).status).toBe("updated");
+    expect((await readConfig(configPath)).daemon.terminalProfiles).toEqual([
+      shell,
+      expectedTerminalProfile,
+    ]);
+    const updated = await readFile(configPath, "utf8");
+    expect((await configurePaseo({ environment })).status).toBe("unchanged");
+    expect(await readFile(configPath, "utf8")).toBe(updated);
+  });
+
+  test("updates an existing terminal profile by ID in place, preserving extra fields and other profiles", async () => {
+    const { environment, configPath } = await fixture("terminal profile update", "{}");
+    const integration = expectedIntegration(environment);
+    const before = { id: "shell", name: "Shell", command: "zsh" };
+    const after = { id: "custom-axon", name: "Axon", command: "custom-axon", args: ["custom"] };
+    const content = JSON.stringify({
+      ...integration,
+      daemon: {
+        ...integration.daemon,
+        terminalProfiles: [
+          before,
+          {
+            ...expectedTerminalProfile,
+            name: "Old Axon",
+            command: "old-axon",
+            args: [],
+            icon: "terminal",
+          },
+          after,
+        ],
+      },
+    });
+    await writeFile(configPath, content);
+    const cancelled = await configurePaseo({ environment, confirmReplacement: async () => false });
+    expect(cancelled.status).toBe("cancelled");
+    expect(await readFile(configPath, "utf8")).toBe(content);
+
+    expect((await configurePaseo({ environment, yes: true })).status).toBe("updated");
+    expect((await readConfig(configPath)).daemon.terminalProfiles).toEqual([
+      before,
+      { ...expectedTerminalProfile, icon: "terminal" },
+      after,
+    ]);
+    expect((await configurePaseo({ environment })).status).toBe("unchanged");
+  });
+
+  test("adds the terminal profile to an empty list", async () => {
+    const { environment, configPath } = await fixture(
+      "terminal profiles empty",
+      '{"daemon":{"terminalProfiles":[]}}',
+    );
+    await configurePaseo({ environment });
+    expect((await readConfig(configPath)).daemon.terminalProfiles).toEqual([
+      expectedTerminalProfile,
+    ]);
+  });
+
+  test("upgrades a provider-only setup rather than treating it as a no-op", async () => {
+    const { environment, configPath } = await fixture("legacy setup", "{}");
+    const content = JSON.stringify({
+      agents: { providers: { axon: expectedProvider(environment) } },
+    });
+    await writeFile(configPath, content);
+
+    await expect(configurePaseo({ environment })).rejects.toMatchObject({ exitStatus: 120 });
+    expect(await readFile(configPath, "utf8")).toBe(content);
+    const result = await configurePaseo({ environment, yes: true });
+    expect(result.status).toBe("updated");
+    expect(await readConfig(configPath)).toEqual(expectedIntegration(environment));
+    expect((await configurePaseo({ environment })).status).toBe("unchanged");
+  });
+
+  test("each managed setting is checked and repaired even when the provider already matches", async () => {
+    const managedPaths = [
+      "features.dictation.enabled",
+      "features.voiceMode.enabled",
+      "pluginsEnabled",
+      "daemon.relay.enabled",
+      "daemon.mcp.injectIntoAgents",
+      "daemon.browserTools.enabled",
+      "daemon.enableTerminalAgentHooks",
+      "agents.providers.axon.enabled",
+      ...disabledProviderIds.map((id) => `agents.providers.${id}.enabled`),
+    ];
+    for (const path of managedPaths) {
+      const { environment, configPath } = await fixture(`repair ${path}`, "{}");
+      const config = JSON.parse(JSON.stringify(expectedIntegration(environment)));
+      const keys = path.split(".");
+      const key = keys.pop();
+      if (key === undefined) throw new Error("expected a managed setting path");
+      const section = keys.reduce((value, part) => value[part], config);
+      section[key] = !section[key];
+      const content = JSON.stringify(config);
+      await writeFile(configPath, content);
+
+      await expect(configurePaseo({ environment })).rejects.toMatchObject({ exitStatus: 120 });
+      expect(await readFile(configPath, "utf8")).toBe(content);
+      expect(await readdir(dirname(configPath))).toEqual(["config.json"]);
+      const cancelled = await configurePaseo({
+        environment,
+        confirmReplacement: async () => false,
+      });
+      expect(cancelled.status).toBe("cancelled");
+      expect(await readFile(configPath, "utf8")).toBe(content);
+      const result = await configurePaseo({ environment, yes: true });
+      expect(result.status).toBe("updated");
+      if (result.backupPath === undefined) throw new Error("expected a config backup");
+      expect(await readFile(result.backupPath, "utf8")).toBe(content);
+      expect(await readConfig(configPath)).toEqual(expectedIntegration(environment));
+    }
   });
 
   test("a conflicting provider requires confirmation in noninteractive runs", async () => {
@@ -213,6 +435,19 @@ describe("Paseo provider setup", () => {
       '{"agents":null}',
       '{"agents":[]}',
       '{"agents":{"providers":false}}',
+      '{"features":null}',
+      '{"features":{"dictation":false}}',
+      '{"features":{"voiceMode":[]}}',
+      '{"daemon":[]}',
+      '{"daemon":{"relay":false}}',
+      '{"daemon":{"relay":null}}',
+      '{"daemon":{"relay":[]}}',
+      '{"daemon":{"mcp":false}}',
+      '{"daemon":{"browserTools":null}}',
+      ...[null, false, {}, "profiles", [null], ["profile"], [[]]].map((terminalProfiles) =>
+        JSON.stringify({ daemon: { terminalProfiles } }),
+      ),
+      ...disabledProviderIds.map((id) => JSON.stringify({ agents: { providers: { [id]: null } } })),
     ].entries()) {
       const { environment, configPath } = await fixture(`invalid ${index}`, content);
       await expect(configurePaseo({ environment, yes: true })).rejects.toBeInstanceOf(
@@ -289,6 +524,16 @@ describe("axon setup paseo CLI", () => {
     expect(first.stderr).toBe("");
     expect(first.stdout).toContain(`Paseo Axon provider configured: ${configPath}`);
     expect(first.stdout).toContain("Restart Paseo");
+    expect(first.stdout).toContain("Enabled dictation, voice mode, plugins, MCP injection");
+    expect(first.stdout).toContain("Enabled Paseo relay for remote connectivity.");
+    expect(first.stdout).toContain("Configured the Axon terminal profile: axon pi {{{prompt}}}");
+    expect(first.stdout).toContain(
+      "Disabled Pi, OpenCode, Copilot, Codex, Claude, Muse, and Antigravity",
+    );
+    expect(await readConfig(configPath)).toEqual({
+      version: 1,
+      ...expectedIntegration(environment),
+    });
     expect((await runCli(["setup", "paseo"], environment)).stdout).toContain("already has");
   });
 

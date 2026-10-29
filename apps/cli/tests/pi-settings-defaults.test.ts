@@ -3,7 +3,11 @@ import { lstat, mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { applyPiDefaults, applyPiProviderDefaults } from "../src/harnesses/pi/settings-defaults.ts";
+import {
+  applyPiChangelogDefaults,
+  applyPiDefaults,
+  applyPiProviderDefaults,
+} from "../src/harnesses/pi/settings-defaults.ts";
 import { withFileLock } from "../src/launcher/file-lock.ts";
 import { type AxonPaths, resolveAxonPaths } from "../src/product/paths.ts";
 
@@ -26,6 +30,39 @@ async function writeSettings(config: Record<string, unknown>): Promise<void> {
 }
 
 describe("managed Pi startup defaults", () => {
+  test("suppresses upstream notes using the selected Pi version, preserving all other settings", async () => {
+    const saved = {
+      packages: ["npm:custom"],
+      theme: "custom",
+      collapseChangelog: false,
+      lastChangelogVersion: "1.3.0",
+    };
+    await writeSettings(saved);
+    await applyPiChangelogDefaults(paths, "1.4.0");
+    expect(await Bun.file(settingsPath).json()).toEqual({
+      ...saved,
+      lastChangelogVersion: "1.4.0",
+    });
+    const inode = (await lstat(settingsPath)).ino;
+    await applyPiChangelogDefaults(paths, "1.4.0");
+    expect((await lstat(settingsPath)).ino).toBe(inode);
+    await applyPiChangelogDefaults(paths, "1.5.0");
+    expect((await Bun.file(settingsPath).json()).lastChangelogVersion).toBe("1.5.0");
+  });
+
+  test("changelog defaults never replace unsafe settings or symlinks", async () => {
+    await mkdir(paths.pi, { recursive: true });
+    await Bun.write(settingsPath, "{");
+    await expect(applyPiChangelogDefaults(paths, "1.4.0")).rejects.toThrow();
+    expect(await Bun.file(settingsPath).text()).toBe("{");
+    await rm(settingsPath);
+    const target = join(root, "other-settings.json");
+    await Bun.write(target, "{}");
+    await symlink(target, settingsPath);
+    await expect(applyPiChangelogDefaults(paths, "1.4.0")).rejects.toThrow();
+    expect(await Bun.file(target).text()).toBe("{}");
+  });
+
   test("creates additive codemode defaults without configuring inlineBudget", async () => {
     await applyPiDefaults(paths, { codemodeEnabled: true, litellmMcpEnabled: false });
     expect(await Bun.file(settingsPath).json()).toEqual({

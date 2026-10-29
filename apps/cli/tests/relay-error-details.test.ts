@@ -169,6 +169,11 @@ test("redacts tokens registered after request start, including paths, headers an
         "x-session-refresh-token": "new-opaque-token",
         "x-request-id": token,
         "content-type": "text/event-stream",
+        server: `server ${token}`,
+        "cf-ray": `${encodeURIComponent(token)}-BOM`,
+        "cf-mitigated": `challenge ${token}`,
+        "retry-after": `120 new-opaque-token`,
+        "x-unrelated-secret": "unregistered-header-secret",
       },
     }),
   );
@@ -183,6 +188,11 @@ test("redacts tokens registered after request start, including paths, headers an
   expect(record.firstByteMs).toBeGreaterThanOrEqual(0);
   expect(record.idleMs).toBeGreaterThanOrEqual(0);
   expect(record.contentType).toBe("text/event-stream");
+  expect(record.upstreamServer).toBe("server [REDACTED]");
+  expect(record.cfRay).toBe("[REDACTED]-BOM");
+  expect(record.cfMitigated).toBe("challenge [REDACTED]");
+  expect(record.retryAfter).toBe("120 [REDACTED]");
+  expect(log).not.toContain("unregistered-header-secret");
 });
 
 test("large Unicode/control-character stacks produce bounded complete JSON records", async () => {

@@ -18,7 +18,7 @@ export async function runPaseoSetup(
       ? {
           confirmReplacement: async (configPath: string) => {
             const answer = await confirm({
-              message: `Update the existing Axon provider in ${configPath}?`,
+              message: `Update Axon setup in ${configPath} (enable relay and integration features, configure the terminal profile, and disable other built-in providers)?`,
               initialValue: false,
             });
             return !isCancel(answer) && answer === true;
@@ -32,11 +32,21 @@ export async function runPaseoSetup(
     return;
   }
   if (result.status === "unchanged") {
-    console.log(`Paseo already has the Axon provider configured: ${result.configPath}`);
+    console.log(
+      `Paseo already has the Axon provider and integration settings configured: ${result.configPath}`,
+    );
     return;
   }
   console.log(`Paseo Axon provider configured: ${result.configPath}`);
   if (result.backupPath !== undefined)
     console.log(`Previous config backed up to: ${result.backupPath}`);
-  console.log("Restart Paseo to load the Axon provider, then select Axon when starting a new chat.");
+  console.log(
+    "Enabled dictation, voice mode, plugins, MCP injection, browser tools, and terminal agent hooks.",
+  );
+  console.log("Enabled Paseo relay for remote connectivity.");
+  console.log("Configured the Axon terminal profile: axon pi {{{prompt}}}");
+  console.log("Disabled Pi, OpenCode, Copilot, Codex, Claude, Muse, and Antigravity providers.");
+  console.log(
+    "Restart Paseo to load the integration settings, then select Axon when starting a new chat.",
+  );
 }

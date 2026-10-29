@@ -18,6 +18,9 @@ They also include:
 - Request attempt, milliseconds to upstream headers and first response chunk,
   milliseconds since the last received chunk, content type and selected upstream
   request/call IDs. Timings are `null` when that phase was not reached.
+- Allowlisted response headers: `upstreamServer` (`server`), `cfRay` (`cf-ray`),
+  `cfMitigated` (`cf-mitigated`) and `retryAfter` (`retry-after`). These are redacted
+  and bounded like the other diagnostic fields; absent headers are `null`.
 - Exceptions from the relay handler/server and Pi-defaults refresh, including
   transport failures otherwise swallowed by the optional config fetch.
 
@@ -32,6 +35,23 @@ of at most **8 KiB** produces a second `upstream_response_body` record sharing
 the request ID. JSON escapes are canonicalized before redaction. Oversized
 bodies are omitted entirely, not persisted as raw prefixes. Cancelled,
 interrupted, binary and SSE bodies are not captured as error-body text.
+
+HTTP failures without an exception use `errorType: "HTTPError"` and an
+`errorCode` such as `HTTP_403`, rather than `unknown`. Cloudflare's explicit
+`cf-mitigated: challenge` header on an HTTP error uses `CloudflareError` /
+`CLOUDFLARE_CHALLENGE`. An HTML 403 with both `server: cloudflare` and a nonempty
+`cf-ray` uses `CloudflareError` / `CLOUDFLARE_HTML_DENIAL`: this is a likely edge
+page, not proof of which security rule (or origin) generated it. JSON permission
+denials passing through Cloudflare remain ordinary HTTP failures. Actual stream
+exceptions retain their original names/codes even after HTTP error headers.
+
+For these Cloudflare error pages, the relay cancels the upstream body without
+reading it and returns a short JSON error with the request ID and diagnostic log
+label. The HTTP status and `Retry-After` header are preserved. There is no error
+body capture for these cancelled pages, login verification/recovery or automatic
+relay retry. Use `cfRay` and the UTC timestamp to investigate Cloudflare Security
+Events. This change does not modify stream timeouts, reconnect policy or edge
+security configuration.
 
 Successful request/response payloads and SSE transcripts are not saved. The relay
 does not parse application-level errors inside HTTP-200 SSE events. Deliberate

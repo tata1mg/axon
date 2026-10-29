@@ -91,7 +91,7 @@ axon harnesses
 axon paths
 axon doctor [pi]
 axon setup pi --sync-packages   # installs Pi if needed, required packages, resources, and MCP defaults
-axon setup paseo                # register Axon in an existing Paseo installation
+axon setup paseo                # configure Axon and integration settings in Paseo
 axon uninstall [--remove-runtimes]
 ```
 
@@ -106,7 +106,7 @@ If you use [Paseo](https://paseo.sh), register Axon as a provider with:
 ```bash
 axon setup paseo
 axon setup paseo --config /custom/paseo/config.json  # non-default Paseo home
-axon setup paseo --yes                              # accept an existing provider update in scripts
+axon setup paseo --yes                              # accept integration updates in scripts
 ```
 
 This local-only command does not require sign-in or install Paseo. It edits
@@ -117,10 +117,35 @@ If the config does not exist, setup creates it only when it finds `paseo` on `PA
 macOS app in `/Applications` or `~/Applications`. An existing config also allows setup
 when Paseo is installed elsewhere.
 
-Other providers, agent profiles, terminal profiles, and unrelated settings are preserved.
-An already configured provider is a no-op. Updating a different existing Axon provider
-requires confirmation (default **No**), or `--yes` in non-interactive runs. Extra provider
-fields and environment variables are preserved; only the managed fields above are updated.
+Setup enables the Axon provider and applies these integration settings:
+
+- `features.dictation.enabled` and `features.voiceMode.enabled`: `true`
+- `pluginsEnabled`: `true`
+- `daemon.relay.enabled`: `true` (opts into relay connectivity; setup does not pair devices)
+- `daemon.mcp.injectIntoAgents`: `true`
+- `daemon.browserTools.enabled`: `true`
+- `daemon.enableTerminalAgentHooks`: `true`
+- `agents.providers.<id>.enabled`: `false` for `pi`, `opencode`, `copilot`, `codex`,
+  `claude`, `muse`, and `antigravity`
+
+Setup also adds or updates this entry in `daemon.terminalProfiles`, matching by its stable ID
+so reruns do not append duplicates:
+
+```json
+{
+  "id": "profile_mvt5ic5u_nj5mgc6ucq",
+  "name": "Axon",
+  "command": "axon",
+  "args": ["pi", "{{{prompt}}}"]
+}
+```
+
+Custom providers, agent profiles, other terminal profiles, and unrelated settings are preserved,
+including voice configuration, extra terminal-profile fields, and extra fields on disabled
+providers. Setup is a no-op only
+when the Axon provider and all managed settings already match. Updating an existing Axon
+setup requires confirmation (default **No**), or `--yes` in non-interactive runs. Extra Axon
+provider fields and environment variables are preserved; only managed fields are updated.
 Invalid JSON, malformed parent sections, and symlink/non-regular configs are never overwritten.
 Writes are atomic, preserve existing config permissions, and save the previous contents to a
 private sibling `config.json.axon-backup.<timestamp>.<id>` file before changing an existing file.
@@ -197,6 +222,36 @@ all settings. `PI_WEB_SEARCH_MODE` and `PI_WEB_SEARCH_SEARCH_TOOL` are obsolete.
 The official `https://pi.dev/install.sh` cannot pin a version, requires an interactive terminal, and may edit shell profiles, so Axon does not run it. Instead it follows the same steps as Pi's own managed `pi update`: it downloads `package.json` and `package-lock.json` for the exact version from `https://pi.dev/api/installer/releases/<version>/`, plus the release metadata from `https://pi.dev/api/installer/releases/<version>`, validates that all three describe `@earendil-works/pi-coding-agent@<version>`, merges the first-party tarball SHA-512 hashes from the metadata into the lockfile (the published lockfile omits them) so that every resolved tarball is integrity-checked, runs `npm ci --ignore-scripts --omit=dev --include=optional` in a staging directory under a same-user lock, verifies the installed package version and launcher, and atomically renames the tree into place. Shell profiles and `PATH` are never modified.
 
 Installation requires Node.js 22.19.0 or newer and npm on `PATH`; otherwise the launch fails with a remediation that names Homebrew and the official installer. Offline launches (`--offline` or `PI_OFFLINE=1`) and `axon doctor` never install. The built CLI's exact pin comes from [`pi-version.json`](pi-version.json) and is embedded when compiling. `AXON_PI_BIN` fails with a clear error. A different `AXON_PI_VERSION` is accepted only in source development runs; compiled local and release binaries reject it. `pi --version` results are cached per executable path, size, and mtime in `${AXON_HOME}/pi-executable.json`, so warm launches do not spawn Pi twice. `axon uninstall --remove-runtimes` also removes `pi-runtime`.
+
+### Axon release notes in Pi
+
+`/changelog` displays only Axon's release notes, as does the startup **What's New in Axon** section.
+The managed `axon-changelog.ts` extension wraps Pi's public editor submit callback; it does not patch
+Pi's runtime, replace raw keyboard input, or send release notes to the model. `/axon-changelog` is also
+available as a normal extension command for clients without the terminal editor.
+
+On each ordinary launch, Axon sets `lastChangelogVersion` in its isolated Pi settings to the selected
+Pi version, suppressing upstream Pi startup notes. Axon separately stores `lastSeenAxonVersion` in
+`${AXON_HOME}/pi/axon-changelog.json`. The first new conversation establishes a baseline silently;
+subsequent upgrades show only newly published Axon entries. Resuming an existing conversation or
+using print/JSON/RPC mode does not advance this marker, and downgrades do not move it backwards.
+
+Release notes are maintained in `AXON_RELEASES` (newest first) in
+`src/harnesses/pi/resources/extensions/axon-changelog.ts` and embedded with the CLI for offline use.
+Add an entry matching the Axon release version when preparing a release. Global Pi installations
+and Pi's own packaged `CHANGELOG.md` are never changed.
+
+### Managed npm registry fallback
+
+Pi runtime installation and Axon's required **npm** extension installs try the configured npm registry first (`npm_config_registry` / `NPM_CONFIG_REGISTRY` or npm's `.npmrc` configuration, including a package's scope). If the active registry is `https://registry.npmjs.org/` or `https://registry.npmmirror.com/` and a registry/network request fails, Axon retries the same installation **once** with the other registry. This includes missing packages/versions (404 / `ETARGET`) and temporary network/server errors. The retry is announced on stderr. For example, to prefer the mirror and fall back to npmjs:
+
+```bash
+npm_config_registry=https://registry.npmmirror.com/ axon setup pi --sync-packages
+```
+
+Fallback only changes the subprocess environment and public tarball URLs in Axon's managed lockfiles; package versions and integrity hashes stay unchanged. It never changes global npm configuration or `.npmrc`. Custom/private registries, authentication/permission failures, integrity failures, dependency conflicts, lifecycle-script failures, and cancelled processes do not trigger fallback. A custom Pi `npmCommand` owns its own retry policy. Healthy installed packages remain local-only, and offline/diagnostic commands never install.
+
+This policy covers Axon's bootstrap and required-package synchronization, not user-forwarded `axon pi install` commands. Git packages and explicit non-public tarball URLs are unchanged. Pi release metadata and lockfiles still require access to `https://pi.dev/api/installer/releases/`; changing npm registries cannot bypass a failure there.
 
 ### Corporate TLS certificates (Zscaler)
 
@@ -508,11 +563,13 @@ Bun must be available in your shell. The repository pins Bun `1.4.1`. Dependenci
 bun install --frozen-lockfile   # at the repository root
 cd apps/cli
 bun run check                   # generated extension bundle checks and typecheck
-bun test
+bun run test                    # test files in four isolated workers
 bun run dev -- --version
 bun run build
 ./dist/axon --version
 ```
+
+`bun run test` (or `bun run test:cli` from the repository root) runs test files in four isolated worker processes, keeping tests within each file sequential to avoid races in environment variables and mocks. CI and release checks use the same command. For serial debugging, run `bun test`; to choose another worker count, run `bun test --parallel=2`.
 
 Terminal permissions ship as a generated standalone `.mjs` asset so the launcher can import the TypeScript command validator without colliding with Bun's file loader. After editing `src/harnesses/pi/resources/extensions/terminal-permissions.ts`, run `bun run terminal:build` and commit the generated bundle. Development/release builds and `bun run check` reject stale bundles with `terminal:check`.
 
