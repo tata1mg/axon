@@ -1,0 +1,129 @@
+apps/cli/src/harnesses/pi/adapter.ts
+  s_7946671f175aed::t_62933096f33042 26,73-76,80
+apps/cli/package.json
+  s_7946671f175aed::t_c2c3cb5812c2e5 3
+apps/cli/src/product/manifest.ts
+  s_7946671f175aed::t_b5db21a43a33d5 70-75,125,156,187-189
+  s_7946671f175aed::t_17b69bb6b1207f 5
+  s_7946671f175aed::t_9a6c3315314df1 6-7,190
+apps/cli/tests/axon-changelog.test.ts
+  s_7946671f175aed::t_f7c85836e33cdb 66,214
+  s_7946671f175aed::t_17b69bb6b1207f 16,124-126,146-152,173-177,230-231,233,331-340,363-389
+  s_7946671f175aed::t_0dae67dc4b6da4 160,163,165
+  s_7946671f175aed::t_2c1fe658218d21 41,143,232,241,248,281-282,314-323,325,327
+  s_7946671f175aed::t_b608b588a3c4f5 1-10,12-15,17-40,42-55,61-65,67-121,123,127-142,144-145,153-159,161-162,164,166-172,178-205,208-213,215-229,234-240,242-247,249-280,283-313,328-330,341,346-347,359-362,390-392
+  s_7946671f175aed::t_ce37f281119ba4 11,56-60,122,206-207,342-345,348-358
+  s_0cffe710d2bea9::t_a3847f6eb66c7a 324,326
+apps/cli/tests/pi-package-setup.test.ts
+  s_19d283559d300e::t_89a9d3f213f52c 170
+  s_7946671f175aed::t_cd093d13d52334 978
+  s_19d283559d300e::t_2a07e628aed8a4 5,135-169,171-183,802-808,810-814,816-818,820-833,835-840,842-857,859-864,866-874,876-887,889-893
+  s_0cffe710d2bea9::t_8580c16c9e00a1 809,815,819,834,841,858,865,875,888,894
+apps/cli/src/harnesses/pi/installation.ts
+  s_19d283559d300e::t_1543ba6fbed48a 21,331-332,335-341,346,453,457-460
+apps/cli/tests/pi-settings-defaults.test.ts
+  s_7946671f175aed::t_17b69bb6b1207f 34-39,42-45
+  s_7946671f175aed::t_53e61a2a7039ef 6-10,33,40-41,46-65
+apps/cli/tests/pi-installation.test.ts
+  s_19d283559d300e::t_3af3385cedbf97 2,12,19-23,351-448
+apps/cli/README.md
+  s_19d283559d300e::t_b84d22dfd93f54 244-255
+  s_7946671f175aed::t_8e8b9f74d27ace 226-243
+apps/cli/src/harnesses/pi/settings-defaults.ts
+  s_7946671f175aed::t_568c106bfe439b 41-49
+apps/cli/src/cli/auth/relay-http-errors.ts
+  s_0cffe710d2bea9::t_c2c6be8a3354e0 1-23
+apps/cli/tests/launcher.test.ts
+  s_7946671f175aed::t_17b69bb6b1207f 335-337
+  s_7946671f175aed::t_2e8bd2a839847d 308-309
+apps/cli/tests/relay-http-errors.test.ts
+  s_0cffe710d2bea9::t_a55b8ef52b58cd 25-29,42-50
+  s_0cffe710d2bea9::t_a0b16efaeeb909 1-24,30-41,51-54
+apps/cli/src/harnesses/pi/npm-registry.ts
+  s_19d283559d300e::t_e1a555d94838a4 1,87
+  s_19d283559d300e::t_6aeb8748c170da 66-73,81
+  s_19d283559d300e::t_04abdedcc57c8a 3-31,34-65,74-80,82-83,86,88-98,107-125,129-131,141-146,153-157,160-162
+  s_19d283559d300e::t_27c7282668facd 2,32-33,126-127,132-134,136-140,147-152
+  s_19d283559d300e::t_bef324fd77f4c7 84-85,99-106,128,158-159
+  s_19d283559d300e::t_96a580f2d12bc2 135
+apps/cli/src/cli/auth/relay-diagnostics.ts
+  s_0cffe710d2bea9::t_6f1dacd2928e94 11,152,167,182,187-190,213-220
+apps/cli/src/cli/auth/request-relay.ts
+  s_0cffe710d2bea9::t_a18f9ff38d9146 14,316-327
+  s_0cffe710d2bea9::t_61566de16b4557 328
+apps/cli/src/harnesses/pi/setup/packages/sync.ts
+  s_19d283559d300e::t_01eecd3ec6be2a 2,11,77-98,102,132-134
+apps/cli/tests/relay-diagnostics.test.ts
+  s_0cffe710d2bea9::t_a55b8ef52b58cd 139-149,170-173,191-196,210-212,218-220,222-227
+  s_0cffe710d2bea9::t_76a3d14b5296ff 150-169,174-190,197-209,213-217,221,228-230
+apps/cli/tests/npm-registry.test.ts
+  s_19d283559d300e::t_26d18f672d833b 138-149,164
+  s_19d283559d300e::t_a60deaea4b310a 226
+  s_19d283559d300e::t_f58aee03e6ec46 1-137,150-163,165-225,227-262
+apps/cli/tests/relay-error-details.test.ts
+  s_0cffe710d2bea9::t_5c61128df1ba6b 172-176,191-195
+apps/cli/tests/request-relay.test.ts
+  s_0cffe710d2bea9::t_2ecf834173d50e 177
+  s_0cffe710d2bea9::t_25f4845839b2b8 145-176,178-206,209,214-240,243,493-494,496-497
+  s_0cffe710d2bea9::t_a55b8ef52b58cd 141-144,207-208,210-213,241-242
+docs/relay-diagnostics.md
+  s_0cffe710d2bea9::t_a83a34f4286fd9 21-23,39-54
+  s_0cffe710d2bea9::t_e2cd04aee806c8 55
+apps/cli/src/harnesses/pi/resources/extensions/axon-changelog.ts
+  s_7946671f175aed::t_2ec96732057477 7,12
+  s_7946671f175aed::t_17b69bb6b1207f 53-55,89-90,144-145,172-173,219-222
+  s_7946671f175aed::t_5189d37012c5db 65
+  s_ac164f2ab5b78b::t_8b10d9a7c2b324 29
+  s_7946671f175aed::t_7dbfa482577ede 21-23,30-31,38
+  s_ac164f2ab5b78b::t_28e7e0274e06a0 35,39-45
+  s_ac164f2ab5b78b::t_262ea12b7adeb6 24-28
+  s_7946671f175aed::t_1a9840ca67094f 1-6,8-11,14-20,32-34,36-37,46-52,56-64,66-88,91-143,146-171,174-218,223-230
+  s_7946671f175aed::t_5a906e602102ff 13
+bun.lock
+  s_7946671f175aed::t_b7f2f43655301a 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0b6bd06378daa8d22c75e87e0908d6e237775ad8",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_0cffe710d2bea9": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a18712-a675-7494-8c36-28c84efc4910",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_19d283559d300e": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a178c4-51c1-7598-b75c-6ab515ca439b",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_7946671f175aed": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a18713-57a8-7066-be8b-0cea798e086f",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_ac164f2ab5b78b": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a1872a-e3f5-733b-a407-a955218d7252",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
