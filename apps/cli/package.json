@@ -1,6 +1,6 @@
 {
   "name": "axon-cli",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Native Axon launcher for Pi (axon)",
   "private": true,
   "type": "module",

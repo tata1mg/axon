@@ -138,6 +138,109 @@ test("rotated credentials are redacted from HTTP bodies while user context remai
   `);
 });
 
+test.each(["denial", "challenge"])(
+  "Cloudflare %s pages become correlated API errors without reads, login or retries",
+  async (kind) => {
+    await runRelayScript(`
+    let calls = 0;
+    let cancelled = false;
+    let requestId;
+    const kind = ${JSON.stringify(kind)};
+    upstream = async request => {
+      calls++;
+      assert.equal(request.method, "GET");
+      assert.equal(new URL(request.url).pathname, "/litellm/mcp");
+      requestId = request.headers.get("x-request-id");
+      const body = new ReadableStream({
+        pull() { throw new Error("Must not read a denied body: initial-session"); },
+        cancel() {
+          cancelled = true;
+          if (kind === "challenge") throw new Error("initial-session cancel failure");
+        },
+      }, { highWaterMark: 0 });
+      return new Response(body, {
+        status: kind === "challenge" ? 429 : 403,
+        headers: {
+          "content-type": "text/html; charset=UTF-8",
+          server: "cloudflare",
+          "cf-ray": "a51cd4c2cc301849-BOM",
+          "retry-after": "120",
+          "set-cookie": "private-cookie=initial-session",
+          ...(kind === "challenge" ? { "cf-mitigated": "challenge" } : {}),
+        },
+      });
+    };
+    const response = await bounded(actualFetch(relay.origin + "/litellm/mcp?key=query-secret", {
+      headers: { authorization: "Bearer " + relay.capability },
+    }));
+    assert.equal(response.status, kind === "challenge" ? 429 : 403);
+    assert.ok(response.headers.get("content-type").startsWith("application/json"));
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.equal(response.headers.get("retry-after"), "120");
+    assert.equal(response.headers.get("set-cookie"), null);
+    assert.equal(response.headers.get("cf-ray"), null);
+    const payload = await response.json();
+    assert.equal(payload.error.type, "gateway_error");
+    assert.match(payload.error.message, /Cloudflare/);
+    assert.match(payload.error.message, /administrator/);
+    assert.ok(payload.error.message.includes(relay.diagnosticsLogLabel));
+    assert.ok(payload.error.message.includes(requestId));
+    assert.ok(!payload.error.message.includes(paths.home));
+    assert.ok(!JSON.stringify(payload).includes("initial-session"));
+    assert.equal(calls, 1);
+    assert.equal(cancelled, true);
+    assert.equal(await sessions.loadEncryptedSession(paths), "initial-session");
+    const log = await Bun.file(relay.diagnosticsLogFile).text();
+    const record = JSON.parse(log.trim());
+    assert.equal(record.requestId, requestId);
+    assert.equal(record.stage, "upstream_response");
+    assert.equal(record.errorType, "CloudflareError");
+    assert.equal(record.errorCode, kind === "challenge" ? "CLOUDFLARE_CHALLENGE" : "CLOUDFLARE_HTML_DENIAL");
+    assert.equal(record.cfRay, "a51cd4c2cc301849-BOM");
+    assert.equal(record.upstreamServer, "cloudflare");
+    assert.equal(record.retryAfter, "120");
+    assert.equal(record.responseBody, undefined);
+    assert.ok(!log.includes("query-secret"));
+    assert.ok(!log.includes("initial-session"));
+    assert.ok(!log.includes(relay.capability));
+  `);
+  },
+);
+
+test.each(["application/json", "text/html"])(
+  "ordinary %s HTTP 403 responses remain byte-exact API responses",
+  async (contentType) => {
+    await runRelayScript(`
+    let calls = 0;
+    const contentType = ${JSON.stringify(contentType)};
+    const body = contentType === "application/json" ? '{"detail":"MCP permission denied"}' : '<html>Origin permission denied</html>';
+    upstream = async () => {
+      calls++;
+      return new Response(body, {
+        status: 403,
+        headers: {
+          "content-type": contentType,
+          "retry-after": "60",
+          ...(contentType === "application/json" ? { server: "cloudflare", "cf-ray": "origin-ray-BOM" } : {}),
+        },
+      });
+    };
+    const response = await send("/litellm/mcp");
+    assert.equal(response.status, 403);
+    assert.equal(await response.text(), body);
+    assert.equal(response.headers.get("retry-after"), "60");
+    assert.equal(calls, 1);
+    const records = (await Bun.file(relay.diagnosticsLogFile).text()).trim().split("\\n").map(line => JSON.parse(line));
+    assert.equal(records.length, 2);
+    for (const record of records) {
+      assert.equal(record.errorType, "HTTPError");
+      assert.equal(record.errorCode, "HTTP_403");
+    }
+    assert.equal(records[1].responseBody, body);
+  `);
+  },
+);
+
 test("verification retains sanitized original causes and upstream error codes", async () => {
   await runRelayScript(`
     upstream = async request => {
@@ -387,7 +490,11 @@ test("upstream HTTP failures log status and complete small error bodies without 
     const records = log.trim().split("\\n").map(line => JSON.parse(line));
     assert.equal(records[0].stage, "upstream_response");
     assert.equal(records[0].status, 503);
+    assert.equal(records[0].errorType, "HTTPError");
+    assert.equal(records[0].errorCode, "HTTP_503");
     assert.equal(records[1].stage, "upstream_response_body");
+    assert.equal(records[1].errorType, "HTTPError");
+    assert.equal(records[1].errorCode, "HTTP_503");
     assert.equal(records[1].responseBody, body);
   `);
 });

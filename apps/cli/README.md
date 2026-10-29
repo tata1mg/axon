@@ -223,6 +223,36 @@ The official `https://pi.dev/install.sh` cannot pin a version, requires an inter
 
 Installation requires Node.js 22.19.0 or newer and npm on `PATH`; otherwise the launch fails with a remediation that names Homebrew and the official installer. Offline launches (`--offline` or `PI_OFFLINE=1`) and `axon doctor` never install. The built CLI's exact pin comes from [`pi-version.json`](pi-version.json) and is embedded when compiling. `AXON_PI_BIN` fails with a clear error. A different `AXON_PI_VERSION` is accepted only in source development runs; compiled local and release binaries reject it. `pi --version` results are cached per executable path, size, and mtime in `${AXON_HOME}/pi-executable.json`, so warm launches do not spawn Pi twice. `axon uninstall --remove-runtimes` also removes `pi-runtime`.
 
+### Axon release notes in Pi
+
+`/changelog` displays only Axon's release notes, as does the startup **What's New in Axon** section.
+The managed `axon-changelog.ts` extension wraps Pi's public editor submit callback; it does not patch
+Pi's runtime, replace raw keyboard input, or send release notes to the model. `/axon-changelog` is also
+available as a normal extension command for clients without the terminal editor.
+
+On each ordinary launch, Axon sets `lastChangelogVersion` in its isolated Pi settings to the selected
+Pi version, suppressing upstream Pi startup notes. Axon separately stores `lastSeenAxonVersion` in
+`${AXON_HOME}/pi/axon-changelog.json`. The first new conversation establishes a baseline silently;
+subsequent upgrades show only newly published Axon entries. Resuming an existing conversation or
+using print/JSON/RPC mode does not advance this marker, and downgrades do not move it backwards.
+
+Release notes are maintained in `AXON_RELEASES` (newest first) in
+`src/harnesses/pi/resources/extensions/axon-changelog.ts` and embedded with the CLI for offline use.
+Add an entry matching the Axon release version when preparing a release. Global Pi installations
+and Pi's own packaged `CHANGELOG.md` are never changed.
+
+### Managed npm registry fallback
+
+Pi runtime installation and Axon's required **npm** extension installs try the configured npm registry first (`npm_config_registry` / `NPM_CONFIG_REGISTRY` or npm's `.npmrc` configuration, including a package's scope). If the active registry is `https://registry.npmjs.org/` or `https://registry.npmmirror.com/` and a registry/network request fails, Axon retries the same installation **once** with the other registry. This includes missing packages/versions (404 / `ETARGET`) and temporary network/server errors. The retry is announced on stderr. For example, to prefer the mirror and fall back to npmjs:
+
+```bash
+npm_config_registry=https://registry.npmmirror.com/ axon setup pi --sync-packages
+```
+
+Fallback only changes the subprocess environment and public tarball URLs in Axon's managed lockfiles; package versions and integrity hashes stay unchanged. It never changes global npm configuration or `.npmrc`. Custom/private registries, authentication/permission failures, integrity failures, dependency conflicts, lifecycle-script failures, and cancelled processes do not trigger fallback. A custom Pi `npmCommand` owns its own retry policy. Healthy installed packages remain local-only, and offline/diagnostic commands never install.
+
+This policy covers Axon's bootstrap and required-package synchronization, not user-forwarded `axon pi install` commands. Git packages and explicit non-public tarball URLs are unchanged. Pi release metadata and lockfiles still require access to `https://pi.dev/api/installer/releases/`; changing npm registries cannot bypass a failure there.
+
 ### Corporate TLS certificates (Zscaler)
 
 Axon keeps HTTPS certificate verification enabled. Before telemetry, authentication, updates, or Pi installation, it prepares company CA trust when no explicit `NODE_EXTRA_CA_CERTS` setting exists:

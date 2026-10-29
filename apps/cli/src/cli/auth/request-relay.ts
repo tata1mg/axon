@@ -11,6 +11,7 @@ import {
   observeRelayResponse,
   type RelayRequestDiagnostics,
 } from "./relay-diagnostics.ts";
+import { relayHttpError } from "./relay-http-errors.ts";
 import { loadEncryptedSession, refreshEncryptedSession } from "./session.ts";
 import {
   createSessionRecovery,
@@ -311,6 +312,19 @@ async function forwardManagedRequest(
         await upstream.body?.cancel();
         return relayError(503, "Your refreshed Axon session could not be saved safely.");
       }
+    }
+    if (relayHttpError(upstream.status, upstream.headers)?.errorType === "CloudflareError") {
+      await diagnostic.failure("upstream_response", undefined, upstream.status);
+      // Browser challenge/denial pages are not useful API responses. Cancel rather
+      // than drain them, and never let a cancellation error replace the denial.
+      await upstream.body?.cancel().catch(() => {});
+      const response = relayError(
+        upstream.status,
+        `Cloudflare returned an HTML denial or browser challenge for this API request. Contact your Axon administrator to check the security rule; signing in again may not resolve this. Relay diagnostics: ${logLabel} (request ${diagnostic.requestId}).`,
+      );
+      const retryAfter = upstream.headers.get("retry-after");
+      if (retryAfter !== null) response.headers.set("Retry-After", retryAfter);
+      return response;
     }
     if (upstream.status === 401) {
       await diagnostic.failure("upstream_response", undefined, upstream.status);

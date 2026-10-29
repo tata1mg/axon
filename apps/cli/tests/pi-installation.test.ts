@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { chmod, mkdir, mkdtemp, rm } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -9,12 +9,18 @@ import {
   PI_INSTALL_VERSION,
   PI_PACKAGE_NAME,
   PI_RELEASES_API,
+  type PiNpmCiRequest,
   type PiReleaseArtifacts,
   type PiToolchain,
   resolveConfiguredPiVersion,
   resolvePiExecutable,
   validatePiReleaseArtifacts,
 } from "../src/harnesses/pi/installation.ts";
+import {
+  NPM_MIRROR_REGISTRY,
+  NPM_PUBLIC_REGISTRY,
+  NpmInstallFailure,
+} from "../src/harnesses/pi/npm-registry.ts";
 import { resolvePiVersion } from "../src/harnesses/pi/version.ts";
 import { resolveHarnessRegistration } from "../src/harnesses/registry.ts";
 import type { HarnessRegistration, LaunchContext } from "../src/launcher/contracts.ts";
@@ -340,6 +346,104 @@ describe("Pi executable resolution", () => {
     );
     expect(resolved).toBe(managedPiExecutable(fixture.context.paths, PI_INSTALL_VERSION));
     expect(state.npmRuns).toBe(1);
+  });
+
+  for (const [primary, fallback] of [
+    [NPM_PUBLIC_REGISTRY, NPM_MIRROR_REGISTRY],
+    [NPM_MIRROR_REGISTRY, NPM_PUBLIC_REGISTRY],
+  ] as const) {
+    test(`installs the same verified runtime using ${fallback} if ${primary} fails`, async () => {
+      const fixture = await createFixture("registry-fallback");
+      fixture.context.environment["npm_config_registry"] = primary;
+      const { dependencies, state } = installerDependencies(fixture, PI_INSTALL_VERSION);
+      const attempts: PiNpmCiRequest[] = [];
+      const resolved = await resolvePiExecutable(fixture.context, piRegistration(), launchOptions, {
+        ...dependencies,
+        runNpmCi: async (request) => {
+          attempts.push(request);
+          const stagedLock = JSON.parse(
+            await Bun.file(join(request.cwd, "package-lock.json")).text(),
+          );
+          expect(stagedLock.packages[`node_modules/${PI_PACKAGE_NAME}`].resolved).toStartWith(
+            request.environment["npm_config_registry"] as string,
+          );
+          if (attempts.length === 1) throw new NpmInstallFailure(1, "npm error code ETIMEDOUT");
+          await dependencies.runNpmCi(request);
+        },
+      });
+      expect(resolved).toBe(managedPiExecutable(fixture.context.paths, PI_INSTALL_VERSION));
+      expect(attempts.map((request) => request.environment["npm_config_registry"])).toEqual([
+        primary,
+        fallback,
+      ]);
+      expect(attempts[0]?.cwd).toBe(attempts[1]?.cwd);
+      expect(state.fetched).toHaveLength(3);
+      expect(fixture.context.environment["npm_config_registry"]).toBe(primary);
+    });
+  }
+
+  test("cleans staging and never activates a runtime when both registries fail", async () => {
+    const fixture = await createFixture("both-registries-fail");
+    fixture.context.environment["npm_config_registry"] = NPM_PUBLIC_REGISTRY;
+    const { dependencies } = installerDependencies(fixture, PI_INSTALL_VERSION);
+    let attempts = 0;
+    await expect(
+      resolvePiExecutable(fixture.context, piRegistration(), launchOptions, {
+        ...dependencies,
+        runNpmCi: async () => {
+          attempts += 1;
+          throw new NpmInstallFailure(1, "npm error code E503");
+        },
+      }),
+    ).rejects.toMatchObject({ exitStatus: 123 });
+    expect(attempts).toBe(2);
+    expect(await readdir(fixture.context.paths.piRuntime)).toEqual([]);
+  });
+
+  test("captures real npm ci availability errors and retries the subprocess", async () => {
+    const fixture = await createFixture("real-npm-fallback");
+    const npmPath = join(fixture.bin, "npm");
+    const record = join(fixture.root, "npm-attempts.jsonl");
+    fixture.context.environment["npm_config_registry"] = NPM_PUBLIC_REGISTRY;
+    fixture.context.environment["FAKE_NPM_RECORD"] = record;
+    await Bun.write(
+      npmPath,
+      `#!${process.execPath}
+import { appendFile, chmod, mkdir } from "node:fs/promises";
+const registry = process.env.npm_config_registry;
+await appendFile(process.env.FAKE_NPM_RECORD, JSON.stringify({ registry, args: process.argv.slice(2) }) + "\\n");
+if (registry === ${JSON.stringify(NPM_PUBLIC_REGISTRY)}) {
+  console.error("npm error code ECONNRESET");
+  process.exit(1);
+}
+const name = ${JSON.stringify(PI_PACKAGE_NAME)};
+const version = ${JSON.stringify(PI_INSTALL_VERSION)};
+await mkdir("node_modules/" + name, { recursive: true });
+await Bun.write("node_modules/" + name + "/package.json", JSON.stringify({ name, version }));
+await Bun.write("node_modules/.bin/pi", "#!/bin/sh\\necho " + version + "\\n");
+await chmod("node_modules/.bin/pi", 0o755);
+`,
+    );
+    await chmod(npmPath, 0o755);
+    const { dependencies } = installerDependencies(fixture, PI_INSTALL_VERSION);
+    const { runNpmCi: _unused, ...productionDependencies } = dependencies;
+    const executable = await resolvePiExecutable(fixture.context, piRegistration(), launchOptions, {
+      ...productionDependencies,
+      probeToolchain: async () => ({ ...healthyToolchain, npmPath }),
+    });
+    expect(executable).toBe(managedPiExecutable(fixture.context.paths, PI_INSTALL_VERSION));
+    const attempts = (await Bun.file(record).text())
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    expect(attempts.map((attempt) => attempt.registry)).toEqual([
+      NPM_PUBLIC_REGISTRY,
+      NPM_MIRROR_REGISTRY,
+    ]);
+    for (const attempt of attempts) {
+      expect(attempt.args).toContain("ci");
+      expect(attempt.args).toContain("--ignore-scripts");
+    }
   });
 
   test("rejects executable overrides before installing", async () => {

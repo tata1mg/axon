@@ -8,6 +8,7 @@ import { withFileLock } from "../../launcher/file-lock.ts";
 import { PRODUCT_IDENTITY } from "../../product/identity.ts";
 import type { AxonPaths } from "../../product/paths.ts";
 import { createRelayRedactor, relayErrorDetails } from "./relay-error-details.ts";
+import { type RelayHttpError, relayHttpError } from "./relay-http-errors.ts";
 
 const MAX_LOG_BYTES = 1024 * 1024;
 const MAX_RECORD_BYTES = 64 * 1024;
@@ -148,6 +149,7 @@ export function createRelayDiagnostics(paths: AxonPaths): {
       let firstByteMs: number | null = null;
       let lastByteAt: number | null = null;
       let responseContext: DiagnosticContext = {};
+      let httpError: RelayHttpError | undefined;
       // Keep resource IDs for debugging, but never include query strings or fragments.
       const endpoint = url.pathname;
       const method = /^(GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS)$/.test(request.method)
@@ -162,6 +164,7 @@ export function createRelayDiagnostics(paths: AxonPaths): {
           firstByteMs = null;
           lastByteAt = null;
           responseContext = {};
+          httpError = undefined;
         },
         response(response) {
           headersMs = Math.round(performance.now() - fetchStarted);
@@ -176,10 +179,15 @@ export function createRelayDiagnostics(paths: AxonPaths): {
           ]) {
             redactor.protectSecret(response.headers.get(header)?.replace(/^Bearer\s+/i, ""));
           }
+          httpError = relayHttpError(response.status, response.headers);
           responseContext = {
             contentType: response.headers.get("content-type"),
             upstreamRequestId: response.headers.get("x-request-id"),
             litellmCallId: response.headers.get("x-litellm-call-id"),
+            upstreamServer: response.headers.get("server"),
+            cfRay: response.headers.get("cf-ray"),
+            cfMitigated: response.headers.get("cf-mitigated"),
+            retryAfter: response.headers.get("retry-after"),
           };
         },
         chunk(bytes) {
@@ -202,7 +210,14 @@ export function createRelayDiagnostics(paths: AxonPaths): {
                   : value,
               ]),
             );
-            const fields = relayErrorDetails(error, redactor);
+            // HTTP denials have no thrown exception. Keep them distinct from network
+            // errors without hiding a real exception/code from a failed body read.
+            const httpFailure =
+              error === undefined &&
+              (stage === "upstream_response" || stage === "upstream_response_body")
+                ? (httpError ?? relayHttpError(status ?? 0))
+                : undefined;
+            const fields = httpFailure ?? relayErrorDetails(error, redactor);
             const record: Record<string, unknown> = {
               schemaVersion: 2,
               timestamp: new Date().toISOString(),

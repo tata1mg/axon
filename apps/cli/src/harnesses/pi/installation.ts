@@ -18,6 +18,7 @@ import { compareSemVer, isSemVer, parseFirstSemVer } from "../../launcher/versio
 import { PRODUCT_IDENTITY } from "../../product/identity.ts";
 import type { AxonPaths } from "../../product/paths.ts";
 import { createPiEnvironment } from "./environment.ts";
+import { NpmInstallFailure, withNpmRegistryFallback } from "./npm-registry.ts";
 import { isPiOffline } from "./setup/packages/invocation.ts";
 import { type PiVersionProber, probePiVersion, resolvePiVersion } from "./version.ts";
 
@@ -327,16 +328,22 @@ async function runNpmCi(request: PiNpmCiRequest): Promise<void> {
       cwd: request.cwd,
       env: request.environment,
       stdin: "ignore",
-      stdout: "inherit",
-      stderr: "inherit",
+      stdout: "pipe",
+      stderr: "pipe",
     },
   );
-  const exitCode = await subprocess.exited;
+  const [exitCode, stdout, stderr] = await Promise.all([
+    subprocess.exited,
+    new Response(subprocess.stdout).text(),
+    new Response(subprocess.stderr).text(),
+  ]);
+  process.stdout.write(stdout);
+  process.stderr.write(stderr);
   if (subprocess.signalCode !== null) {
     throw new Error(`npm ci terminated by signal ${subprocess.signalCode}`);
   }
   if (exitCode !== 0) {
-    throw new Error(`npm ci exited with status ${exitCode}`);
+    throw new NpmInstallFailure(exitCode, stdout + stderr);
   }
 }
 
@@ -443,11 +450,14 @@ async function installManagedPi(
     await mkdir(stageDirectory, { recursive: true, mode: 0o700 });
     await Bun.write(join(stageDirectory, "package.json"), packageJson);
     await Bun.write(join(stageDirectory, "package-lock.json"), completedLock);
-    await (dependencies.runNpmCi ?? runNpmCi)({
+    const npmRequest: PiNpmCiRequest = {
       cwd: stageDirectory,
       environment: createHarnessEnvironment(context.environment),
       npmPath: toolchain.npmPath,
-    });
+    };
+    await withNpmRegistryFallback(npmRequest, (environment) =>
+      (dependencies.runNpmCi ?? runNpmCi)({ ...npmRequest, environment }),
+    );
 
     const launcher = join(stageDirectory, "node_modules", ".bin", "pi");
     try {
