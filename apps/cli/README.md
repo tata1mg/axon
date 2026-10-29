@@ -91,7 +91,7 @@ axon harnesses
 axon paths
 axon doctor [pi]
 axon setup pi --sync-packages   # installs Pi if needed, required packages, resources, and MCP defaults
-axon setup paseo                # register Axon in an existing Paseo installation
+axon setup paseo                # configure Axon and integration settings in Paseo
 axon uninstall [--remove-runtimes]
 ```
 
@@ -106,7 +106,7 @@ If you use [Paseo](https://paseo.sh), register Axon as a provider with:
 ```bash
 axon setup paseo
 axon setup paseo --config /custom/paseo/config.json  # non-default Paseo home
-axon setup paseo --yes                              # accept an existing provider update in scripts
+axon setup paseo --yes                              # accept integration updates in scripts
 ```
 
 This local-only command does not require sign-in or install Paseo. It edits
@@ -117,10 +117,35 @@ If the config does not exist, setup creates it only when it finds `paseo` on `PA
 macOS app in `/Applications` or `~/Applications`. An existing config also allows setup
 when Paseo is installed elsewhere.
 
-Other providers, agent profiles, terminal profiles, and unrelated settings are preserved.
-An already configured provider is a no-op. Updating a different existing Axon provider
-requires confirmation (default **No**), or `--yes` in non-interactive runs. Extra provider
-fields and environment variables are preserved; only the managed fields above are updated.
+Setup enables the Axon provider and applies these integration settings:
+
+- `features.dictation.enabled` and `features.voiceMode.enabled`: `true`
+- `pluginsEnabled`: `true`
+- `daemon.relay.enabled`: `true` (opts into relay connectivity; setup does not pair devices)
+- `daemon.mcp.injectIntoAgents`: `true`
+- `daemon.browserTools.enabled`: `true`
+- `daemon.enableTerminalAgentHooks`: `true`
+- `agents.providers.<id>.enabled`: `false` for `pi`, `opencode`, `copilot`, `codex`,
+  `claude`, `muse`, and `antigravity`
+
+Setup also adds or updates this entry in `daemon.terminalProfiles`, matching by its stable ID
+so reruns do not append duplicates:
+
+```json
+{
+  "id": "profile_mvt5ic5u_nj5mgc6ucq",
+  "name": "Axon",
+  "command": "axon",
+  "args": ["pi", "{{{prompt}}}"]
+}
+```
+
+Custom providers, agent profiles, other terminal profiles, and unrelated settings are preserved,
+including voice configuration, extra terminal-profile fields, and extra fields on disabled
+providers. Setup is a no-op only
+when the Axon provider and all managed settings already match. Updating an existing Axon
+setup requires confirmation (default **No**), or `--yes` in non-interactive runs. Extra Axon
+provider fields and environment variables are preserved; only managed fields are updated.
 Invalid JSON, malformed parent sections, and symlink/non-regular configs are never overwritten.
 Writes are atomic, preserve existing config permissions, and save the previous contents to a
 private sibling `config.json.axon-backup.<timestamp>.<id>` file before changing an existing file.

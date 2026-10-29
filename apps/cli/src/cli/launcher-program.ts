@@ -129,7 +129,7 @@ function createLauncherProgram(): Command {
     .argument("<target>", "setup target: pi or paseo")
     .option("--sync-packages", "install or repair required Pi packages")
     .option("--config <path>", "Paseo config path (default: ~/.paseo/config.json)")
-    .option("--yes", "accept updating an existing Paseo Axon provider without prompting")
+    .option("--yes", "accept updating existing Paseo Axon integration settings without prompting")
     .action(async (target: string, options: SetupOptions) => {
       await runSetup(target, options);
     });

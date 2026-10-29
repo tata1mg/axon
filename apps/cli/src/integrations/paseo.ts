@@ -11,6 +11,23 @@ import { resolveAxonPaths } from "../product/paths.ts";
 
 type JsonObject = Record<string, unknown>;
 
+const DISABLED_PROVIDERS = [
+  "pi",
+  "opencode",
+  "copilot",
+  "codex",
+  "claude",
+  "muse",
+  "antigravity",
+] as const;
+
+const AXON_TERMINAL_PROFILE = {
+  id: "profile_mvt5ic5u_nj5mgc6ucq",
+  name: "Axon",
+  command: "axon",
+  args: ["pi", "{{{prompt}}}"],
+};
+
 export interface PaseoSetupOptions {
   readonly config?: string;
   readonly yes?: boolean;
@@ -88,6 +105,24 @@ function objectSection(parent: JsonObject, key: string, section: string): JsonOb
   return value;
 }
 
+function mergeTerminalProfiles(daemon: JsonObject): JsonObject[] {
+  const profiles = daemon["terminalProfiles"];
+  if (profiles === undefined) return [AXON_TERMINAL_PROFILE];
+  if (!Array.isArray(profiles) || !profiles.every(isObject)) {
+    throw setupError(
+      "Paseo daemon.terminalProfiles must be an array of objects; config left unchanged",
+    );
+  }
+  let found = false;
+  const merged = profiles.map((profile) => {
+    if (profile["id"] !== AXON_TERMINAL_PROFILE.id) return profile;
+    found = true;
+    return { ...profile, ...AXON_TERMINAL_PROFILE };
+  });
+  if (!found) merged.push(AXON_TERMINAL_PROFILE);
+  return merged;
+}
+
 async function isPaseoInstalled(
   environment: NodeJS.ProcessEnv,
   cwd: string,
@@ -154,7 +189,7 @@ async function writeConfig(
   });
 }
 
-/** Register only the Axon provider; models, agent profiles and terminal profiles are user-owned. */
+/** Configure Axon and its Paseo defaults; models and unrelated profiles remain user-owned. */
 export async function configurePaseo(
   options: ConfigurePaseoOptions = {},
 ): Promise<PaseoSetupResult> {
@@ -186,6 +221,7 @@ export async function configurePaseo(
     const provider = {
       ...(isObject(existing) ? existing : {}),
       extends: "pi",
+      enabled: true,
       label: "Axon",
       command: [paths.managedBinary, "pi"],
       env: {
@@ -195,12 +231,62 @@ export async function configurePaseo(
         PI_CODING_AGENT_SESSION_DIR: paths.piSessions,
       },
     };
-    if (isDeepStrictEqual(existing, provider)) return { status: "unchanged", configPath };
+    const features = objectSection(config, "features", "features");
+    const daemon = objectSection(config, "daemon", "daemon");
+    const merged = {
+      ...config,
+      features: {
+        ...features,
+        dictation: {
+          ...objectSection(features, "dictation", "features.dictation"),
+          enabled: true,
+        },
+        voiceMode: {
+          ...objectSection(features, "voiceMode", "features.voiceMode"),
+          enabled: true,
+        },
+      },
+      pluginsEnabled: true,
+      daemon: {
+        ...daemon,
+        relay: {
+          ...objectSection(daemon, "relay", "daemon.relay"),
+          enabled: true,
+        },
+        mcp: {
+          ...objectSection(daemon, "mcp", "daemon.mcp"),
+          injectIntoAgents: true,
+        },
+        browserTools: {
+          ...objectSection(daemon, "browserTools", "daemon.browserTools"),
+          enabled: true,
+        },
+        enableTerminalAgentHooks: true,
+        terminalProfiles: mergeTerminalProfiles(daemon),
+      },
+      agents: {
+        ...agents,
+        providers: {
+          ...providers,
+          ...Object.fromEntries(
+            DISABLED_PROVIDERS.map((id) => [
+              id,
+              {
+                ...objectSection(providers, id, `agents.providers.${id}`),
+                enabled: false,
+              },
+            ]),
+          ),
+          axon: provider,
+        },
+      },
+    };
+    if (isDeepStrictEqual(config, merged)) return { status: "unchanged", configPath };
 
     if (Object.hasOwn(providers, "axon") && options.yes !== true) {
       if (options.confirmReplacement === undefined) {
         throw new LauncherError(
-          `Paseo already has a different Axon provider; left unchanged: ${configPath}`,
+          `Paseo already has Axon configured with different settings; left unchanged: ${configPath}`,
           LAUNCHER_EXIT_STATUS.usage,
           { remediation: "Rerun interactively to confirm the update, or pass --yes to accept it." },
         );
@@ -209,10 +295,6 @@ export async function configurePaseo(
         return { status: "cancelled", configPath };
     }
 
-    const merged = {
-      ...config,
-      agents: { ...agents, providers: { ...providers, axon: provider } },
-    };
     const backupPath = await writeConfig(configPath, merged, original);
     return {
       status: original === undefined ? "created" : "updated",
