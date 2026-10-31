@@ -400,7 +400,12 @@ export function createAxonAuth(options: AxonAuthOptions = {}): (pi: ExtensionAPI
     let lastRunFailed = false;
 
     pi.events.on(SANDBOX_EDITOR_CHANNEL, (open) => {
-      if (activeContext?.mode !== "tui" || typeof open !== "boolean") return;
+      if (
+        !activeContext ||
+        (activeContext.mode !== "tui" && activeContext.mode !== "rpc") ||
+        typeof open !== "boolean"
+      )
+        return;
       session?.stop();
       session = open ? undefined : startAuthSession(activeContext, settings());
     });

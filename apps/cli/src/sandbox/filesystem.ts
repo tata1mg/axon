@@ -276,6 +276,9 @@ export async function saveFilesystemPreferences(
   if (expected && JSON.stringify(current) !== JSON.stringify(expected))
     throw sandboxFailure("Filesystem permissions changed; reopen the editor before saving");
   const validated = await validateFilesystemPreferences(paths, cwd, preferences, policy);
+  // Editors review canonical paths. A replaced symlink must not silently redirect an approval.
+  if (JSON.stringify(validated) !== JSON.stringify(preferences))
+    throw sandboxFailure("Filesystem paths changed since review; reopen the editor before saving");
   if (filesystemPreferencesRevision(paths) !== revision)
     throw sandboxFailure("Filesystem permissions changed; reopen the editor before saving");
   commitFilesystemPreferences(paths, destination, validated);

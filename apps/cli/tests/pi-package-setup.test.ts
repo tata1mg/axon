@@ -767,6 +767,9 @@ describe("Pi package synchronization", () => {
         OPENAI_API_KEY: "secret",
       },
       sandbox: {
+        async configurationPolicy() {
+          throw new Error("Unexpected sandbox configuration in a package-action fixture");
+        },
         clientConfig: () => undefined,
         async wrap() {
           throw new Error("Unexpected interactive launch in a package-action fixture");

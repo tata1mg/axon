@@ -707,8 +707,15 @@ export default function axonExtension(pi: ExtensionAPI): void {
   });
 
   pi.registerCommand("sandbox", {
-    description: "Edit temporary filesystem access; restart Pi and resume this chat safely",
+    description: "Edit temporary filesystem access in your terminal or RPC client",
     handler: async (args, ctx) => {
+      // The parent intercepts the user's RPC command and owns every settings dialog.
+      // These child-side checkpoints only suspend competing login cards and save the branch;
+      // neither this command nor the HTTP relay can approve RPC permission changes.
+      if (ctx.mode === "rpc" && args.trim() === "--rpc-close") {
+        pi.events.emit(SANDBOX_EDITOR_CHANNEL, false);
+        return;
+      }
       if (args.trim()) {
         ctx.ui.notify(
           "Use /sandbox without arguments to open the filesystem access editor.",
@@ -717,7 +724,7 @@ export default function axonExtension(pi: ExtensionAPI): void {
         return;
       }
       const config = authRelayConfiguration();
-      if (ctx.mode !== "tui" || config === undefined) {
+      if ((ctx.mode !== "tui" && ctx.mode !== "rpc") || config === undefined) {
         ctx.ui.notify(
           "Open an interactive Axon session to edit temporary sandbox permissions.",
           "warning",
@@ -749,6 +756,10 @@ export default function axonExtension(pi: ExtensionAPI): void {
         // Native resume chooses the last entry. This harmless checkpoint preserves
         // the selected branch, including a tree navigation without a subsequent turn.
         pi.appendEntry("axon-sandbox-restart", {});
+      }
+      if (ctx.mode === "rpc") {
+        pi.events.emit(SANDBOX_EDITOR_CHANNEL, true);
+        return;
       }
       const resume = {
         sessionId,

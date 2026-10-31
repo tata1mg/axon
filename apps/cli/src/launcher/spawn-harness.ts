@@ -1,4 +1,5 @@
 import { resolveAxonPaths } from "../product/paths.ts";
+import type { SandboxRpcTransport } from "../sandbox/rpc-configuration.ts";
 import { flushProductTelemetry } from "../telemetry/client.ts";
 import { emitProductEvent } from "../telemetry/product-events.ts";
 import type { LaunchSpec } from "./contracts.ts";
@@ -11,30 +12,36 @@ const FORWARDED_SIGNALS = ["SIGTERM", "SIGHUP"] as const;
 export async function spawnHarness(
   specification: LaunchSpec,
   restart?: () => Promise<LaunchSpec>,
+  rpc?: SandboxRpcTransport,
 ): Promise<never> {
   let current = specification;
-  while (true) {
-    const result = await runHarness(current, restart !== undefined);
-    if (!result.restart || !restart) return exitLikeChild(result);
-    try {
-      current = await restart();
-    } catch (error) {
-      // A failed rebuild must close the relay and invocation resources retained for restart.
-      current.dispose?.();
-      throw error;
+  try {
+    while (true) {
+      const result = await runHarness(current, restart !== undefined, rpc);
+      if (!result.restart || !restart) return exitLikeChild(result);
+      try {
+        current = await restart();
+      } catch (error) {
+        // A failed rebuild must close the relay and invocation resources retained for restart.
+        current.dispose?.();
+        throw error;
+      }
     }
+  } finally {
+    rpc?.dispose();
   }
 }
 
 async function runHarness(
   specification: LaunchSpec,
   allowRestart: boolean,
+  rpc?: SandboxRpcTransport,
 ): Promise<{
   readonly exitCode: number | null;
   readonly signalCode: NodeJS.Signals | null;
   readonly restart: boolean;
 }> {
-  let subprocess: Bun.Subprocess<"inherit", "inherit", "inherit">;
+  let subprocess: Bun.Subprocess<"inherit" | "pipe", "inherit" | "pipe", "inherit">;
   let spawnError: Error | undefined;
   const startedAt = Date.now();
   // A read-capable session needs its own group so revocation reaches extensions too.
@@ -47,8 +54,8 @@ async function runHarness(
       cwd: specification.cwd,
       env: specification.environment,
       detached,
-      stdin: "inherit",
-      stdout: "inherit",
+      stdin: rpc ? "pipe" : "inherit",
+      stdout: rpc ? "pipe" : "inherit",
       stderr: "inherit",
       onExit: (_subprocess, _exitCode, _signalCode, error) => {
         spawnError = error;
@@ -136,6 +143,11 @@ async function runHarness(
           Math.max(1, specification.expiresAt - Date.now()),
         );
   try {
+    if (rpc) {
+      if (!subprocess.stdin || !subprocess.stdout)
+        throw new Error("RPC transport requires private child stdin and stdout pipes");
+      rpc.attach(subprocess.stdin, subprocess.stdout);
+    }
     await subprocess.exited;
   } finally {
     if (expiry !== undefined) clearTimeout(expiry);
@@ -154,8 +166,11 @@ async function runHarness(
       !expired &&
       spawnError === undefined &&
       (specification.expiresAt === undefined || Date.now() < specification.expiresAt);
-    if (!restarting)
+    await rpc?.detach(restarting);
+    if (!restarting) {
+      rpc?.dispose();
       await flushProductTelemetry(resolveAxonPaths(), specification.offline ?? false);
+    }
     specification.dispose?.({ restarting });
   }
 

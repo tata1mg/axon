@@ -13,10 +13,10 @@ import {
   saveFilesystemPreferences,
   validateFilesystemProject,
 } from "../../sandbox/filesystem.ts";
-import { authorizeSandbox } from "../../sandbox/policy.ts";
+import { authorizeSandbox, type SandboxPolicy } from "../../sandbox/policy.ts";
 import { formatHomePath } from "../../sessions/display.ts";
 
-type SandboxMenuUI = Pick<
+export type SandboxMenuUI = Pick<
   typeof prompts,
   "select" | "autocomplete" | "text" | "intro" | "outro" | "cancel" | "note"
 >;
@@ -116,13 +116,22 @@ export async function runSandboxMenu(
   paths: AxonPaths,
   cwd: string,
   ui: SandboxMenuUI = prompts,
-  options: { readonly signal?: AbortSignal } = {},
+  options: {
+    readonly signal?: AbortSignal;
+    /** Only the parent-owned RPC transport may provide a nonterminal UI. */
+    readonly requireTerminal?: boolean;
+    readonly authorize?: () => Promise<SandboxPolicy>;
+    readonly beforeSave?: () => Promise<void>;
+  } = {},
 ): Promise<boolean> {
   const { signal } = options;
   signal?.throwIfAborted();
   const cancellation = signal ? { signal } : {};
   const invocation = currentPiInvocationEnvironment();
-  if (invocation.ci || !invocation.stdinIsTty || !invocation.stdoutIsTty) {
+  if (
+    options.requireTerminal !== false &&
+    (invocation.ci || !invocation.stdinIsTty || !invocation.stdoutIsTty)
+  ) {
     throw new LauncherError(
       "Interactive filesystem configuration requires a terminal",
       LAUNCHER_EXIT_STATUS.usage,
@@ -318,7 +327,11 @@ export async function runSandboxMenu(
         if (save === "back") continue;
         signal?.throwIfAborted();
         // Fetch current backend restrictions before committing any permissions.
-        const currentPolicy = (await authorizeSandbox(paths)).policy;
+        const currentPolicy = options.authorize
+          ? await options.authorize()
+          : (await authorizeSandbox(paths)).policy;
+        signal?.throwIfAborted();
+        await options.beforeSave?.();
         signal?.throwIfAborted();
         await saveFilesystemPreferences(paths, project, draft, original, currentPolicy);
         ui.outro(

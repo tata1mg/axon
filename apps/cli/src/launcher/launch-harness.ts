@@ -15,6 +15,7 @@ import {
   authorizeSandboxBootstrap,
   sandboxFailure,
 } from "../sandbox/policy.ts";
+import { createSandboxRpcTransport } from "../sandbox/rpc-configuration.ts";
 import { withSandboxSession } from "../sandbox/session.ts";
 import { emitProductEvent } from "../telemetry/product-events.ts";
 import type {
@@ -220,14 +221,30 @@ async function launchSandboxedHarness(
     outcome: "success",
     durationMs: Date.now() - startedAt,
   });
-  return spawnHarness(specification, async () => {
-    await editorClosed;
-    if (!resumeSession)
-      throw sandboxFailure("Sandbox permissions changed without a validated resume session");
-    const session = await validateSandboxResumeSession(paths, resumeSession);
-    return wrap({
-      ...originalSpecification,
-      arguments: piRestartArguments(originalSpecification.arguments, session),
-    });
-  });
+  const rpc = isPiRpcMode(userArguments)
+    ? createSandboxRpcTransport({
+        paths,
+        cwd,
+        sandbox: sandboxedContext.sandbox,
+        prepareRestart(session) {
+          if (!context.prepareSandboxRestart)
+            throw sandboxFailure("The parent-owned sandbox restart is unavailable");
+          return context.prepareSandboxRestart(session);
+        },
+      })
+    : undefined;
+  return spawnHarness(
+    specification,
+    async () => {
+      await editorClosed;
+      if (!resumeSession)
+        throw sandboxFailure("Sandbox permissions changed without a validated resume session");
+      const session = await validateSandboxResumeSession(paths, resumeSession);
+      return wrap({
+        ...originalSpecification,
+        arguments: piRestartArguments(originalSpecification.arguments, session),
+      });
+    },
+    rpc,
+  );
 }

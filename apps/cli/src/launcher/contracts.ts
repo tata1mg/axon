@@ -1,5 +1,6 @@
 import type { ClientConfig } from "../cli/client-config.ts";
 import type { AxonPaths } from "../product/paths.ts";
+import type { SandboxPolicy } from "../sandbox/contracts.ts";
 
 export type StableHarnessId = "pi";
 
@@ -59,6 +60,8 @@ export interface SandboxCommandResult {
 }
 
 export interface SandboxSession {
+  /** Revalidate settings against fresh authentication and this invocation's compiled boundary. */
+  configurationPolicy(): Promise<SandboxPolicy>;
   /** Reuse startup configuration only while the verified credential is unchanged. */
   clientConfig(session: string): ClientConfig | undefined;
   wrap(

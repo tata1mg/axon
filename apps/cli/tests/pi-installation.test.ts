@@ -280,6 +280,9 @@ describe("Pi version probe cache", () => {
     const sandboxedContext: LaunchContext = {
       ...fixture.context,
       sandbox: {
+        async configurationPolicy() {
+          throw new Error("Unexpected sandbox configuration in a version-probe fixture");
+        },
         clientConfig: () => undefined,
         async wrap() {
           throw new Error("Unexpected interactive launch in a version-probe fixture");

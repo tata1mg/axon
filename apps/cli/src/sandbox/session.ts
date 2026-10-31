@@ -126,6 +126,23 @@ export async function createSandboxSession(
 
   return {
     dispose,
+    async configurationPolicy() {
+      assertActive();
+      if (context.catalogOnly)
+        throw sandboxFailure("RPC catalog probes cannot configure project permissions");
+      const verified = await authorizeSandbox(context.paths);
+      assertActive();
+      // A settings change cannot silently replace network/Git restrictions or renew the lease.
+      // Changed backend boundaries require a new Axon invocation, not just a new Pi child.
+      if (!isDeepStrictEqual(verified.policy, authorization.policy))
+        throw sandboxFailure(
+          "Backend sandbox policy changed; restart the agent before editing permissions",
+        );
+      if ((await loadEncryptedSession(context.paths)) !== verified.session)
+        throw sandboxFailure("Axon identity changed while validating sandbox permissions");
+      assertActive();
+      return verified.policy;
+    },
     clientConfig(session) {
       assertActive();
       if (authorization.session !== undefined && authorization.session !== session)

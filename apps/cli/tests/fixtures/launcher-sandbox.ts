@@ -49,6 +49,9 @@ export async function createFixtureSandbox(context: LaunchContext): Promise<Sand
   };
 
   return {
+    async configurationPolicy() {
+      throw new Error("Unexpected sandbox configuration in a launcher fixture");
+    },
     clientConfig(session) {
       if (session !== authorization.session)
         throw sandboxFailure("Launcher fixture identity changed during setup");
