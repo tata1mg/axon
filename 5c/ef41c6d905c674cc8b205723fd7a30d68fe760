@@ -1,0 +1,45 @@
+apps/cli/src/harnesses/pi/resources/extensions/axon.ts
+  71de1b8796e925e5 710,712-718,727,760-762
+apps/cli/src/sandbox/rpc-configuration.ts
+  71de1b8796e925e5 1-529
+apps/cli/src/sandbox/filesystem.ts
+  71de1b8796e925e5 279-281
+apps/cli/tests/fixtures/launcher-sandbox.ts
+  71de1b8796e925e5 52-54
+apps/cli/src/launcher/contracts.ts
+  71de1b8796e925e5 3,63-64
+apps/cli/src/harnesses/pi/resources/extensions/axon-auth.ts
+  71de1b8796e925e5 404-405
+apps/cli/tests/pi-package-setup.test.ts
+  71de1b8796e925e5 770-772
+apps/cli/src/sandbox/session.ts
+  71de1b8796e925e5 129-145
+apps/cli/tests/pi-installation.test.ts
+  71de1b8796e925e5 283-285
+apps/cli/src/cli/commands/sandbox.ts
+  71de1b8796e925e5 16,19,120-124,132-133,330-334
+apps/cli/src/launcher/spawn-harness.ts
+  71de1b8796e925e5 2,15,18,20,28,30-31,38,44,57-58,146-150,169-171,173
+apps/cli/src/launcher/launch-harness.ts
+  71de1b8796e925e5 18,224-235,247-248
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "5cef41c6d905c674cc8b205723fd7a30d68fe760",
+  "prompts": {
+    "71de1b8796e925e5": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "498040",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 685,
+      "total_deletions": 63,
+      "accepted_lines": 625,
+      "overriden_lines": 0
+    }
+  }
+}
