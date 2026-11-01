@@ -69,6 +69,8 @@ export function formatFilesystemPermissions(
     ),
     colors.dim("Built-in protected locations include DeputyDev, SSH, cloud and Keychain storage."),
     colors.dim("Managed packages and runtime code remain read-only during your chat."),
+    "",
+    colors.bold(colors.cyan("Sandbox session behavior")),
     colors.yellow(
       "Saving stops running file/shell operations; new operations use the saved rules.",
     ),

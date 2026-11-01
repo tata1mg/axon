@@ -395,8 +395,7 @@ function createSandboxScopeDisplay(ctx: ExtensionContext) {
       invalidate() {},
       render(width: number): string[] {
         if (width <= 0) return [];
-        const padding = width > 2 ? 1 : 0;
-        const contentWidth = width - padding * 2;
+        // Match Pi's resource sections: flush-left headings, two-space body indent.
         const lines = [
           theme.fg("mdHeading", "[Sandbox]"),
           settingLine("Scope", "this Axon session", "accent") +
@@ -411,7 +410,7 @@ function createSandboxScopeDisplay(ctx: ExtensionContext) {
           );
         } else {
           const projectLabel = `  Project (${scope.projectMode}): `;
-          const projectWidth = Math.max(1, contentWidth - visibleWidth(projectLabel));
+          const projectWidth = Math.max(1, width - visibleWidth(projectLabel));
           lines.push(
             theme.fg("muted", "  Project (") +
               theme.fg(
@@ -444,7 +443,7 @@ function createSandboxScopeDisplay(ctx: ExtensionContext) {
           theme.fg("accent", "  /sandbox") +
             theme.fg("dim", " to review or edit · changes apply after saving"),
         );
-        return lines.map((line) => " ".repeat(padding) + truncateToWidth(line, contentWidth));
+        return lines.map((line) => truncateToWidth(line, width));
       },
     };
   };

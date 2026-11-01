@@ -3,6 +3,7 @@ import { lstat, mkdtemp, realpath, symlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, parse } from "node:path";
 
+import { resolveGitAiBinary } from "../harnesses/pi/resources/extensions/git-ai.ts";
 import { readCertificates } from "../launcher/certificates.ts";
 import type { LaunchSpec } from "../launcher/contracts.ts";
 import type { AxonPaths } from "../product/paths.ts";
@@ -386,6 +387,13 @@ export async function createSandboxLaunchSpec(
       rules.push(`(allow network-outbound (remote tcp ${quoted(`localhost:${relay.port}`)}))`);
     if (purpose !== "probe")
       rules.push(`(allow network-outbound (remote tcp ${quoted(`localhost:${proxyPort}`)}))`);
+    if (purpose === "session" && !catalogOnly) {
+      // Safehouse's clipboard integration is opt-in. Give Pi's UI native copy/paste
+      // access without granting the clipboard to brokered shell tools or installers.
+      rules.push(
+        '(allow mach-lookup (global-name "com.apple.pasteboard.1") (global-name "com.apple.lsd.mapdb") (global-name "com.apple.lsd.modifydb"))',
+      );
+    }
     const ssh =
       !catalogOnly &&
       (purpose === "session" || purpose === "operation" || purpose === "administration")
@@ -405,6 +413,14 @@ export async function createSandboxLaunchSpec(
       }
     }
     rules.push(...(await readGrant(resources.gitBin)));
+    // Discover optional user-installed git-ai outside Seatbelt, then expose only
+    // its executable, never the rest of ~/.git-ai or another PATH directory.
+    const gitAiCandidate =
+      !catalogOnly && (purpose === "session" || purpose === "operation")
+        ? await resolveGitAiBinary(specification.environment, home)
+        : undefined;
+    const gitAiBinary = gitAiCandidate ? await canonicalPath(gitAiCandidate) : undefined;
+    if (gitAiBinary) rules.push(...(await readGrant(gitAiBinary)));
     for (const path of SYSTEM_READ_PATHS) rules.push(...(await readGrant(path)));
     for (const path of options.runtimeReadPaths ?? []) {
       const file = await canonicalPath(path, specification.cwd);
@@ -539,6 +555,7 @@ export async function createSandboxLaunchSpec(
         join(paths.pi, "extensions"),
         join(paths.home, "sandbox", "runtime"),
         resources.gitBin,
+        ...(gitAiBinary ? [gitAiBinary] : []),
         ...(resources.ssh ? [resources.ssh.configuration, resources.ssh.knownHosts] : []),
       ].map((path) => canonicalPath(path)),
     );
@@ -643,7 +660,11 @@ export async function createSandboxLaunchSpec(
       environment["GIT_SSH_VARIANT"] = "ssh";
       if (ssh.agent) environment["SSH_AUTH_SOCK"] = ssh.agent;
     }
-    if (purpose === "session") environment["PI_CODING_AGENT_DIR"] = paths.pi;
+    if (purpose === "session") {
+      environment["PI_CODING_AGENT_DIR"] = paths.pi;
+      // Pin discovery to the canonical file granted above, including symlinked installs.
+      if (gitAiBinary) environment["PI_AXON_GIT_AI_BIN"] = gitAiBinary;
+    }
     if (purpose !== "session") {
       // Setup cannot inherit ambient provider credentials or the main session's relay capability.
       for (const name of Object.keys(environment)) {
