@@ -1,0 +1,25 @@
+apps/cli/src/sandbox/packages.ts
+  32e8f7c97f22729c 1-172
+apps/cli/src/sandbox/launch.ts
+  32e8f7c97f22729c 3,23,54-55,440,447,450-451,453,456-458,466-469,485-487,490,561-577,632,635,639,650-651,654
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "b17c321976c8b7ea199f34d6a16ce39712e2e12b",
+  "prompts": {
+    "32e8f7c97f22729c": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "500495",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 232,
+      "total_deletions": 24,
+      "accepted_lines": 215,
+      "overriden_lines": 0
+    }
+  }
+}
