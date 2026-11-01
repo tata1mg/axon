@@ -1,6 +1,6 @@
 import { rmSync } from "node:fs";
 import { lstat, mkdtemp, realpath, symlink, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, parse } from "node:path";
 
 import { resolveGitAiBinary } from "../harnesses/pi/resources/extensions/git-ai.ts";
@@ -20,6 +20,7 @@ import {
   validateFilesystemProject,
 } from "./filesystem.ts";
 import { type PackageProxy, startPackageProxy } from "./package-proxy.ts";
+import { installedPackagePaths, PACKAGE_WRITE_FILTERS } from "./packages.ts";
 import { type SandboxAuthorization, sandboxFailure } from "./policy.ts";
 import { restrictFilesystemGrants, restrictSafehouseBaseline } from "./profile.ts";
 import { ensureSafehouseRuntime, generateSafehousePolicy } from "./runtime.ts";
@@ -50,6 +51,8 @@ const SYSTEM_READ_PATHS = [
   "/private/etc/shells",
   "/dev",
 ];
+const SYSTEM_WRITE_PATHS = ["/tmp", "/var"];
+const USER_WRITE_PATHS = [".agents", ".claude", ".local/bin", ".paseo"];
 const DEVICE_WRITE_PATHS = [
   "/dev/fd",
   "/dev/stdout",
@@ -434,19 +437,25 @@ export async function createSandboxLaunchSpec(
     // Persistent Pi state is writable; executable packages remain read-only.
     for (const path of [paths.piRuntime, paths.runtime, paths.pi])
       rules.push(...(await readGrant(path)));
+    const runtimePackagePaths: string[] = [];
     for (const binary of ["node", "bun", "python3", "uv"]) {
       const executable = Bun.which(binary, {
         PATH: specification.environment["PATH"] ?? "/usr/bin:/bin",
       });
       if (executable) {
         const actual = await canonicalPath(executable);
+        runtimePackagePaths.push(actual);
         // Version-managed runtimes need their adjacent libraries as well as bin/.
         const root = binary === "node" || binary === "python3" ? dirname(dirname(actual)) : actual;
-        if (!isWithin(root, home) && root !== parse(root).root && !isWithin(project, root))
+        if (!isWithin(root, home) && root !== parse(root).root && !isWithin(project, root)) {
+          runtimePackagePaths.push(root);
           rules.push(...(await readGrant(root)));
+        }
       }
     }
-    const writableDirectories = [temporary];
+    // Resolve macOS's /tmp and /var aliases to their canonical /private/... paths,
+    // and include the user's configured temporary directory as well.
+    const writableDirectories = [temporary, ...SYSTEM_WRITE_PATHS, tmpdir()];
     if (purpose === "session") {
       if (!catalogOnly) await privateDirectory(projectSessionDirectory(paths, project));
       // Keep Pi's normal persistent session picker/resume behavior across projects.
@@ -454,9 +463,10 @@ export async function createSandboxLaunchSpec(
     } else {
       rules.push(pathRule("deny file-read* file-write*", await canonicalPath(paths.piSessions)));
     }
-    for (const path of writableDirectories) {
-      const canonical = await canonicalPath(path);
-      rules.push(...ancestorRules(canonical), pathRule("allow file-read* file-write*", canonical));
+    for (const path of new Set(
+      await Promise.all(writableDirectories.map((path) => canonicalPath(path))),
+    )) {
+      rules.push(...ancestorRules(path), pathRule("allow file-read* file-write*", path));
     }
     // getcwd needs parent-directory entries, but never recursive access to their contents.
     rules.push(
@@ -472,9 +482,12 @@ export async function createSandboxLaunchSpec(
           )
         : `(allow file-read-metadata (literal ${quoted(project)}))`,
     );
+    // Shared agent configuration and user tools are session defaults, not
+    // provisioning grants. Explicit denials and brokered write restrictions still win.
+    const userWritePaths = projectAccess ? USER_WRITE_PATHS.map((path) => join(home, path)) : [];
     for (const [entries, operation] of [
       [preferences.readPaths, "allow file-read*"],
-      [preferences.writePaths, "allow file-read* file-write*"],
+      [[...userWritePaths, ...preferences.writePaths], "allow file-read* file-write*"],
     ] as const) {
       for (const entry of entries) {
         const path = await canonicalPath(entry);
@@ -545,6 +558,23 @@ export async function createSandboxLaunchSpec(
     for (const path of protectedPaths) {
       rules.push(pathRule("deny file-read* file-write*", await canonicalPath(path)));
     }
+    const dependencyPaths = [
+      ...runtimePackagePaths,
+      ...(await installedPackagePaths(home, [...repositories, ...userWritePaths])),
+    ];
+    for (const path of dependencyPaths) rules.push(...(await readGrant(path)));
+    // Match existing trees by canonical path and future trees by path component.
+    // Every broad grant, including /var, must exclude these installed dependencies.
+    const packageWriteDenials = dependencyPaths.filter(
+      (path) => !provisioning || !writePaths.some((target) => isWithin(path, target)),
+    );
+    const provisioningPackageFilters = PACKAGE_WRITE_FILTERS.map((filter) =>
+      writePaths.length
+        ? `(require-all ${filter} ${writePaths.map((path) => `(require-not (subpath ${quoted(path)}))`).join(" ")})`
+        : filter,
+    );
+    for (const path of packageWriteDenials) rules.push(pathRule("deny file-write*", path));
+    for (const filter of provisioningPackageFilters) rules.push(`(deny file-write* ${filter})`);
     const managedCodePaths = await Promise.all(
       [
         paths.piRuntime,
@@ -599,13 +629,14 @@ export async function createSandboxLaunchSpec(
       ...(projectAccess && preferences.projectMode === "read-only" ? [project] : []),
       ...managedWriteDenials,
       ...metadataWriteDenials,
+      ...dependencyPaths,
     ];
     const restrictedRules = restrictFilesystemGrants(
-      rules,
+      [...new Set(rules)],
       deniedReadPaths,
       deniedWritePaths,
       policy.localGit === "deny" ? [gitFilter] : [],
-      policy.localGit === "read-write" ? [] : [gitFilter],
+      [...PACKAGE_WRITE_FILTERS, ...(policy.localGit === "read-write" ? [] : [gitFilter])],
     );
     // Explicit package grants must not inherit session-only read-only exclusions.
     // Backend/user denies, managed code and the project's Git metadata still win.
@@ -613,9 +644,14 @@ export async function createSandboxLaunchSpec(
       ...restrictFilesystemGrants(
         provisioningRules,
         deniedReadPaths,
-        [...deniedReadPaths, ...managedWriteDenials, ...metadataWriteDenials],
+        [
+          ...deniedReadPaths,
+          ...managedWriteDenials,
+          ...metadataWriteDenials,
+          ...packageWriteDenials,
+        ],
         policy.localGit === "deny" ? [gitFilter] : [],
-        policy.localGit === "read-write" ? [] : [gitFilter],
+        [...provisioningPackageFilters, ...(policy.localGit === "read-write" ? [] : [gitFilter])],
       ),
     );
     const profile = join(runDirectory, `profile-${crypto.randomUUID()}.sb`);
