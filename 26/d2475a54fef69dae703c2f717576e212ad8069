@@ -1,0 +1,29 @@
+apps/cli/src/harnesses/pi/resources/extensions/axon.ts
+  f12130b704cecb7e 398,413,446
+apps/cli/src/cli/commands/sandbox.ts
+  f12130b704cecb7e 72-73
+apps/cli/src/sandbox/environment.ts
+  f12130b704cecb7e 8-12,32
+apps/cli/src/sandbox/launch.ts
+  f12130b704cecb7e 6,390-396,416-423,558,663-666
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "26d2475a54fef69dae703c2f717576e212ad8069",
+  "prompts": {
+    "f12130b704cecb7e": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "500473",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 33,
+      "total_deletions": 5,
+      "accepted_lines": 33,
+      "overriden_lines": 0
+    }
+  }
+}
