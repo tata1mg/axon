@@ -1,0 +1,30 @@
+apps/cli/src/harnesses/pi/telemetry/src/tracker.ts
+  s_925d1578f8a023::t_7d8126ad095804 128
+apps/cli/src/harnesses/pi/telemetry/tests/tracker.test.ts
+  s_925d1578f8a023::t_4b7741ca4723d0 297-298,305,307-312
+apps/cli/src/harnesses/pi/telemetry/docs/telemetry-schema.md
+  s_925d1578f8a023::t_dd5ddf12386792 159
+apps/cli/src/harnesses/pi/resources/extensions/pi-org-telemetry.mjs
+  s_925d1578f8a023::t_c2110c1bbe3395 268
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3b4692ea58510d293365ddb783fb32a4591ce68e",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_925d1578f8a023": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a1a11c-8932-7375-b7b0-11957ec1fcbe",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
