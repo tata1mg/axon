@@ -78,7 +78,6 @@ export async function initializeProductTelemetry(
       const config = resolveConfig({
         PI_ORG_OTEL_ENABLED: "true",
         PI_ORG_OTEL_MANAGED_ENDPOINT: endpoint,
-        OTEL_EXPORTER_OTLP_ENDPOINT: endpoint,
         OTEL_SERVICE_NAME: "axon-cli",
         PI_ORG_OTEL_DIAGNOSTICS: "false",
         OTEL_TRACES_SAMPLER: "parentbased_traceidratio",

@@ -20,7 +20,7 @@ This is a clean-install rename: previous product installations are not automatic
 - Standalone web search through the existing authenticated LiteLLM relay, with grounding, session attribution, and tool usage/cost reporting
 - Pi-only setup checks, including append-only organization MCP defaults at `~/.config/mcp/mcp.json`, requested only for interactive online launches and throttled locally
 - Pi agent/session isolation under `${AXON_HOME}/pi`, with Pi version checks disabled and every Pi-documented provider API key removed from Pi only (LiteLLM variables are kept)
-- Exact Pi 1.4.0 pin: Axon uses only its isolated executable under `${AXON_HOME}/pi-runtime`, installed from Pi's release API with `npm ci`; the user's PATH Pi is never used or changed
+- Exact Pi 1.5.0 pin: Axon uses only its isolated executable under `${AXON_HOME}/pi-runtime`, installed from Pi's release API with `npm ci`; the user's PATH Pi is never used or changed
 - Content-addressed, checksum-verified Axon Pi resources injected through explicit Pi flags that reference the immutable runtime directory
 - Embedded required-package policy with exact, minimum, and Pi/user-managed floating versions
 - Locked package reconciliation, last-known-good exact fallback, and local-only warm checks
@@ -42,7 +42,7 @@ This is a clean-install rename: previous product installations are not automatic
 
 ## Installation
 
-Releases support macOS on Apple Silicon (`darwin-arm64`) and Intel (`darwin-x64`). The installer picks the build that runs natively, including from a Rosetta terminal on Apple Silicon, and each binary updates only to the same target. The launcher does not bundle Pi. The installer checks for Node.js 22.19 or newer and npm before installing `axon`; if either is unavailable, it offers to install or upgrade Node.js with Homebrew in an interactive terminal. Non-interactive installations require Node.js and npm to be installed first. `axon pi` installs and uses its own exact Pi 1.4.0 release on first use, independently of any user-installed Pi.
+Releases support macOS on Apple Silicon (`darwin-arm64`) and Intel (`darwin-x64`). The installer picks the build that runs natively, including from a Rosetta terminal on Apple Silicon, and each binary updates only to the same target. The launcher does not bundle Pi. The installer checks for Node.js 22.19 or newer and npm before installing `axon`; if either is unavailable, it offers to install or upgrade Node.js with Homebrew in an interactive terminal. Non-interactive installations require Node.js and npm to be installed first. `axon pi` installs and uses its own exact Pi 1.5.0 release on first use, independently of any user-installed Pi.
 
 Once the backend serves the public `/install.sh` endpoint (rendered from this repository's [`install.sh`](install.sh) using its configured release URL), install with:
 
@@ -217,7 +217,7 @@ all settings. `PI_WEB_SEARCH_MODE` and `PI_WEB_SEARCH_SEARCH_TOOL` are obsolete.
 
 ### Pi installation bootstrap
 
-`axon pi` uses **only** the Axon-managed executable at `${AXON_HOME}/pi-runtime/1.4.0/node_modules/.bin/pi`. It verifies the installed package and reported executable version, installs that exact version on demand if missing, and never reads or modifies `pi` on `PATH`, regardless of its version. This also applies to forwarded Pi administration (`install`, `auth`, `mcp`, etc.). `axon pi update` (including `--extensions`) is blocked before launching Pi; use `pi update` directly for a separate global installation. Axon's own required-package reconciliation still works through its pinned executable.
+`axon pi` uses **only** the Axon-managed executable at `${AXON_HOME}/pi-runtime/1.5.0/node_modules/.bin/pi`. It verifies the installed package and reported executable version, installs that exact version on demand if missing, and never reads or modifies `pi` on `PATH`, regardless of its version. This also applies to forwarded Pi administration (`install`, `auth`, `mcp`, etc.). `axon pi update` (including `--extensions`) is blocked before launching Pi; use `pi update` directly for a separate global installation. Axon's own required-package reconciliation still works through its pinned executable.
 
 The official `https://pi.dev/install.sh` cannot pin a version, requires an interactive terminal, and may edit shell profiles, so Axon does not run it. Instead it follows the same steps as Pi's own managed `pi update`: it downloads `package.json` and `package-lock.json` for the exact version from `https://pi.dev/api/installer/releases/<version>/`, plus the release metadata from `https://pi.dev/api/installer/releases/<version>`, validates that all three describe `@earendil-works/pi-coding-agent@<version>`, merges the first-party tarball SHA-512 hashes from the metadata into the lockfile (the published lockfile omits them) so that every resolved tarball is integrity-checked, runs `npm ci --ignore-scripts --omit=dev --include=optional` in a staging directory under a same-user lock, verifies the installed package version and launcher, and atomically renames the tree into place. Shell profiles and `PATH` are never modified.
 
@@ -243,10 +243,10 @@ and Pi's own packaged `CHANGELOG.md` are never changed.
 
 ### Managed npm registry fallback
 
-Pi runtime installation and Axon's required **npm** extension installs try the configured npm registry first (`npm_config_registry` / `NPM_CONFIG_REGISTRY` or npm's `.npmrc` configuration, including a package's scope). If the active registry is `https://registry.npmjs.org/` or `https://registry.npmmirror.com/` and a registry/network request fails, Axon retries the same installation **once** with the other registry. This includes missing packages/versions (404 / `ETARGET`) and temporary network/server errors. The retry is announced on stderr. For example, to prefer the mirror and fall back to npmjs:
+Pi runtime installation and Axon's required **npm** extension installs try the configured npm registry first (`npm_config_registry` / `NPM_CONFIG_REGISTRY` or npm's `.npmrc` configuration, including a package's scope). If the active registry is `https://registry.npmjs.org/` or `https://registry.yarnpkg.com/` and a registry/network request fails, Axon retries the same installation **once** with the other registry. This includes missing packages/versions (404 / `ETARGET`) and temporary network/server errors. The retry is announced on stderr. For example, to prefer the Yarn registry and fall back to npmjs:
 
 ```bash
-npm_config_registry=https://registry.npmmirror.com/ axon setup pi --sync-packages
+npm_config_registry=https://registry.yarnpkg.com/ axon setup pi --sync-packages
 ```
 
 Fallback only changes the subprocess environment and public tarball URLs in Axon's managed lockfiles; package versions and integrity hashes stay unchanged. It never changes global npm configuration or `.npmrc`. Custom/private registries, authentication/permission failures, integrity failures, dependency conflicts, lifecycle-script failures, and cancelled processes do not trigger fallback. A custom Pi `npmCommand` owns its own retry policy. Healthy installed packages remain local-only, and offline/diagnostic commands never install.
@@ -309,7 +309,7 @@ A `litellm.providers.litellm.displayName` value in Pi settings takes precedence 
 
 Before an authenticated online Pi launch, Axon removes cached `litellm` models whose base URLs point to an obsolete Axon loopback relay. Otherwise Pi can restore the previous launch's random-port URLs over fresh discovery, causing “No models available.” Cleanup uses Pi's native model-store lock and an atomic write; other providers, unrelated LiteLLM endpoints, and current-relay models are preserved. Offline, administrative, and discovery-disabled launches leave the cache untouched. A busy or unsafe cache never blocks launch; use `/litellm-refresh` if models remain unavailable.
 
-The pinned `pi-provider-litellm@4.6.0` restores vendor-specific compatibility for models served through generic OpenAI-compatible adapters and falls back to `/v1/models` when `/model/info` is empty. Its four-hour startup catalog reuse requires the same proxy URL and discovery version. Axon creates a new random-port relay on each launch, so ordinary managed launches still discover models; the stale-relay cleanup above remains necessary. Stored models from an older discovery version are rediscovered online; upgrading from 4.5.0 changes the discovery version from 9 to 10.
+The pinned `pi-provider-litellm@4.7.2` restores vendor-specific compatibility for models served through generic OpenAI-compatible adapters and falls back to `/v1/models` when `/model/info` is empty. Its four-hour startup catalog reuse requires the same proxy URL and discovery version. Axon creates a new random-port relay on each launch, so ordinary managed launches still discover models; the stale-relay cleanup above remains necessary. Stored models from an older discovery version are rediscovered online; upgrading from 4.6.0 changes the discovery version from 10 to 11.
 
 The local authenticated relay accepts request bodies up to **50 MiB** (52,428,800 bytes), matching the
 Nginx `50m` limit. This covers the full serialized payload, including conversation history, tool results,
@@ -414,7 +414,7 @@ a sensible combination.
 Recommender countdowns must be positive; backend recommendation eligibility/204 still takes priority.
 Provider discovery timeout zero disables discovery (and affected integrations such as MCP). Context
 window fallback only fills missing metadata; known per-model context/output limits are preserved.
-With `pi-provider-litellm@4.6.0`, offline cache enrichment recognizes its built-in/current fallback
+With `pi-provider-litellm@4.7.2`, offline cache enrichment recognizes its built-in/current fallback
 sentinels, but cannot reliably rewrite an older custom fallback without online discovery. Prefer
 correct `/model/info` metadata over a global fallback.
 
@@ -454,7 +454,7 @@ Every non-administrative `axon pi` session also loads the embedded `pi-org-telem
 
 The telemetry extension stays inert without managed OTLP configuration. To export traces, metrics, and structured logs, configure the backend's `CLI_CLIENT_CONFIG.TELEMETRY` or provide `OTEL_EXPORTER_OTLP_ENDPOINT` (or all three per-signal endpoint variables) as a fallback in the environment used to start `axon`. A fetched policy uses only the pinned backend OTEL proxy with Axon session auth, clears inherited exporter authorization/TLS overrides, and cannot select an external destination for the session. The extension reads the session for each batch and safely persists rotations. Managed mode supports HTTP/protobuf; environment fallback supports HTTP/protobuf and gRPC with normal env headers/API keys. Export failures are passive and bounded. Accepted backend enablement wins over local `PI_ORG_OTEL_ENABLED`, samplers, and exporter preferences for both Pi and launcher product events, through shutdown; there is no managed local opt-out. Explicit offline disables export, and local disablement still applies without an accepted policy. This is separate from upstream Pi's `PI_TELEMETRY`. Backend `BATCH_SCHEDULE_DELAY_MS`, `MAX_EXPORT_BATCH_SIZE`, and `MAX_QUEUE_SIZE` control both Pi and launcher log/trace batching, overriding local batch tuning; `METRIC_EXPORT_INTERVAL_MS` controls metric cadence. Full batches and shutdown can export earlier than the configured delay. The extension never exports prompt/completion text, system prompts, file contents, tool results, provider payloads, authorization headers, environment values, full session paths, raw Git remotes, or stack traces. Managed mode exports backend-verified user ID/email, and optional name after server-side identity replacement; environment fallback exports raw effective Git email when available or an installation UUID. Both export the normalized private repository slug; collector access and retention must be restricted accordingly. See [`src/harnesses/pi/telemetry/README.md`](src/harnesses/pi/telemetry/README.md), its [data policy](src/harnesses/pi/telemetry/docs/data-policy.md), and its [schema](src/harnesses/pi/telemetry/docs/telemetry-schema.md).
 
-The embedded manifest in `src/product/manifest.ts` declares required community packages. Pi 1.0 provides MCP support natively, so Axon no longer installs `pi-mcp-adapter`; upgrading to a CLI with this manifest removes the adapter on the next package synchronization when its ownership state and settings entry are unchanged. If it was adopted or modified, remove it manually with `axon pi remove npm:pi-mcp-adapter@2.34.0`. The manifest locks `pi-provider-litellm` to `4.6.0`, `@juicesharp/rpiv-ask-user-question` to `2.15.0`, and `git:github.com/earendil-works/pi-review` to commit `f1de050504936046c0f85b21fec0e0a93ef394eb`. The review package adds `/review` and `/end-review` for reviewing uncommitted changes, branches, commits, pull requests, or files/folders. Git must be installed to provision and verify Git packages; pull-request reviews also require the GitHub CLI (`gh`). Package entries support:
+The embedded manifest in `src/product/manifest.ts` declares required community packages. Pi 1.0 provides MCP support natively, so Axon no longer installs `pi-mcp-adapter`; upgrading to a CLI with this manifest removes the adapter on the next package synchronization when its ownership state and settings entry are unchanged. If it was adopted or modified, remove it manually with `axon pi remove npm:pi-mcp-adapter@2.34.0`. The manifest locks `pi-provider-litellm` to `4.7.2`, `@juicesharp/rpiv-ask-user-question` to `2.15.0`, and `git:github.com/earendil-works/pi-review` to commit `f1de050504936046c0f85b21fec0e0a93ef394eb`. The review package adds `/review` and `/end-review` for reviewing uncommitted changes, branches, commits, pull requests, or files/folders. Git must be installed to provision and verify Git packages; pull-request reviews also require the GitHub CLI (`gh`). Package entries support:
 
 - `exact`: only the declared npm version or Git commit is accepted; a failed migration may use a verified, non-revoked last-known-good exact version
 - `minimum`: the declared version is a hard floor; newer installed versions are accepted and never downgraded
@@ -498,7 +498,8 @@ The built-in Bash checkpoint path is always enabled when tracking is available. 
 
 ### Terminal modes
 
-Terminal execution starts in **Standard** mode. Supported commands run automatically when
+Terminal execution defaults to **Standard** mode until the user saves a YOLO preference.
+Supported commands run automatically when
 the model sets `requires_approval: false`, including routine edits, builds, and tests.
 Model-requested review, required-approval prefixes, custom shells, wrappers, and complex
 shell syntax still require confirmation. Commands needing confirmation are refused when
@@ -506,13 +507,20 @@ no UI is available. `/terminal-permissions` shows the active mode and restrictio
 
 **YOLO** is fully autonomous terminal execution. The backend's
 `TERMINAL_PERMISSIONS.YOLO_MODE: true` (public `yoloMode`) only permits users to enable it;
-it never activates it. Run **`/yolo`** with no arguments to toggle it on/off for the current
-session, without an additional confirmation dialog. The header shows `YOLO` while active.
+it never activates it by itself. Run **`/yolo`** with no arguments to toggle and save the
+local user's preference, without an additional confirmation dialog. It applies to existing
+and future sessions sharing the same user configuration directory, including headless
+sessions. The header shows `YOLO` while active.
 YOLO ignores model approval requests and required-approval lists, and allows wrappers,
-custom shells, PowerShell, and complex syntax without prompts. It resets to Standard on
-session creation/replacement, shutdown, or extension reload and is never persisted.
-Backend `false`, missing policy, or a failed policy fetch prevents enabling YOLO. Environment
-variables cannot grant eligibility or activate it; `PI_TERMINAL_YOLO_MODE` is no longer used.
+custom shells, PowerShell, and complex syntax without prompts. The preference survives
+session creation/replacement, shutdown, extension reload, and process restart. It is stored
+in `$PI_CODING_AGENT_DIR/terminal-preferences.json` (normally `~/.axon/pi/terminal-preferences.json`),
+not in project settings or conversation history. Missing, unreadable, or corrupt preferences
+default to Standard. Every terminal authorization reads the latest preference; interactive
+headers refresh within about half a second. Concurrent toggles are serialized across processes.
+Backend `false`, missing policy, or a failed policy fetch prevents YOLO execution even with
+a saved preference. These do not erase the preference. Environment variables cannot grant
+eligibility; `PI_TERMINAL_YOLO_MODE` is no longer used. The tool prompt/schema stays static.
 
 Literal-prefix blocklists remain **best-effort in both modes**, not an OS sandbox. Recognized
 blocked commands are denied without prompting. In YOLO, scripts, wrappers, or syntax the

@@ -93,7 +93,7 @@ CommandPrefix = Annotated[
 class CliTerminalPermissionsConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid", populate_by_name=True)
 
-    # Eligibility only: users must explicitly toggle /yolo in each session.
+    # Eligibility only: users must explicitly save their local preference with /yolo.
     yolo_mode: bool = Field(alias="yoloMode")
     require_approval_commands: tuple[str, ...] = Field(alias="requireApprovalCommands")
     blocked_commands: tuple[str, ...] = Field(alias="blockedCommands")

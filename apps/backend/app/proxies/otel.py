@@ -258,6 +258,29 @@ async def _forward(runtime: OtelProxyRuntime, signal: str, body: bytes, headers:
         raise _error(503, "Telemetry collector is unavailable") from None
 
 
+def _session_refresh(request: Request) -> str | None:
+    """Return the newest auth-issued rotation once the caller's session was accepted."""
+    auth_data = getattr(request.state, "auth_data", None)
+    if auth_data is None:
+        return None
+    refresh = request.state.auth_response_headers.get("x-session-refresh-token") or auth_data.session_refresh_token
+    return refresh if _identity_text(refresh, 16384) and str(refresh).isascii() else None
+
+
+def _auth_error(request: Request, exc: AuthServiceError) -> HTTPException:
+    detail = {401: "Authentication required", 403: "Access denied"}.get(exc.status_code, "Auth service is unavailable")
+    headers: dict[str, str] = {}
+    # Only backend session rejection may suppress subsequent client exports.
+    # Collector statuses/headers must never masquerade as this auth signal. auth_data
+    # is set once the session itself was accepted: a later identity failure must not
+    # condemn that session, and any rotation must still reach the client.
+    if exc.status_code == 401 and getattr(request.state, "auth_data", None) is None:
+        headers["x-axon-otel-error"] = "session_rejected"
+    if refresh := _session_refresh(request):
+        headers["x-session-refresh-token"] = refresh
+    return _error(exc.status_code, detail, headers=headers)
+
+
 async def ingest(request: Request, signal: str) -> Response:
     runtime: OtelProxyRuntime | None = getattr(request.app.state, "otel_proxy", None)
     if runtime is None:
@@ -270,12 +293,8 @@ async def ingest(request: Request, signal: str) -> Response:
         try:
             identity = await authenticated_attributes(request)
         except AuthServiceError as exc:
-            detail = {401: "Authentication required", 403: "Access denied"}.get(
-                exc.status_code, "Auth service is unavailable"
-            )
-            raise _error(exc.status_code, detail) from None
-        refresh = request.state.auth_response_headers.get("x-session-refresh-token")
-        if _identity_text(refresh, 16384) and str(refresh).isascii():
+            raise _auth_error(request, exc) from None
+        if refresh := _session_refresh(request):
             headers["x-session-refresh-token"] = refresh
         if not runtime.admit(identity["axon.user_id"]):
             raise _error(429, "Telemetry rate limit exceeded", headers={"Retry-After": "60"})

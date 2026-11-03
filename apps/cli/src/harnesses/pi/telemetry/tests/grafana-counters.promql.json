@@ -1,0 +1,136 @@
+{
+  "evaluation_interval": "5m",
+  "tests": [
+    {
+      "name": "Idle established session at the default ten-second export cadence",
+      "interval": "10s",
+      "input_series": [
+        {
+          "series": "pi_turn_count_total{user_email=\"test@example.com\",pi_repo_slug=\"test/repo\",service_instance_id=\"existing\"}",
+          "values": "100+0x270"
+        }
+      ],
+      "promql_expr_test": [
+        {
+          "expr": "sum ((increase(pi_turn_count_total{user_email=~\"test@example.com\",pi_repo_slug=~\"test/repo\"}[20m]) and (pi_turn_count_total{user_email=~\"test@example.com\",pi_repo_slug=~\"test/repo\"} offset 20m)) or (max_over_time(pi_turn_count_total{user_email=~\"test@example.com\",pi_repo_slug=~\"test/repo\"}[20m]) unless (pi_turn_count_total{user_email=~\"test@example.com\",pi_repo_slug=~\"test/repo\"} offset 20m)))",
+          "eval_time": "45m",
+          "exp_samples": [
+            {
+              "labels": "{}",
+              "value": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Idle established session at the maximum five-minute export cadence",
+      "interval": "5m",
+      "input_series": [
+        {
+          "series": "pi_turn_count_total{user_email=\"test@example.com\",pi_repo_slug=\"test/repo\",service_instance_id=\"existing\"}",
+          "values": "100+0x9"
+        }
+      ],
+      "promql_expr_test": [
+        {
+          "expr": "sum ((increase(pi_turn_count_total{user_email=~\"test@example.com\",pi_repo_slug=~\"test/repo\"}[20m]) and (pi_turn_count_total{user_email=~\"test@example.com\",pi_repo_slug=~\"test/repo\"} offset 20m)) or (max_over_time(pi_turn_count_total{user_email=~\"test@example.com\",pi_repo_slug=~\"test/repo\"}[20m]) unless (pi_turn_count_total{user_email=~\"test@example.com\",pi_repo_slug=~\"test/repo\"} offset 20m)))",
+          "eval_time": "45m",
+          "exp_samples": [
+            {
+              "labels": "{}",
+              "value": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "An established session with one in-window sample cannot fall back to its lifetime total",
+      "interval": "5m",
+      "input_series": [
+        {
+          "series": "pi_turn_count_total{user_email=\"test@example.com\",pi_repo_slug=\"test/repo\",service_instance_id=\"existing\"}",
+          "values": "100 100 100 100 100 100 _ _ _ 100"
+        }
+      ],
+      "promql_expr_test": [
+        {
+          "expr": "sum ((increase(pi_turn_count_total{user_email=~\"test@example.com\",pi_repo_slug=~\"test/repo\"}[20m]) and (pi_turn_count_total{user_email=~\"test@example.com\",pi_repo_slug=~\"test/repo\"} offset 20m)) or (max_over_time(pi_turn_count_total{user_email=~\"test@example.com\",pi_repo_slug=~\"test/repo\"}[20m]) unless (pi_turn_count_total{user_email=~\"test@example.com\",pi_repo_slug=~\"test/repo\"} offset 20m)))",
+          "eval_time": "45m",
+          "exp_samples": []
+        }
+      ]
+    },
+    {
+      "name": "A newly observed session contributes its first sample alongside an idle established session",
+      "interval": "5m",
+      "input_series": [
+        {
+          "series": "pi_turn_count_total{user_email=\"test@example.com\",pi_repo_slug=\"test/repo\",service_instance_id=\"existing\"}",
+          "values": "100+0x9"
+        },
+        {
+          "series": "pi_turn_count_total{user_email=\"test@example.com\",pi_repo_slug=\"test/repo\",service_instance_id=\"new\"}",
+          "values": "_ _ _ _ _ _ _ _ _ 3"
+        }
+      ],
+      "promql_expr_test": [
+        {
+          "expr": "sum ((increase(pi_turn_count_total{user_email=~\"test@example.com\",pi_repo_slug=~\"test/repo\"}[20m]) and (pi_turn_count_total{user_email=~\"test@example.com\",pi_repo_slug=~\"test/repo\"} offset 20m)) or (max_over_time(pi_turn_count_total{user_email=~\"test@example.com\",pi_repo_slug=~\"test/repo\"}[20m]) unless (pi_turn_count_total{user_email=~\"test@example.com\",pi_repo_slug=~\"test/repo\"} offset 20m)))",
+          "eval_time": "45m",
+          "exp_samples": [
+            {
+              "labels": "{}",
+              "value": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "A newly observed session with multiple exports retains its initial count",
+      "interval": "5m",
+      "input_series": [
+        {
+          "series": "pi_turn_count_total{user_email=\"test@example.com\",pi_repo_slug=\"test/repo\",service_instance_id=\"new\"}",
+          "values": "_ _ _ _ _ _ 1 2 3 4"
+        }
+      ],
+      "promql_expr_test": [
+        {
+          "expr": "sum ((increase(pi_turn_count_total{user_email=~\"test@example.com\",pi_repo_slug=~\"test/repo\"}[20m]) and (pi_turn_count_total{user_email=~\"test@example.com\",pi_repo_slug=~\"test/repo\"} offset 20m)) or (max_over_time(pi_turn_count_total{user_email=~\"test@example.com\",pi_repo_slug=~\"test/repo\"}[20m]) unless (pi_turn_count_total{user_email=~\"test@example.com\",pi_repo_slug=~\"test/repo\"} offset 20m)))",
+          "eval_time": "45m",
+          "exp_samples": [
+            {
+              "labels": "{}",
+              "value": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "An established active session reports the window increase, not its lifetime total",
+      "interval": "5m",
+      "input_series": [
+        {
+          "series": "pi_turn_count_total{user_email=\"test@example.com\",pi_repo_slug=\"test/repo\",service_instance_id=\"existing\"}",
+          "values": "100+5x9"
+        }
+      ],
+      "promql_expr_test": [
+        {
+          "expr": "sum ((increase(pi_turn_count_total{user_email=~\"test@example.com\",pi_repo_slug=~\"test/repo\"}[20m]) and (pi_turn_count_total{user_email=~\"test@example.com\",pi_repo_slug=~\"test/repo\"} offset 20m)) or (max_over_time(pi_turn_count_total{user_email=~\"test@example.com\",pi_repo_slug=~\"test/repo\"}[20m]) unless (pi_turn_count_total{user_email=~\"test@example.com\",pi_repo_slug=~\"test/repo\"} offset 20m)))",
+          "eval_time": "45m",
+          "exp_samples": [
+            {
+              "labels": "{}",
+              "value": 20
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

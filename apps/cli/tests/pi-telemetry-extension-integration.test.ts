@@ -146,7 +146,6 @@ describe("Pi telemetry extension integration", () => {
             PI_ORG_OTEL_DIAGNOSTICS: "true",
             PI_ORG_OTEL_MANAGED_HOME: home,
             PI_ORG_OTEL_MANAGED_ENDPOINT: `http://127.0.0.1:${port}/api/v1/otel`,
-            OTEL_EXPORTER_OTLP_ENDPOINT: `http://127.0.0.1:${port}/api/v1/otel`,
           },
           stdin: "ignore",
           stdout: "pipe",

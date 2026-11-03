@@ -38,7 +38,7 @@ beforeEach(async () => {
   statePath = join(directory, "axon-changelog.json");
   savedEnvironment = Object.fromEntries(environmentKeys.map((key) => [key, process.env[key]]));
   process.env["PI_CODING_AGENT_DIR"] = directory;
-  process.env["PI_AXON_CLI_VERSION"] = "1.0.2";
+  process.env["PI_AXON_CLI_VERSION"] = "1.0.3";
   savedKeybindings = getKeybindings();
   initTheme("dark", false);
 });
@@ -229,7 +229,7 @@ describe("Axon startup release tracking", () => {
     expect(harness.appendEntry).not.toHaveBeenCalled();
     expect(await Bun.file(statePath).json()).toEqual({
       schemaVersion: 1,
-      lastSeenAxonVersion: "1.0.2",
+      lastSeenAxonVersion: "1.0.3",
     });
     expect((await lstat(statePath)).mode & 0o777).toBe(0o600);
     const inode = (await lstat(statePath)).ino;
@@ -238,14 +238,14 @@ describe("Axon startup release tracking", () => {
   });
 
   test("an upgrade shows only unseen Axon entries once, including after a reload", async () => {
-    await writeState("1.0.1");
+    await writeState("1.0.2");
     const harness = setup();
     await harness.start();
     expect(harness.appendEntry).toHaveBeenCalledTimes(1);
     expect(harness.appendEntry.mock.calls[0]?.[1].markdown).toBe(AXON_RELEASES[0].markdown);
     await harness.start();
     expect(harness.appendEntry).toHaveBeenCalledTimes(1);
-    expect((await Bun.file(statePath).json()).lastSeenAxonVersion).toBe("1.0.2");
+    expect((await Bun.file(statePath).json()).lastSeenAxonVersion).toBe("1.0.3");
   });
 
   test("resumed conversations defer the upgrade notice and leave state unchanged", async () => {
@@ -320,8 +320,10 @@ test("latest changelog entry matches the CLI release version", async () => {
 });
 
 test("skipped releases include all unseen entries, newest first", () => {
-  expect(newReleaseNotes("1.0.0", "1.0.2")).toBe(
-    [AXON_RELEASES[0].markdown, AXON_RELEASES[1].markdown].join("\n\n"),
+  expect(newReleaseNotes("1.0.0", "1.0.3")).toBe(
+    [AXON_RELEASES[0].markdown, AXON_RELEASES[1].markdown, AXON_RELEASES[2].markdown].join(
+      "\n\n",
+    ),
   );
   expect(newReleaseNotes("1.0.0", "1.0.2")).not.toContain("## 1.0.0");
   expect(newReleaseNotes("1.0.1", "1.0.2")).not.toContain("## 1.0.1");

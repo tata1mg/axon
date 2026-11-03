@@ -57,7 +57,7 @@ const commandPrefixSchema = z
     "Command prefixes must contain a single command with supported shell syntax",
   );
 const terminalPermissionsSchema = z.strictObject({
-  // Eligibility for the session-local /yolo toggle, never automatic activation.
+  // Eligibility for the saved user-level /yolo preference, never activation by itself.
   yoloMode: z.boolean(),
   requireApprovalCommands: z.array(commandPrefixSchema).max(32),
   blockedCommands: z.array(commandPrefixSchema).max(32),
