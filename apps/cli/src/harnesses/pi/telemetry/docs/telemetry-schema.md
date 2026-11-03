@@ -156,7 +156,7 @@ Activity metrics also carry `pi.repo.slug`. Token, cost, LLM, and tool metrics d
 
 `pi.tokens.input`, `pi.tokens.cache_read`, and `pi.tokens.cache_write` retain Pi's disjoint categories; their sum is inclusive input. Output already includes reasoning, so do not add `pi.tokens.reasoning` to output or total tokens. Cost is Pi's estimate, not measured billing.
 
-`pi.thinking.level` on metrics is the Pi thinking level requested for the inference call, limited to `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `other`. Session histograms are recorded once at session end, so their `_sum` (for example cost by repository) lags until sessions close; per-session cost/token boundaries are listed in `src/otel/instruments.ts`.
+`pi.thinking.level` on metrics is the Pi thinking level requested for the inference call, limited to `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, or `other`. Session histograms are recorded once at session end, so their `_sum` (for example cost by repository) lags until sessions close; per-session cost/token boundaries are listed in `src/otel/instruments.ts`.
 
 `pi.usage.source` is `assistant`, `tool`, `compaction`, or `branch_summary`. Tool metrics count only finalized top-level transcript result usage: pinned Pi adds descendants' own usage before `message_start`, then emits `message_end` on that aggregate. Execution events (including nested calls) are not additional usage points. Missing or unreported usage and cache-warming usage are not invented; totals need not equal all billed/session work.
 
