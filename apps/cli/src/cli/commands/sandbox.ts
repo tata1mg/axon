@@ -64,20 +64,16 @@ export function formatFilesystemPermissions(
   }
   lines.push(
     colors.bold(colors.cyan("Rules and safeguards")),
+    colors.dim("Read-only: The agent can read files, but cannot change them."),
+    colors.dim("Read/write: The agent can read, edit, create and delete files."),
+    colors.dim("Blocked: The agent cannot read or change these files or folders."),
     colors.dim(
       "Read-only rules override write grants; blocked/protected directories/files are excluded.",
     ),
-    colors.dim("Built-in protected locations include DeputyDev, SSH, cloud and Keychain storage."),
-    colors.dim("Managed packages and runtime code remain read-only during your chat."),
+    colors.dim("DeputyDev data, SSH keys, cloud credentials and Keychain are protected."),
     "",
-    colors.bold(colors.cyan("Sandbox session behavior")),
-    colors.yellow(
-      "Saving stops running file/shell operations; new operations use the saved rules.",
-    ),
-    colors.dim("Pi restarts and resumes your saved chat. Settings reset when Axon exits."),
-    colors.dim(
-      "Settings stay in this process; they are not saved with chats or shared with other runs.",
-    ),
+    colors.bold(colors.cyan("Notes")),
+    colors.dim('After making any change in sandbox settings, select "Review changes and save".'),
   );
   return lines.join("\n");
 }
