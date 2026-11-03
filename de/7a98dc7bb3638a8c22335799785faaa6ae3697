@@ -1,0 +1,52 @@
+apps/cli/src/sandbox/filesystem.ts
+  s_cbad0298834538::t_ae545e2f6f8482 33-34
+biome.json
+  s_cbad0298834538::t_23b3dfce47884b 39
+apps/cli/package.json
+  s_cbad0298834538::t_7a7ddaaaaf004c 17-18,22-23,30,35
+apps/cli/tests/pi-package-setup.test.ts
+  s_cbad0298834538::t_3475d593f6153b 860
+  s_cbad0298834538::t_62b8171ffb4b73 856
+  s_cbad0298834538::t_9cbf6919692c90 165-169,855
+  s_cbad0298834538::t_4b07b6658e3641 164
+apps/cli/scripts/build-git-ai.ts
+  s_cbad0298834538::t_e71cc2f2f9888f 1-39
+apps/cli/tests/launcher.test.ts
+  s_cbad0298834538::t_bf6660ccbf2438 356
+  s_cbad0298834538::t_2850a08d9eb207 346-347
+  s_cbad0298834538::t_facc7c4889e5cc 348-349
+apps/cli/src/harnesses/pi/resources/extensions/subagent-provider.ts
+  s_cbad0298834538::t_c7a42ad267b383 58
+  s_cbad0298834538::t_0121f93e765ad9 1-57
+apps/cli/src/product/manifest.ts
+  s_cbad0298834538::t_ccf7292d72eaf2 11,52
+  s_cbad0298834538::t_130dfcef4349e9 8-10,97-100,152-157,173,211-214
+  s_cbad0298834538::t_8914b90ddee575 26-28,101-108,134,174,215-218
+  s_cbad0298834538::t_98c55f63032097 151
+apps/cli/src/harnesses/pi/resources/extensions/custom-agents.ts
+  s_cbad0298834538::t_b037d669fcd3f2 559,562-565,567-570,572
+  s_cbad0298834538::t_634c28377fc22e 576
+  s_cbad0298834538::t_57019ac8579dba 490
+  s_cbad0298834538::t_f6e89510f6ce7a 3-9,11-17,20-29,37-43,45-46,64-65,67,69-73,151,155,173-175,177-180,189-192,308-312,314,321,323-328,334-338,340-349,354,360,368-369,377-382,385,453-454,457-458,460-464,469-484,487-489,495-520,522-524,526-530,532-537,539-542,545,560,573-575
+  s_cbad0298834538::t_dcaaa297ac376a 30-36,44,83,120,168-170,176,252-255,268,271,283-286,316-320,329-332,388-391,405-410
+  s_cbad0298834538::t_4fb3b4899605f7 101-110,159-166,171-172,193-195,197-200,204-228,455-456,465-468
+  s_cbad0298834538::t_ddd760f5cb6fdc 196,201-203
+  s_cbad0298834538::t_0ebbc1994105bd 485-486,491-494
+  s_cbad0298834538::t_809d2e5800fb45 1-2,10,18-19,47-63,66,68,74-82,84-100,111-119,121-150,152-154,156-158,167,181-188,229-251,256-267,269-270,272-282,287-307,313,315,322,333,339,350-353,355-359,361-367,370-376,383-384,386-387,392-404,411-452,459,521,525,531,538,543-544,546-558,561,566,571
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "de7a98dc7bb3638a8c22335799785faaa6ae3697",
+  "prompts": {},
+  "sessions": {
+    "s_cbad0298834538": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "501529",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  }
+}
