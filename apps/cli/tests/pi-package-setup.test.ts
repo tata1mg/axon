@@ -207,9 +207,9 @@ describe("Pi package manifest", () => {
       },
       {
         id: "pi-provider-litellm",
-        installTarget: "npm:pi-provider-litellm@4.6.0",
+        installTarget: "npm:pi-provider-litellm@4.7.2",
         updateOwner: "axon",
-        versionPolicy: { kind: "exact", version: "4.6.0" },
+        versionPolicy: { kind: "exact", version: "4.7.2" },
       },
       {
         id: "pi-review",
@@ -805,7 +805,7 @@ describe("Pi package synchronization", () => {
   ] as const) {
     test(`retries the required npm extension with ${fallback} after ${primary} fails`, async () => {
       const { context, attempts } = await registryFallbackContext(
-        `fallback-${primary.includes("mirror")}`,
+        `fallback-${primary === NPM_MIRROR_REGISTRY}`,
         primary,
       );
       const packageManifest = manifest([exactPackage("1.0.0")]);

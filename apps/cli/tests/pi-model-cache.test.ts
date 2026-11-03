@@ -28,7 +28,7 @@ const model = (baseUrl = staleUrl, id = "test-model") => ({
   id,
   provider: "litellm",
   baseUrl,
-  litellmDiscoveryVersion: 10,
+  litellmDiscoveryVersion: 11,
 });
 
 beforeEach(async () => {
@@ -101,8 +101,8 @@ describe("managed Pi relay model cache", () => {
   });
 
   test.each([
-    { name: "previous discovery version", version: 9, ageMs: 0 },
-    { name: "expired four-hour catalog", version: 10, ageMs: 4 * 60 * 60 * 1000 + 1 },
+    { name: "previous discovery version", version: 10, ageMs: 0 },
+    { name: "expired four-hour catalog", version: 11, ageMs: 4 * 60 * 60 * 1000 + 1 },
   ])("does not reuse a $name at startup", async ({ version, ageMs }) => {
     await writeCache({
       litellm: {

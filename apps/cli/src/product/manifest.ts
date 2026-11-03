@@ -122,7 +122,7 @@ const AXON_LIGHT_THEME_RESOURCE = Object.freeze({
 
 export const AXON_MANIFEST = parseAxonManifest({
   schemaVersion: 1,
-  revision: "22",
+  revision: "23",
   pi: {
     packages: [
       {
@@ -136,7 +136,7 @@ export const AXON_MANIFEST = parseAxonManifest({
         id: "pi-provider-litellm",
         source: "npm:pi-provider-litellm",
         required: true,
-        versionPolicy: { kind: "exact", version: "4.6.0" },
+        versionPolicy: { kind: "exact", version: "4.7.2" },
         install: { action: "pi.install" },
       },
       {

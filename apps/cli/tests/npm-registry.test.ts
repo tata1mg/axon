@@ -43,8 +43,9 @@ afterEach(async () => {
 
 describe("managed npm registry fallback", () => {
   for (const [primary, fallback] of [
-    [NPM_PUBLIC_REGISTRY, NPM_MIRROR_REGISTRY],
-    [NPM_MIRROR_REGISTRY, NPM_PUBLIC_REGISTRY],
+    [NPM_PUBLIC_REGISTRY, "https://registry.yarnpkg.com/"],
+    ["https://registry.yarnpkg.com/", NPM_PUBLIC_REGISTRY],
+    ["https://registry.npmmirror.com/", NPM_PUBLIC_REGISTRY],
   ] as const) {
     test(`tries ${primary} then ${fallback} without changing inherited config`, async () => {
       const context = await fixture();
@@ -197,6 +198,7 @@ describe("managed npm registry fallback", () => {
     const urls = [
       `${NPM_PUBLIC_REGISTRY}@example/tools/-/tools-1.0.0.tgz`,
       `${NPM_MIRROR_REGISTRY}dependency/-/dependency-2.0.0.tgz`,
+      "https://registry.npmmirror.com/legacy/-/legacy-3.0.0.tgz",
       "https://pi.dev/releases/first-party.tgz",
       "https://private.example/dependency.tgz",
     ];
@@ -223,7 +225,9 @@ describe("managed npm registry fallback", () => {
             ? `${expectedRegistry}@example/tools/-/tools-1.0.0.tgz`
             : index === 1
               ? `${expectedRegistry}dependency/-/dependency-2.0.0.tgz`
-              : (urls[index] ?? ""),
+              : index === 2
+                ? `${expectedRegistry}legacy/-/legacy-3.0.0.tgz`
+                : (urls[index] ?? ""),
         );
       }
       if (attempts === 1) throw unavailable();

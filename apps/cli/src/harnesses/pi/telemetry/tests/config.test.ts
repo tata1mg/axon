@@ -20,6 +20,12 @@ test("does not send unconfigured signals to implicit localhost defaults", () => 
   );
 });
 
+test("the managed endpoint alone enables export", () => {
+  const config = resolveConfig({ PI_ORG_OTEL_MANAGED_ENDPOINT: "https://backend/api/v1/otel" });
+  assert.ok(config);
+  assert.equal(config.protocol, "http/protobuf");
+});
+
 test("resolves managed OTLP settings with bounded values", () => {
   const config = resolveConfig({
     OTEL_EXPORTER_OTLP_ENDPOINT: "https://collector",

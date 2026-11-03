@@ -135,7 +135,7 @@ Replace `MODEL_ID` with an available model ID from the list. Launch flags overri
 
 ## 5. Standard mode and YOLO mode
 
-Terminal execution starts in **Standard mode**. Routine supported commands can run automatically; commands that the model or your organization's policy marks for review, along with complex shell commands, require confirmation.
+Terminal execution defaults to **Standard mode** unless you previously enabled YOLO for your local user. Routine supported commands can run automatically; commands that the model or your organization's policy marks for review, along with complex shell commands, require confirmation.
 
 To see the current mode and restrictions, type this **inside the coding session**, not in your normal terminal shell:
 
@@ -154,7 +154,9 @@ Inside the coding session, type:
 - `/yolo` toggles YOLO **on** immediately, with no extra confirmation. The session header displays **YOLO**.
 - Type `/yolo` again to return to Standard mode.
 - YOLO is available only if your administrator permits it. If unavailable, ask your administrator; a local environment variable cannot enable it.
-- It applies only to the current session and resets to Standard when the session is created/replaced, shut down, or extensions are reloaded.
+- The preference is saved for your local user and applies to existing and future sessions sharing your Axon configuration directory, including headless sessions. It survives restarts, new/resumed sessions, and extension reloads. It does not sync across machines.
+- Each subsequent terminal command uses the latest preference; other session headers update within about half a second. The saved preference never overrides administrator restrictions.
+- The file is normally `~/.axon/pi/terminal-preferences.json` (`$PI_CODING_AGENT_DIR/terminal-preferences.json`). A missing, unreadable, or corrupt preference defaults to Standard mode.
 
 > **Use with care:** YOLO runs terminal commands without approval, including commands that would normally need review. This can modify or delete files or affect external systems. Recognized blocked commands are still denied, but blocklists are best-effort—not a security sandbox. Use a clean working tree or commit your work first. Turning YOLO off does not stop commands already running or resolve approval prompts already open.
 

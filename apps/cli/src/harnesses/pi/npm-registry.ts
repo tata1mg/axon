@@ -5,7 +5,11 @@ import { join } from "node:path";
 import { PRODUCT_IDENTITY } from "../../product/identity.ts";
 
 export const NPM_PUBLIC_REGISTRY = "https://registry.npmjs.org/";
-export const NPM_MIRROR_REGISTRY = "https://registry.npmmirror.com/";
+export const NPM_MIRROR_REGISTRY = "https://registry.yarnpkg.com/";
+// Earlier releases fell back to npmmirror. It stays a recognised public origin so
+// lockfiles they rewrote are rebased, and users configured for it keep a fallback.
+const NPM_LEGACY_MIRROR_REGISTRY = "https://registry.npmmirror.com/";
+const PUBLIC_REGISTRIES = [NPM_PUBLIC_REGISTRY, NPM_MIRROR_REGISTRY, NPM_LEGACY_MIRROR_REGISTRY];
 
 /** Only completed npm failures are retryable; spawn errors and signals are not. */
 export class NpmInstallFailure extends Error {
@@ -36,9 +40,7 @@ function publicRegistry(value: string): string | undefined {
   // Exact public origins only. Never send private package names or credentials
   // to a public fallback for a custom registry, path, or authenticated URL.
   const normalized = value.trim().replace(/\/$/, "");
-  return [NPM_PUBLIC_REGISTRY, NPM_MIRROR_REGISTRY].find(
-    (registry) => registry.slice(0, -1) === normalized,
-  );
+  return PUBLIC_REGISTRIES.find((registry) => registry.slice(0, -1) === normalized);
 }
 
 async function readRegistryConfig(
@@ -97,9 +99,7 @@ async function rewritePublicLockfile(directory: string, registry: string): Promi
   let changed = false;
   const lock: unknown = JSON.parse(await Bun.file(path).text(), (key, value: unknown) => {
     if (key === "resolved" && typeof value === "string") {
-      const previous = [NPM_PUBLIC_REGISTRY, NPM_MIRROR_REGISTRY].find((origin) =>
-        value.startsWith(origin),
-      );
+      const previous = PUBLIC_REGISTRIES.find((origin) => value.startsWith(origin));
       if (previous !== undefined && previous !== registry) {
         changed = true;
         return registry + value.slice(previous.length);

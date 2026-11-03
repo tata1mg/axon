@@ -125,7 +125,7 @@ function emptyTotals(): SessionTotals {
 }
 
 /** Pi thinking levels; anything else is exported as `other` to keep metric labels bounded. */
-const THINKING_LEVELS = new Set(["off", "minimal", "low", "medium", "high", "xhigh"]);
+const THINKING_LEVELS = new Set(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
 
 function thinkingDimension(level: string | undefined): Attributes {
   if (!level) return {};

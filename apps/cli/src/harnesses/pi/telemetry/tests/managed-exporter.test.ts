@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -84,6 +84,26 @@ test("each batch reads current session, persists rotation, and ignores ambient O
   });
 });
 
+test("rotation persistence errors do not fail an accepted batch", async () => {
+  await withHome(async (home) => {
+    const paths = resolveAxonPaths({ AXON_HOME: home });
+    const server = Bun.serve({
+      port: 0,
+      async fetch() {
+        await writeFile(paths.sharedAuthFile, '{"private-session-secret":');
+        return new Response(null, { headers: { "x-session-refresh-token": "rotated-token" } });
+      },
+    });
+    const transport = new ManagedOtlpTransport(server.url.toString(), home);
+    try {
+      expect((await transport.send(new Uint8Array(), 1000)).status).toBe("success");
+    } finally {
+      transport.shutdown();
+      server.stop(true);
+    }
+  });
+});
+
 test("an old response cannot overwrite a concurrent new login", async () => {
   await withHome(async (home) => {
     const paths = resolveAxonPaths({ AXON_HOME: home });
@@ -139,6 +159,66 @@ test("retries transient status using the rotated session and respects Retry-Afte
   });
 });
 
+test("a rejected session is not resent until a login or rotation replaces it", async () => {
+  await withHome(async (home) => {
+    const seen: Array<string | null> = [];
+    const server = Bun.serve({
+      port: 0,
+      fetch(request) {
+        const authorization = request.headers.get("authorization");
+        seen.push(authorization);
+        return new Response(null, {
+          status: authorization === "Bearer initial-token" ? 401 : 200,
+          headers: { "x-axon-otel-error": "session_rejected" },
+        });
+      },
+    });
+    const transport = new ManagedOtlpTransport(server.url.toString(), home);
+    try {
+      expect((await transport.send(new Uint8Array(), 1000)).status).toBe("failure");
+      expect((await transport.send(new Uint8Array(), 1000)).status).toBe("failure");
+      expect(seen).toEqual(["Bearer initial-token"]);
+      await saveEncryptedSession(resolveAxonPaths({ AXON_HOME: home }), "new-login-token");
+      expect((await transport.send(new Uint8Array(), 1000)).status).toBe("success");
+      expect(seen).toEqual(["Bearer initial-token", "Bearer new-login-token"]);
+    } finally {
+      transport.shutdown();
+      server.stop(true);
+    }
+  });
+});
+
+test.each([undefined, "collector_auth_failed"])(
+  "a collector 401 with error marker %j does not suppress later exports after recovery",
+  async (marker) => {
+    await withHome(async (home) => {
+      const seen: Array<string | null> = [];
+      let status = 401;
+      const server = Bun.serve({
+        port: 0,
+        fetch(request) {
+          seen.push(request.headers.get("authorization"));
+          return new Response(null, {
+            status,
+            headers: marker ? { "x-axon-otel-error": marker } : {},
+          });
+        },
+      });
+      const transport = new ManagedOtlpTransport(server.url.toString(), home);
+      try {
+        expect((await transport.send(new Uint8Array(), 1000)).status).toBe("failure");
+        expect(seen).toEqual(["Bearer initial-token"]);
+        status = 200;
+        expect((await transport.send(new Uint8Array(), 1000)).status).toBe("success");
+        expect(seen).toEqual(["Bearer initial-token", "Bearer initial-token"]);
+      } finally {
+        transport.shutdown();
+        server.stop(true);
+      }
+    });
+  },
+);
+
 test("does not follow redirects or retry authentication errors; errors never contain secrets", async () => {
   await withHome(async (home) => {
     let leaked = false;
@@ -163,7 +243,7 @@ test("does not follow redirects or retry authentication errors; errors never con
     });
     const transport = new ManagedOtlpTransport(server.url.toString(), home);
     try {
-      for (const code of [302, 401, 403]) {
+      for (const code of [302, 403, 401]) {
         status = code;
         const result = await transport.send(new Uint8Array(), 1000);
         expect(result.status).toBe("failure");

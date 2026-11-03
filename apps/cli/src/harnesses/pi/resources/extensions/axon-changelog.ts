@@ -18,6 +18,20 @@ const STATE_FILE = "axon-changelog.json";
 /** Axon's release notes, newest first. Keep these independent of Pi's releases. */
 export const AXON_RELEASES = [
   {
+    version: "1.0.3",
+    markdown: `## 1.0.3
+
+### Changed
+- Updated Pi to 1.5.0 and LiteLLM provider to 4.7.2.
+- /yolo now saves your preference across local sessions, subject to backend policy.
+- Refined telemetry dashboards and model recommendations.
+
+### Fixed
+- More reliable telemetry session refresh and rejected-session handling.
+- Prevented child processes from sending unauthenticated telemetry.
+- Switched npm registry fallback to Yarn.`,
+  },
+  {
     version: "1.0.2",
     markdown: `## 1.0.2
 

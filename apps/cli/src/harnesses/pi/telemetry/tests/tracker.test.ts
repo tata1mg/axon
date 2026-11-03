@@ -294,17 +294,22 @@ test("labels inference and usage with bounded reasoning effort", () => {
   tracker.startRun();
   tracker.startLlm({ provider: "anthropic", model: "claude-opus-5-5", thinkingLevel: "high" });
   tracker.endLlm({ provider: "anthropic", stopReason: "stop", usage: { output: 5, cost: 0.1 } });
+  tracker.startLlm({ provider: "anthropic", model: "claude-opus-5-5", thinkingLevel: "max" });
+  tracker.endLlm({ provider: "anthropic", stopReason: "stop", usage: { output: 5, cost: 0.2 } });
   tracker.startLlm({ provider: "anthropic", model: "claude-opus-5-5", thinkingLevel: "bogus" });
   tracker.endLlm({ provider: "anthropic", stopReason: "stop", usage: { output: 5 } });
 
   const requests = fixture.metrics.filter((metric) => metric.name === "pi.llm.requests");
   assert.deepEqual(
     requests.map((metric) => metric.attributes["pi.thinking.level"]),
-    ["high", "other"],
+    ["high", "max", "other"],
   );
-  const cost = fixture.metrics.find((metric) => metric.name === "pi.cost");
-  assert.equal(cost?.attributes["pi.thinking.level"], "high");
-  assert.equal(cost?.attributes["pi.usage.source"], "assistant");
+  const costs = fixture.metrics.filter((metric) => metric.name === "pi.cost");
+  assert.deepEqual(
+    costs.map((metric) => metric.attributes["pi.thinking.level"]),
+    ["high", "max"],
+  );
+  assert.ok(costs.every((metric) => metric.attributes["pi.usage.source"] === "assistant"));
 });
 
 test("exports per-session totals as a summary span, log, and histograms", () => {
