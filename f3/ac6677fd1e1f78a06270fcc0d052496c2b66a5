@@ -1,0 +1,21 @@
+apps/cli/src/cli/commands/sandbox.ts
+  s_5665961be11382::t_edb9611c56827d 73
+  s_5665961be11382::t_4fde09ea36c1f9 67-69,75
+  s_5665961be11382::t_73a11daa786412 76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f3ac6677fd1e1f78a06270fcc0d052496c2b66a5",
+  "prompts": {},
+  "sessions": {
+    "s_5665961be11382": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "501416",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  }
+}
