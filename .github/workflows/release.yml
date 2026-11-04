@@ -132,7 +132,7 @@ jobs:
         run: bun run check
 
       - name: Run all tests
-        run: bun test
+        run: bun run test
 
       - name: Check installer shell syntax
         run: sh -n install.sh

@@ -1,4 +1,5 @@
 import { lstat } from "node:fs/promises";
+import { join } from "node:path";
 
 import type { HarnessLaunchContext } from "../../../../launcher/contracts.ts";
 import { LauncherError } from "../../../../launcher/errors.ts";
@@ -8,6 +9,7 @@ import { PRODUCT_IDENTITY } from "../../../../product/identity.ts";
 import { AXON_MANIFEST } from "../../../../product/manifest.ts";
 import { runSandboxCommand } from "../../../../sandbox/session.ts";
 import { createPiEnvironment } from "../../environment.ts";
+import { NpmInstallFailure, withNpmRegistryFallback } from "../../npm-registry.ts";
 import { type InstalledPackageInspection, inspectInstalledPackage } from "./inspect.ts";
 import {
   type AxonManifest,
@@ -73,13 +75,35 @@ async function runPiPackageAction(
   request: PiPackageActionRequest,
 ): Promise<{ readonly exitCode: number }> {
   console.error(`${PRODUCT_IDENTITY.command}: ${describeAction(request)}...`);
+  const environment = createPiEnvironment(context.environment, context.paths);
+  const attempt = (env: NodeJS.ProcessEnv) => runPiPackageActionOnce(context, request, env);
+  if (request.action === "install" && request.source.startsWith("npm:")) {
+    // A custom package-manager command owns its own registry/retry policy.
+    const settings = await readPiSettings(piSettingsPath(context.paths.pi));
+    if (Array.isArray(settings.config["npmCommand"]) && settings.config["npmCommand"].length > 0) {
+      return attempt(environment);
+    }
+    const scope = /^npm:(@[^/]+)\//.exec(request.source)?.[1];
+    return withNpmRegistryFallback(
+      { cwd: join(context.paths.pi, "npm"), environment, ...(scope ? { scope } : {}) },
+      attempt,
+    );
+  }
+  return attempt(environment);
+}
+
+async function runPiPackageActionOnce(
+  context: HarnessLaunchContext,
+  request: PiPackageActionRequest,
+  environment: NodeJS.ProcessEnv,
+): Promise<{ readonly exitCode: number }> {
   const result = await runSandboxCommand(
     context,
     {
       executable: context.executable,
       arguments: [request.action, request.source],
       cwd: context.cwd,
-      environment: createPiEnvironment(context.environment, context.paths),
+      environment,
     },
     {
       purpose: "provision",
@@ -98,6 +122,9 @@ async function runPiPackageAction(
   }
   if (result.signalCode !== null)
     throw new Error(`Pi package ${request.action} terminated by signal ${result.signalCode}`);
+  if (result.exitCode !== 0 && request.action === "install" && request.source.startsWith("npm:")) {
+    throw new NpmInstallFailure(result.exitCode, result.stdout + result.stderr);
+  }
   return { exitCode: result.exitCode };
 }
 

@@ -309,9 +309,10 @@ describe("Pi telemetry environment", () => {
         serviceOrigin: "https://axon.example.test",
       }),
     );
-    expect(child["OTEL_EXPORTER_OTLP_ENDPOINT"]).toBe("https://axon.example.test/api/v1/otel");
+    // Child processes must not inherit an unauthenticated route to the managed proxy.
+    expect(child["OTEL_EXPORTER_OTLP_ENDPOINT"]).toBeUndefined();
     expect(child["PI_ORG_OTEL_MANAGED_HOME"]).toBe("/tmp/managed");
-    expect(child["PI_ORG_OTEL_MANAGED_ENDPOINT"]).toBe(child["OTEL_EXPORTER_OTLP_ENDPOINT"]);
+    expect(child["PI_ORG_OTEL_MANAGED_ENDPOINT"]).toBe("https://axon.example.test/api/v1/otel");
     expect(child["OTEL_EXPORTER_OTLP_PROTOCOL"]).toBe("http/protobuf");
     expect(child["OTEL_TRACES_SAMPLER_ARG"]).toBe("0.25");
     expect(child["OTEL_METRIC_EXPORT_INTERVAL"]).toBe("20000");

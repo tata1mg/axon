@@ -67,14 +67,18 @@ export function createSessionRecovery(
     return signedOut !== undefined;
   }
 
-  async function signIn(request: Request): Promise<Response> {
+  async function signIn(request: Request, finishRecovery = false): Promise<Response> {
     if (signingIn || pending?.state === "logging-in") {
       return controlResponse({ detail: "Browser login is already in progress" }, 409);
     }
     signingIn = true;
     const recovery = pending;
     if (recovery !== undefined) recovery.state = "logging-in";
-    const signal = AbortSignal.any([lifetime.signal, request.signal]);
+    const signal = AbortSignal.any([
+      lifetime.signal,
+      request.signal,
+      ...(finishRecovery && recovery !== undefined ? [recovery.controller.signal] : []),
+    ]);
     let authenticated = false;
     let alreadyAuthenticated = false;
     try {
@@ -88,13 +92,19 @@ export function createSessionRecovery(
       // A launch-time flag or a saved token is not proof of a current login.
       // Verification also attempts a safe refresh before requiring the browser.
       alreadyAuthenticated =
-        session !== undefined && (await verifyEncryptedSession(session, paths)) === "VERIFIED";
+        session !== undefined &&
+        (await verifyEncryptedSession(session, paths, { signal })) === "VERIFIED";
       if (!alreadyAuthenticated && !signal.aborted) {
-        await runAuthLogin(paths, { browser: true, quiet: true, signal });
+        await runAuthLogin(paths, {
+          browser: true,
+          quiet: true,
+          reuseExistingSession: true,
+          signal,
+        });
         session = await loadEncryptedSession(paths);
         authenticated =
           session !== undefined &&
-          (await verifyEncryptedSession(session, paths)) === "VERIFIED" &&
+          (await verifyEncryptedSession(session, paths, { signal })) === "VERIFIED" &&
           !signal.aborted;
       } else {
         authenticated = alreadyAuthenticated && !signal.aborted;
@@ -109,7 +119,14 @@ export function createSessionRecovery(
         // /axon-login also resumes any model requests already waiting for login.
         pending?.finish(true);
       } else if (pending === recovery && recovery !== undefined) {
-        recovery.state = "required";
+        if (finishRecovery) {
+          recovery.finish(false, {
+            outcome: signal.aborted ? "cancelled" : "failed",
+            reason: signal.aborted ? "cancelled" : "unavailable",
+          });
+        } else {
+          recovery.state = "required";
+        }
       }
     }
     return controlResponse(
@@ -223,30 +240,10 @@ export function createSessionRecovery(
         return controlResponse({ detail: "Browser login is already in progress" }, 409);
       }
 
-      // Run independently of managed requests: they are waiting for this shared login.
-      recovery.state = "logging-in";
-      const signal = AbortSignal.any([recovery.controller.signal, request.signal]);
-      let authenticated = false;
-      try {
-        await runAuthLogin(paths, {
-          browser: true,
-          quiet: true,
-          signal,
-        });
-        const session = await loadEncryptedSession(paths);
-        authenticated =
-          session !== undefined &&
-          (await verifyEncryptedSession(session, paths)) === "VERIFIED" &&
-          !signal.aborted;
-      } catch {
-        // Keep credentials, browser URLs, and upstream errors out of Pi's transcript.
-      } finally {
-        recovery.finish(authenticated, {
-          outcome: signal.aborted ? "cancelled" : "failed",
-          reason: signal.aborted ? "cancelled" : "unavailable",
-        });
-      }
-      return controlResponse({ authenticated }, authenticated ? 200 : 401);
+      // Recovery must recheck/refresh the live session just like /axon-login:
+      // another chat may have restored it while this dialog was open. The shared
+      // signingIn guard stays held even if its last managed waiter cancels.
+      return signIn(request, true);
     },
     dispose() {
       disposed = true;

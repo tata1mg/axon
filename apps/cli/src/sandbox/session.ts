@@ -71,6 +71,8 @@ export async function createSandboxSession(
   const stopWatching = watchFilesystemPreferences(context.paths, () => {
     for (const stop of activeOperations) stop();
     profiles.clear();
+    // A settings change rescans package roots, picking up links created since.
+    resources.packageScans.clear();
   });
   let disposed = false;
   let operationAuthorization: SandboxAuthorization | undefined;
@@ -278,8 +280,9 @@ export async function createSandboxSession(
         signalGroup("SIGKILL");
         releaseGroup();
       };
-      const timeoutMs =
-        options.timeoutMs ?? (options.purpose === "operation" ? undefined : 300_000);
+      // Probes keep a safety deadline. Installs may legitimately take a long time on slow
+      // networks and are bounded by the session lease, like operations.
+      const timeoutMs = options.timeoutMs ?? (options.purpose === "probe" ? 300_000 : undefined);
       let timedOut = false;
       const timeout =
         timeoutMs === undefined
@@ -303,7 +306,10 @@ export async function createSandboxSession(
       if (options.purpose === "operation") activeOperations.add(stop);
       options.signal?.addEventListener("abort", stop, { once: true });
       const forwarding = new Map<NodeJS.Signals, () => void>();
-      if (options.inheritOutput) {
+      // The detached group is outside the terminal's foreground group. Without forwarding,
+      // Ctrl+C or a closed terminal kills Axon and orphans an installer that still holds
+      // provisioning grants. Brokered operations are reaped by session disposal instead.
+      if (options.inheritOutput || options.purpose !== "operation") {
         for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
           const handler = (): void => signalGroup(signal);
           forwarding.set(signal, handler);

@@ -20,9 +20,10 @@ from app.proxies import otel
 
 
 class AuthClient:
-    def __init__(self, *, rich: bool = True, error: int | None = None) -> None:
+    def __init__(self, *, rich: bool = True, error: int | None = None, verify_error: int | None = None) -> None:
         self.rich = rich
         self.error = error
+        self.verify_error = verify_error
         self.verifications = []
 
     async def get_auth_data(self, authorization: str, grace: dict) -> AuthDataResponse:
@@ -35,6 +36,8 @@ class AuthClient:
 
     async def verify_identity(self, authorization: str) -> dict:
         self.verifications.append(authorization)
+        if self.verify_error:
+            raise AuthServiceError("never-log-this-credential", self.verify_error)
         return {"status": "VERIFIED", "user_email": "verified@example.com", "user_name": "Verified User"}
 
 
@@ -188,7 +191,27 @@ def test_auth_failure_never_forwards_or_leaks(monkeypatch: pytest.MonkeyPatch, c
                 "/api/v1/otel/v1/logs", content=b"invalid", headers={"Authorization": "Bearer session"}
             )
         assert response.status_code == code
+        assert response.headers.get("x-axon-otel-error") == ("session_rejected" if code == 401 else None)
         assert response.headers["cache-control"] == "no-store"
+        assert "credential" not in response.text
+        assert not seen
+
+    asyncio.run(run())
+
+
+def test_identity_failure_after_accepted_session_is_not_session_rejection(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def run() -> None:
+        app, upstream, seen, _ = setup(monkeypatch, AuthClient(rich=False, verify_error=401))
+        async with (
+            upstream,
+            httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="https://backend.test") as client,
+        ):
+            response = await client.post(
+                "/api/v1/otel/v1/logs", content=b"invalid", headers={"Authorization": "Bearer session"}
+            )
+        assert response.status_code == 401
+        assert "x-axon-otel-error" not in response.headers
+        assert response.headers["x-session-refresh-token"] == "rotated-secret"
         assert "credential" not in response.text
         assert not seen
 
@@ -248,14 +271,16 @@ def test_gzip_bomb_and_wire_size_are_bounded(monkeypatch: pytest.MonkeyPatch) ->
     asyncio.run(run())
 
 
-@pytest.mark.parametrize("status,expected", [(200, 200), (429, 429), (503, 503), (302, 502)])
+@pytest.mark.parametrize("status,expected", [(200, 200), (401, 401), (403, 403), (429, 429), (503, 503), (302, 502)])
 def test_preserves_collector_status_retry_and_protobuf_response(
     monkeypatch: pytest.MonkeyPatch, status: int, expected: int
 ) -> None:
     async def run() -> None:
         app, upstream, _, response = setup(monkeypatch)
         response.status = status
-        response.headers.update({"retry-after": "2", "location": "https://evil.test"})
+        response.headers.update(
+            {"retry-after": "2", "location": "https://evil.test", "x-axon-otel-error": "session_rejected"}
+        )
         response.body = b"\x0a\x00"
         async with (
             upstream,
@@ -267,6 +292,7 @@ def test_preserves_collector_status_retry_and_protobuf_response(
                 headers={"Authorization": "Bearer x", "Content-Type": "application/x-protobuf"},
             )
         assert result.status_code == expected
+        assert "x-axon-otel-error" not in result.headers
         assert "location" not in result.headers
         if status != 302:
             assert result.content == b"\x0a\x00"

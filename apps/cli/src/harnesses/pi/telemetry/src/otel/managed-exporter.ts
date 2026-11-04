@@ -69,6 +69,8 @@ async function boundedBody(response: Response, signal: AbortSignal): Promise<Uin
 export class ManagedOtlpTransport implements IExporterTransport {
   private readonly stop = new AbortController();
   private readonly paths;
+  // A session the backend rejected is not resent; a new login or rotation replaces it.
+  private rejectedSession: string | undefined;
 
   constructor(
     private readonly url: string,
@@ -96,6 +98,7 @@ export class ManagedOtlpTransport implements IExporterTransport {
         }),
       ]);
     } catch {
+      // An already-aborted deadline is an SDK export failure, not a successful batch.
       return { status: "failure", error: new Error("Managed telemetry export failed") };
     } finally {
       if (abort) signal.removeEventListener("abort", abort);
@@ -118,6 +121,7 @@ export class ManagedOtlpTransport implements IExporterTransport {
         const session = viaRelay ? relayKey : await loadEncryptedSession(this.paths);
         signal.throwIfAborted();
         if (!session) throw new Error("Missing managed session");
+        if (session === this.rejectedSession) throw new Error("Rejected managed session");
         const response = await fetch(this.url, {
           method: "POST",
           headers: { Authorization: `Bearer ${session}`, "Content-Type": "application/x-protobuf" },
@@ -135,12 +139,20 @@ export class ManagedOtlpTransport implements IExporterTransport {
             refreshed.length <= 16384 &&
             /^[\x21-\x7e]+$/.test(refreshed)
           ) {
+            // The backend already accepted this batch, and a retry reloads whichever
+            // session is stored, so a failed save must not fail the export.
             await refreshEncryptedSession(this.paths, session, refreshed, signal).catch(
               () => false,
             );
           }
           if (response.status === 200) {
             return { status: "success", data: await boundedBody(response, signal) };
+          }
+          if (
+            response.status === 401 &&
+            response.headers.get("x-axon-otel-error") === "session_rejected"
+          ) {
+            this.rejectedSession = session;
           }
           if (!RETRYABLE.has(response.status) || attempt === 2) {
             return {

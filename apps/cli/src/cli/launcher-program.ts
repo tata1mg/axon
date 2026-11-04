@@ -176,11 +176,13 @@ function createLauncherProgram(): Command {
 
   program
     .command("setup")
-    .description("prepare a managed harness")
-    .argument("<harness>", "stable harness ID (currently pi)")
-    .option("--sync-packages", "install or repair required packages")
-    .action(async (harness: string, options: SetupOptions) => {
-      await runSetup(harness, options);
+    .description("prepare Pi or configure the Paseo integration")
+    .argument("<target>", "setup target: pi or paseo")
+    .option("--sync-packages", "install or repair required Pi packages")
+    .option("--config <path>", "Paseo config path (default: ~/.paseo/config.json)")
+    .option("--yes", "accept updating existing Paseo Axon integration settings without prompting")
+    .action(async (target: string, options: SetupOptions) => {
+      await runSetup(target, options);
     });
 
   program
@@ -225,10 +227,15 @@ function createLauncherProgram(): Command {
     if (!["harnesses", "paths", "doctor", "setup"].includes(name)) return;
     // Let the action report invalid harness/operation usage without prompting.
     const harness = actionCommand.args[0];
+    const setupOptions = actionCommand.opts<SetupOptions>();
+    // Paseo setup only edits local configuration and does not require sign-in.
     if (
       (name === "doctor" && harness !== undefined && !resolveHarnessRegistration(harness)) ||
       (name === "setup" &&
-        (harness !== "pi" || actionCommand.opts<SetupOptions>().syncPackages !== true))
+        (harness !== "pi" ||
+          setupOptions.syncPackages !== true ||
+          setupOptions.config !== undefined ||
+          setupOptions.yes === true))
     )
       return;
     const invocation = currentPiInvocationEnvironment();

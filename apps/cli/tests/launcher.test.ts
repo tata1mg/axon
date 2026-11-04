@@ -339,6 +339,8 @@ describe("launcher dispatch", () => {
       "--extension",
       join(axonHome, "runtime", activeRuntime, "pi", "extensions", "axon.ts"),
       "--extension",
+      join(axonHome, "runtime", activeRuntime, "pi", "extensions", "axon-changelog.ts"),
+      "--extension",
       join(axonHome, "runtime", activeRuntime, "pi", "extensions", "axon-auth.ts"),
       "--extension",
       join(axonHome, "runtime", activeRuntime, "pi", "extensions", "pi-org-telemetry.mjs"),
@@ -364,6 +366,9 @@ describe("launcher dispatch", () => {
     expect(stdout.arguments[1]).not.toContain("/current/");
     expect(stdout.arguments[3]).not.toContain("/current/");
     expect(stdout.arguments[5]).not.toContain("/current/");
+    expect(
+      (await Bun.file(join(axonHome, "pi", "settings.json")).json()).lastChangelogVersion,
+    ).toBe(PI_INSTALL_VERSION);
   });
 
   test("forwards Pi auth commands without setup arguments", async () => {

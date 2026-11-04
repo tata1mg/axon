@@ -38,7 +38,7 @@ async function runHarness(
   rpc?: SandboxRpcTransport,
 ): Promise<{
   readonly exitCode: number | null;
-  readonly signalCode: NodeJS.Signals | null;
+  readonly signalCode: NodeJS.Signals | number | null;
   readonly restart: boolean;
 }> {
   let subprocess: Bun.Subprocess<"inherit" | "pipe", "inherit" | "pipe", "inherit">;
@@ -121,6 +121,12 @@ async function runHarness(
     forwardingHandlers.set(signal, forwardSignal);
     process.on(signal, forwardSignal);
   }
+  // A detached Pi has its own session, so the terminal resizes only Axon's foreground group.
+  // Forward resizes so the TUI re-lays out; this is not an interruption.
+  const forwardResize = (): void => {
+    if (subprocess.exitCode === null && subprocess.signalCode === null) signalGroup("SIGWINCH");
+  };
+  if (detached && !rpc) process.on("SIGWINCH", forwardResize);
 
   let forceStop: ReturnType<typeof setTimeout> | undefined;
   const expiry =
@@ -157,6 +163,7 @@ async function runHarness(
     for (const [signal, handler] of forwardingHandlers) {
       process.off(signal, handler);
     }
+    process.off("SIGWINCH", forwardResize);
     // Reap extension descendants before granting the replacement profile.
     if (detached) signalGroup("SIGKILL");
     restarting =

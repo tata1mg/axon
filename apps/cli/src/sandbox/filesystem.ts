@@ -26,6 +26,7 @@ const PROTECTED_HOME_PATHS = [
 export const PI_STATE_FILES = [
   "auth.json",
   "settings.json",
+  "trust.json",
   "models.json",
   "models-store.json",
   "litellm-models-dev.json",
@@ -154,17 +155,23 @@ export async function protectedFilesystemPaths(
   );
 }
 
-/** A project profile can grant many repositories, but never the whole home or managed storage. */
-export async function validateFilesystemProject(paths: AxonPaths, cwd: string): Promise<string> {
+/** Home, filesystem roots and Axon storage can never become a project. */
+export async function isBlockedProjectDirectory(paths: AxonPaths, cwd: string): Promise<boolean> {
   const project = await canonicalPath(cwd);
   const home = await canonicalPath(homedir());
   const axonHome = await canonicalPath(paths.home);
-  if (
+  return (
     project === parse(project).root ||
     isWithin(project, home) ||
     isWithin(project, axonHome) ||
     isWithin(axonHome, project)
-  )
+  );
+}
+
+/** A project profile can grant many repositories, but never the whole home or managed storage. */
+export async function validateFilesystemProject(paths: AxonPaths, cwd: string): Promise<string> {
+  const project = await canonicalPath(cwd);
+  if (await isBlockedProjectDirectory(paths, project))
     throw sandboxFailure(
       "Choose a project directory, not a home, system root or Axon runtime directory",
     );
@@ -224,7 +231,16 @@ export async function validateFilesystemPreferences(
         throw sandboxFailure("Filesystem grants cannot include home roots or Axon-managed storage");
       if (protectedPaths.some((protectedPath) => isWithin(protectedPath, path)))
         throw sandboxFailure(`This path is protected: ${path}`);
-      const info = await lstat(path);
+      let info: Awaited<ReturnType<typeof lstat>>;
+      try {
+        info = await lstat(path);
+      } catch (error) {
+        // A granted path deleted after approval (a cleaned build directory, say) grants
+        // nothing until it is recreated; it must not break every later profile compile.
+        // New grants are checked for existence when they are added.
+        if (error instanceof Error && "code" in error && error.code === "ENOENT") continue;
+        throw error;
+      }
       if (!info.isFile() && !info.isDirectory())
         throw sandboxFailure("Grant only regular files or directories");
     }
@@ -252,6 +268,15 @@ export async function editFilesystemPreferences(
     if (!values.length || values.some((path) => !path)) throw sandboxFailure("A path is required");
     for (const entry of values) {
       const path = await canonicalPath(entry, cwd);
+      if (operation === "allow-read" || operation === "allow-write") {
+        try {
+          await lstat(path);
+        } catch (error) {
+          if (error instanceof Error && "code" in error && error.code === "ENOENT")
+            throw sandboxFailure(`This path does not exist: ${path}`);
+          throw error;
+        }
+      }
       for (const key of ["readPaths", "writePaths", "denyPaths"] as const)
         next[key] = next[key].filter((existing) => existing !== path);
       if (operation === "allow-read") next.readPaths.push(path);

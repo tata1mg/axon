@@ -1,6 +1,6 @@
 {
   "name": "axon-cli",
-  "version": "0.2.7",
+  "version": "1.0.3",
   "description": "Native Axon launcher for Pi (axon)",
   "private": true,
   "type": "module",
@@ -27,23 +27,23 @@
     "release:metadata": "bun run scripts/generate-release-metadata.ts",
     "release:prepare-s3": "bun run telemetry:check && bun run terminal:check && bun run scripts/prepare-s3-release.ts",
     "release:publish-s3": "bun run scripts/publish-s3-release.ts",
-    "test": "bun test",
+    "test": "bun test --parallel=4",
     "test:installer": "bun test tests/installer",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.pi-resources.json",
     "check": "bun run pi-version:check && bun run telemetry:check && bun run backups:check && bun run terminal:check && bun run typecheck"
   },
   "dependencies": {
-    "@clack/prompts": "^1.7.0",
-    "commander": "14",
+    "@clack/prompts": "^1.8.1",
+    "commander": "15",
     "consola": "^3.4.2",
     "picocolors": "^1.1.1",
     "proper-lockfile": "4.1.2",
-    "zod": "^4.5.4"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.12",
-    "@earendil-works/pi-coding-agent": "1.4.0",
-    "@earendil-works/pi-tui": "1.4.0",
+    "@earendil-works/pi-coding-agent": "1.5.0",
+    "@earendil-works/pi-tui": "1.5.0",
     "@opentelemetry/api": "1.9.0",
     "@opentelemetry/api-logs": "0.222.0",
     "@opentelemetry/core": "2.11.0",
@@ -60,9 +60,9 @@
     "@opentelemetry/sdk-metrics": "2.11.0",
     "@opentelemetry/sdk-trace": "2.11.0",
     "@opentelemetry/semantic-conventions": "1.43.0",
-    "@types/bun": "^1.4.0",
+    "@types/bun": "^1.4.4",
     "@types/proper-lockfile": "4.1.4",
-    "pi-provider-litellm": "4.5.0",
+    "pi-provider-litellm": "4.7.2",
     "typescript": "^7.0.2"
   }
 }

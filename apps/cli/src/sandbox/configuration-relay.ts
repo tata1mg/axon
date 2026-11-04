@@ -9,6 +9,7 @@ import type { SandboxResumeSession } from "../launcher/contracts.ts";
 import type { AxonPaths } from "../product/paths.ts";
 import { assertInside } from "../sessions/files.ts";
 import { canonicalPath, readFilesystemPreferences } from "./filesystem.ts";
+import type { SandboxPolicy } from "./policy.ts";
 
 const configurationSchema = z.strictObject({
   sessionId: z.uuid(),
@@ -48,6 +49,8 @@ export async function validateSandboxResumeSession(
 export function createSandboxConfigurationRelay(
   paths: AxonPaths,
   cwd: string,
+  /** The invocation's compiled boundary; saves must never validate against a newer policy. */
+  authorize: () => Promise<SandboxPolicy>,
   prepareRestart?: (session: SandboxResumeSession) => () => void,
 ) {
   const shutdown = new AbortController();
@@ -95,7 +98,7 @@ export function createSandboxConfigurationRelay(
         signal.throwIfAborted();
         // Arm the resume target before saving can revoke and terminate the old process.
         editorClosed = prepareRestart(session);
-        const saved = await runSandboxMenu(paths, cwd, prompts, { signal });
+        const saved = await runSandboxMenu(paths, cwd, prompts, { signal, authorize });
         return reply({ opened: true, saved });
       } catch {
         return reply({ error: "Could not open sandbox settings; try /sandbox again" }, 503);

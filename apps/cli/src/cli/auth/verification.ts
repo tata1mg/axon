@@ -1,9 +1,11 @@
 import { BUILD_INFO } from "../../build-info.ts";
 import { LauncherError } from "../../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
+import { withFileLock } from "../../launcher/file-lock.ts";
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../../product/endpoints.ts";
 import type { AxonPaths } from "../../product/paths.ts";
 import { emitProductEvent } from "../../telemetry/product-events.ts";
+import { createRelayRedactor, relayErrorDetails } from "./relay-error-details.ts";
 import { isEncryptedSession, loadEncryptedSession, refreshEncryptedSession } from "./session.ts";
 
 export type SessionVerificationStatus = "VERIFIED" | "NOT_VERIFIED" | "EXPIRED";
@@ -12,11 +14,33 @@ export type SessionVerificationStatus = "VERIFIED" | "NOT_VERIFIED" | "EXPIRED";
 export async function verifyEncryptedSession(
   encryptedSession: string,
   paths?: AxonPaths,
+  options: {
+    readonly onCredential?: (value: string) => void;
+    readonly signal?: AbortSignal;
+  } = {},
 ): Promise<SessionVerificationStatus> {
   const startedAt = Date.now();
-  try {
+  // LauncherError causes may also be printed by AXON_DEBUG outside the relay.
+  // Preserve a sanitized snapshot, never an original exception holding a token.
+  const redactor = createRelayRedactor();
+  const protectCredential = (value: string) => {
+    redactor.protectSecret(value);
+    options.onCredential?.(value);
+  };
+  const verify = async (): Promise<SessionVerificationStatus> => {
     // A concurrent login/refresh must be verified, never overwritten or treated as expired.
     for (let attempt = 0; attempt < 3; attempt += 1) {
+      options.signal?.throwIfAborted();
+      protectCredential(encryptedSession);
+      if (paths) {
+        // Check before contacting auth: refreshing an obsolete ancestor can revoke
+        // the whole Supabase session, even if a later conditional write is skipped.
+        const currentSession = await loadEncryptedSession(paths);
+        if (currentSession === undefined)
+          throw new Error("Saved session changed during verification");
+        encryptedSession = currentSession;
+        protectCredential(encryptedSession);
+      }
       const response = await fetch(
         resolveServiceUrl(
           BUILD_INFO.serviceOrigin,
@@ -28,9 +52,14 @@ export async function verifyEncryptedSession(
           headers: { Authorization: `Bearer ${encryptedSession}` },
           redirect: "error",
           cache: "no-store",
-          signal: AbortSignal.timeout(10_000),
+          signal: AbortSignal.any([
+            AbortSignal.timeout(10_000),
+            ...(options.signal === undefined ? [] : [options.signal]),
+          ]),
         },
       );
+      const refreshedSession = response.headers.get("x-session-refresh-token");
+      if (refreshedSession !== null) protectCredential(refreshedSession);
       let status: SessionVerificationStatus | undefined;
       let invalidResponse = false;
       if (response.status === 401 || response.status === 403) {
@@ -53,7 +82,6 @@ export async function verifyEncryptedSession(
       }
 
       if (paths) {
-        const refreshedSession = response.headers.get("x-session-refresh-token");
         if (refreshedSession !== null) {
           if (
             (status !== undefined && status !== "VERIFIED") ||
@@ -64,7 +92,7 @@ export async function verifyEncryptedSession(
           let saved: boolean;
           try {
             saved = await refreshEncryptedSession(paths, encryptedSession, refreshedSession);
-          } catch {
+          } catch (error) {
             emitProductEvent({
               category: "auth",
               stage: "refresh",
@@ -74,7 +102,10 @@ export async function verifyEncryptedSession(
             throw new LauncherError(
               "Your refreshed Axon session could not be saved safely",
               LAUNCHER_EXIT_STATUS.profileFailure,
-              { remediation: "Check permissions on the shared authentication file, then retry." },
+              {
+                cause: relayErrorDetails(error, redactor).error,
+                remediation: "Check permissions on the shared authentication file, then retry.",
+              },
             );
           }
           emitProductEvent({
@@ -86,6 +117,7 @@ export async function verifyEncryptedSession(
           if (saved) encryptedSession = refreshedSession;
         }
         const currentSession = await loadEncryptedSession(paths);
+        if (currentSession !== undefined) protectCredential(currentSession);
         if (currentSession !== encryptedSession) {
           if (currentSession === undefined)
             throw new Error("Saved session changed during verification");
@@ -109,6 +141,16 @@ export async function verifyEncryptedSession(
       return status;
     }
     throw new Error("Saved session kept changing during verification");
+  };
+  try {
+    // Startup checks and recovery in different Axon processes share the same
+    // refresh-capable verification lock, independently of the short write lock.
+    return paths
+      ? await withFileLock(`${paths.sharedAuthLock}.verify`, verify, {
+          timeoutMs: 60_000,
+          ...(options.signal === undefined ? {} : { signal: options.signal }),
+        })
+      : await verify();
   } catch (error) {
     emitProductEvent({
       category: "auth",
@@ -122,7 +164,10 @@ export async function verifyEncryptedSession(
     throw new LauncherError(
       "Could not verify your Axon session",
       LAUNCHER_EXIT_STATUS.profileFailure,
-      { remediation: "Check connectivity and the auth service, then retry." },
+      {
+        cause: relayErrorDetails(error, redactor).error,
+        remediation: "Check connectivity and the auth service, then retry.",
+      },
     );
   }
 }

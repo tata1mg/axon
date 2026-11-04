@@ -119,19 +119,21 @@ async function startup(
   args: readonly string[] = [],
   environment: NodeJS.ProcessEnv = {},
 ) {
+  const messages: string[] = [];
   const warnings: string[] = [];
   const restarts: (readonly string[])[] = [];
   await runStartupUpdate(args, {
     context: f.context,
     invocation: interactive,
     environment,
+    info: (message) => messages.push(message),
     warn: (message) => warnings.push(message),
     restart: async (_context, argumentsVector) => {
       restarts.push(argumentsVector);
     },
     progress: silent,
   });
-  return { warnings, restarts };
+  return { messages, warnings, restarts };
 }
 
 describe("startup updates", () => {
@@ -142,14 +144,17 @@ describe("startup updates", () => {
     const result = await startup(f, args);
     expect(await Bun.file(f.paths.managedBinary).text()).toContain(version);
     expect(result.restarts).toEqual([["pi", ...args]]);
-    expect(result.warnings[0]).toContain(`updated to ${version}`);
+    expect(result.messages).toEqual([
+      `axon: updated to ${version}; continuing with the new version.`,
+    ]);
+    expect(result.warnings).toEqual([]);
   });
 
   test("checks every launch without restarting an up-to-date or newer binary", async () => {
     const f = await fixture();
     for (const latest of ["0.1.0", "0.0.9", "0.1.0"]) {
       f.setVersion(latest);
-      expect(await startup(f)).toEqual({ warnings: [], restarts: [] });
+      expect(await startup(f)).toEqual({ messages: [], warnings: [], restarts: [] });
     }
     expect(f.requests).toHaveLength(3);
     expect(await Bun.file(f.paths.managedBinary).text()).toBe("old binary\n");
@@ -166,6 +171,7 @@ describe("startup updates", () => {
           : f,
       );
       expect(result.restarts).toEqual([]);
+      expect(result.messages).toEqual([]);
       expect(result.warnings).toHaveLength(1);
       expect(result.warnings[0]).toContain("continuing with the current version");
       expect(await Bun.file(f.paths.managedBinary).text()).toBe("old binary\n");
@@ -185,17 +191,26 @@ describe("startup updates", () => {
         context: f.context,
         invocation: interactive,
         environment: {},
+        info: (message) => events.push(`info: ${message}`),
         warn: (message) => events.push(`warn: ${message}`),
         restart: async () => {},
         progress: recordingProgress(events),
       });
       expect(events.slice(0, expected.length)).toEqual([...expected]);
       expect(events.length - expected.length).toBe(latest === "0.1.0" ? 0 : 1);
+      if (latest === version) {
+        expect(events.at(-1)).toBe(
+          `info: axon: updated to ${version}; continuing with the new version.`,
+        );
+      } else if (latest === "invalid") {
+        expect(events.at(-1)).toStartWith("warn:");
+      }
     }
   });
 
   test("warns and continues if the updated launcher cannot start", async () => {
     const f = await fixture();
+    const messages: string[] = [];
     const warnings: string[] = [];
     await runStartupUpdate([], {
       context: f.context,
@@ -204,10 +219,13 @@ describe("startup updates", () => {
       restart: async () => {
         throw new Error("spawn failed");
       },
+      info: (message) => messages.push(message),
       warn: (message) => warnings.push(message),
       progress: silent,
     });
-    expect(warnings.at(-1)).toContain("could not start the updated launcher");
+    expect(messages).toHaveLength(1);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("could not start the updated launcher");
   });
 
   test("skips offline, opted-out, administrative, scripted, CI, and source launches", async () => {
@@ -221,7 +239,7 @@ describe("startup updates", () => {
       ["-p", "hi"],
       ["--mode", "rpc"],
     ]) {
-      expect(await startup(f, args)).toEqual({ warnings: [], restarts: [] });
+      expect(await startup(f, args)).toEqual({ messages: [], warnings: [], restarts: [] });
     }
     await startup(f, [], { AXON_NO_UPDATE: "1" });
     await startup(f, [], { PI_OFFLINE: "true" });
@@ -240,7 +258,7 @@ describe("startup updates", () => {
     expect(f.requests).toEqual([]);
   });
 
-  test("real relaunch preserves arguments, cwd, environment, and child exit/signal", async () => {
+  test("real relaunch writes success only to stdout and preserves arguments, cwd, environment, and child exit/signal", async () => {
     for (const signal of [false, true]) {
       const f = await fixture(
         version,
@@ -271,12 +289,15 @@ describe("startup updates", () => {
         new Response(child.stderr).text(),
         child.exited,
       ]);
-      expect(error).toContain(`updated to ${version}`);
+      expect(error).toBe("");
+      expect(output.split("\n")[0]).toBe(
+        `axon: updated to ${version}; continuing with the new version.`,
+      );
       if (signal) {
         expect(child.signalCode).toBe("SIGTERM");
       } else {
         expect(child.exitCode).toBe(42);
-        expect(output.trim().split("\n")).toEqual([
+        expect(output.trim().split("\n").slice(1)).toEqual([
           await realpath(f.paths.home),
           "inherited",
           "pi",

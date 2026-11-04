@@ -77,7 +77,7 @@ jobs:
         run: bun run check
 
       - name: Test launcher and installer
-        run: bun test
+        run: bun run test
 
       - name: Check installer shell syntax
         run: sh -n install.sh

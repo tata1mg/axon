@@ -25,6 +25,7 @@ import {
 } from "./launch-preferences-environment.ts";
 import { invalidateStalePiRelayModels } from "./model-cache.ts";
 import {
+  applyPiChangelogDefaults,
   applyPiDefaults,
   applyPiProviderDefaults,
   axonThemeArguments,
@@ -71,10 +72,14 @@ export function createPiAdapter(): HarnessAdapter {
       let featureOverrides: EnvironmentOverrides = {};
       if (setup.invocationKind !== "administrative") {
         try {
+          await applyPiChangelogDefaults(
+            context.paths,
+            resolveConfiguredPiVersion(context.environment),
+          );
           await applyPiProviderDefaults(context.paths);
         } catch {
           throw new LauncherError(
-            "Could not prepare DeputyDev's LiteLLM provider safely",
+            "Could not prepare Axon's Pi startup settings safely",
             LAUNCHER_EXIT_STATUS.profileFailure,
             { remediation: `Run ${PRODUCT_IDENTITY.command} doctor pi.` },
           );
@@ -155,9 +160,10 @@ export function createPiAdapter(): HarnessAdapter {
             }
           }
         }
-        if (!context.sandbox) throw sandboxFailure("An Axon-owned sandbox is required");
+        const sandbox = context.sandbox;
+        if (!sandbox) throw sandboxFailure("An Axon-owned sandbox is required");
         relay = startAuthenticatedRequestRelay(context.paths, {
-          sandboxOperation: createSandboxOperations(context.sandbox, {
+          sandboxOperation: createSandboxOperations(sandbox, {
             executable: context.executable,
             arguments: [],
             environment: context.environment,
@@ -167,6 +173,7 @@ export function createPiAdapter(): HarnessAdapter {
           ...(context.authenticationDeferred ? { signedOut: { session: encryptedSession } } : {}),
           allowTelemetry: config?.telemetry?.enabled === true,
           allowSandboxConfiguration: setup.invocationKind === "interactive",
+          sandboxConfigurationPolicy: () => sandbox.configurationPolicy(),
           ...(context.prepareSandboxRestart
             ? { prepareSandboxRestart: context.prepareSandboxRestart }
             : {}),
