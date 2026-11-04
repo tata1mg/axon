@@ -1,0 +1,40 @@
+apps/cli/src/sandbox/launch.ts
+  s_fb4fb568725ab3::t_61f1b532c45125 393,524-533
+apps/cli/src/sandbox/filesystem.ts
+  s_fb4fb568725ab3::t_490ce0f41e23bf 29
+apps/cli/src/cli/auth/session.ts
+  s_4599585f693d19::t_97289c692605c0 142,144
+apps/cli/src/cli/auth/session-recovery.ts
+  s_4599585f693d19::t_3eaeceac682193 70,77-81,95-96,107,122-129,243-246
+  s_4599585f693d19::t_a0d0792308cc56 98-103
+apps/cli/src/cli/commands/auth.ts
+  s_4599585f693d19::t_210556f8b50ef7 30-31,173-178,196-197
+  s_4599585f693d19::t_21ed999c5c9ff6 9,15,136-145,147,165-172,179-195,198-212
+apps/cli/src/cli/auth/verification.ts
+  s_4599585f693d19::t_84c2d243b06631 4,17-20,30,33,35-38,41-43,55-58,144-153
+  s_4599585f693d19::t_a0e5c44ac6629e 39-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b5dc278dba97144ef011fa948b864eba67af0dfd",
+  "prompts": {},
+  "sessions": {
+    "s_4599585f693d19": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "502327",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>"
+    },
+    "s_fb4fb568725ab3": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "502389",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  }
+}
