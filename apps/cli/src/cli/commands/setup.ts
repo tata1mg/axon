@@ -1,3 +1,4 @@
+import { withAxonSafehouseSession } from "../../axon-safehouse/session.ts";
 import { synchronizePiMcpConfig } from "../../harnesses/pi/setup/mcp-config.ts";
 import { synchronizePiPackages } from "../../harnesses/pi/setup/packages/sync.ts";
 import { materializePiResources } from "../../harnesses/pi/setup/resources.ts";
@@ -14,7 +15,6 @@ import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
 import { PRODUCT_IDENTITY } from "../../product/identity.ts";
 import { AXON_MANIFEST, EMBEDDED_PI_RESOURCES } from "../../product/manifest.ts";
 import { resolveAxonPaths } from "../../product/paths.ts";
-import { withSandboxSession } from "../../sandbox/session.ts";
 import { runPaseoSetup } from "./setup-paseo.ts";
 
 export interface SetupOptions extends PaseoSetupOptions {
@@ -58,12 +58,13 @@ export async function runSetup(
     );
   }
 
-  return withSandboxSession({ cwd, environment, paths: resolveAxonPaths(environment) }, (context) =>
-    runSandboxedSetup(registration, context),
+  return withAxonSafehouseSession(
+    { cwd, environment, paths: resolveAxonPaths(environment) },
+    (context) => runAxonSafehouseSetup(registration, context),
   );
 }
 
-async function runSandboxedSetup(
+async function runAxonSafehouseSetup(
   registration: HarnessRegistration,
   launchContext: LaunchContext,
 ): Promise<void> {

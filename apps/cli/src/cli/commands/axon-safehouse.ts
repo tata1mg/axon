@@ -1,10 +1,5 @@
 import * as prompts from "@clack/prompts";
 import colors from "picocolors";
-
-import { currentPiInvocationEnvironment } from "../../harnesses/pi/setup/packages/invocation.ts";
-import { LauncherError } from "../../launcher/errors.ts";
-import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
-import type { AxonPaths } from "../../product/paths.ts";
 import {
   editFilesystemPreferences,
   type FilesystemOperation,
@@ -12,11 +7,15 @@ import {
   readFilesystemPreferences,
   saveFilesystemPreferences,
   validateFilesystemProject,
-} from "../../sandbox/filesystem.ts";
-import { authorizeSandbox, type SandboxPolicy } from "../../sandbox/policy.ts";
+} from "../../axon-safehouse/filesystem.ts";
+import { type AxonSafehousePolicy, authorizeAxonSafehouse } from "../../axon-safehouse/policy.ts";
+import { currentPiInvocationEnvironment } from "../../harnesses/pi/setup/packages/invocation.ts";
+import { LauncherError } from "../../launcher/errors.ts";
+import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
+import type { AxonPaths } from "../../product/paths.ts";
 import { formatHomePath } from "../../sessions/display.ts";
 
-export type SandboxMenuUI = Pick<
+export type AxonSafehouseMenuUI = Pick<
   typeof prompts,
   "select" | "autocomplete" | "text" | "intro" | "outro" | "cancel" | "note"
 >;
@@ -73,7 +72,9 @@ export function formatFilesystemPermissions(
     colors.dim("DeputyDev data, SSH keys, cloud credentials and Keychain are protected."),
     "",
     colors.bold(colors.cyan("Notes")),
-    colors.dim('After making any change in sandbox settings, select "Review changes and save".'),
+    colors.dim(
+      'After making any change in Axon Safehouse settings, select "Review changes and save".',
+    ),
   );
   return lines.join("\n");
 }
@@ -110,15 +111,15 @@ function formatFilesystemChanges(
   return lines.join("\n");
 }
 
-export async function runSandboxMenu(
+export async function runAxonSafehouseMenu(
   paths: AxonPaths,
   cwd: string,
-  ui: SandboxMenuUI = prompts,
+  ui: AxonSafehouseMenuUI = prompts,
   options: {
     readonly signal?: AbortSignal;
     /** Only the parent-owned RPC transport may provide a nonterminal UI. */
     readonly requireTerminal?: boolean;
-    readonly authorize?: () => Promise<SandboxPolicy>;
+    readonly authorize?: () => Promise<AxonSafehousePolicy>;
     readonly beforeSave?: () => Promise<void>;
   } = {},
 ): Promise<boolean> {
@@ -135,7 +136,7 @@ export async function runSandboxMenu(
       LAUNCHER_EXIT_STATUS.usage,
       {
         remediation:
-          "Start an interactive axon pi session and use /sandbox to edit temporary permissions.",
+          "Start an interactive axon pi session and use /safehouse to edit temporary permissions.",
       },
     );
   }
@@ -148,7 +149,7 @@ export async function runSandboxMenu(
     ui.cancel("Filesystem editor cancelled. No changes saved.");
     return true;
   }
-  ui.intro("Axon · sandbox settings");
+  ui.intro("Axon Safehouse · settings");
   ui.note(formatFilesystemPermissions(project, original), "Current filesystem permissions");
   while (!signal?.aborted) {
     const action = await ui.select<MenuAction>({
@@ -327,13 +328,13 @@ export async function runSandboxMenu(
         // Fetch current backend restrictions before committing any permissions.
         const currentPolicy = options.authorize
           ? await options.authorize()
-          : (await authorizeSandbox(paths)).policy;
+          : (await authorizeAxonSafehouse(paths)).policy;
         signal?.throwIfAborted();
         await options.beforeSave?.();
         signal?.throwIfAborted();
         await saveFilesystemPreferences(paths, project, draft, original, currentPolicy);
         ui.outro(
-          "Sandbox permissions applied for this Axon session. Restarting Pi to resume your chat safely.",
+          "Axon Safehouse permissions applied for this Axon session. Restarting Pi to resume your chat safely.",
         );
         return true;
       }

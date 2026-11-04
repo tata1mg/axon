@@ -1,3 +1,5 @@
+import { createAxonSafehouseOperations } from "../../axon-safehouse/operations.ts";
+import { axonSafehouseFailure } from "../../axon-safehouse/policy.ts";
 import {
   type AuthenticatedRequestRelay,
   startAuthenticatedRequestRelay,
@@ -9,8 +11,6 @@ import type { EnvironmentOverrides } from "../../launcher/environment.ts";
 import { LauncherError } from "../../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
 import { PRODUCT_IDENTITY } from "../../product/identity.ts";
-import { createSandboxOperations } from "../../sandbox/operations.ts";
-import { sandboxFailure } from "../../sandbox/policy.ts";
 import { closeProductTelemetry, initializeProductTelemetry } from "../../telemetry/client.ts";
 import { createPiEnvironment } from "./environment.ts";
 import {
@@ -95,10 +95,10 @@ export function createPiAdapter(): HarnessAdapter {
           );
         }
         let config: ClientConfig | undefined;
-        // The mandatory sandbox fetch already contains these preferences. Reuse it only
+        // The mandatory Axon Safehouse fetch already contains these preferences. Reuse it only
         // for the same verified credential; identity changes require fresh authorization.
         if (encryptedSession && !setup.offline && !context.authenticationDeferred) {
-          const authorizedConfig = context.sandbox?.clientConfig(encryptedSession);
+          const authorizedConfig = context.axonSafehouse?.clientConfig(encryptedSession);
           const result = authorizedConfig
             ? { config: authorizedConfig, sessionRefreshToken: undefined }
             : await fetchClientConfig(encryptedSession, {
@@ -160,10 +160,10 @@ export function createPiAdapter(): HarnessAdapter {
             }
           }
         }
-        const sandbox = context.sandbox;
-        if (!sandbox) throw sandboxFailure("An Axon-owned sandbox is required");
+        const axonSafehouse = context.axonSafehouse;
+        if (!axonSafehouse) throw axonSafehouseFailure("Axon Safehouse is required");
         relay = startAuthenticatedRequestRelay(context.paths, {
-          sandboxOperation: createSandboxOperations(sandbox, {
+          axonSafehouseOperation: createAxonSafehouseOperations(axonSafehouse, {
             executable: context.executable,
             arguments: [],
             environment: context.environment,
@@ -172,10 +172,10 @@ export function createPiAdapter(): HarnessAdapter {
           allowPiConfigRefresh: !setup.offline,
           ...(context.authenticationDeferred ? { signedOut: { session: encryptedSession } } : {}),
           allowTelemetry: config?.telemetry?.enabled === true,
-          allowSandboxConfiguration: setup.invocationKind === "interactive",
-          sandboxConfigurationPolicy: () => sandbox.configurationPolicy(),
-          ...(context.prepareSandboxRestart
-            ? { prepareSandboxRestart: context.prepareSandboxRestart }
+          allowAxonSafehouseConfiguration: setup.invocationKind === "interactive",
+          axonSafehouseConfigurationPolicy: () => axonSafehouse.configurationPolicy(),
+          ...(context.prepareAxonSafehouseRestart
+            ? { prepareAxonSafehouseRestart: context.prepareAxonSafehouseRestart }
             : {}),
           cwd: context.cwd,
         });
@@ -241,7 +241,7 @@ export function createPiAdapter(): HarnessAdapter {
           // Display label only: Pi persists error text in session history.
           PI_AXON_RELAY_LOG_FILE: relay.diagnosticsLogLabel,
           PI_AXON_CONFIG_REFRESH_ENABLED: String(!setup.offline),
-          PI_AXON_SANDBOX_OPERATIONS: "1",
+          PI_AXON_SAFEHOUSE_OPERATIONS: "1",
         };
       } else {
         // Administration is exempt even if spawning it produces startup observations.
@@ -250,7 +250,7 @@ export function createPiAdapter(): HarnessAdapter {
           decision: { offline: setup.offline },
         });
       }
-      // Administrative invocations are sandboxed too, without inheriting auth markers.
+      // Administrative invocations use Axon Safehouse too, without inheriting auth markers.
       if (relay === undefined) {
         relay = startAuthenticatedRequestRelay(context.paths, { cwd: context.cwd });
         litellmOverrides = {

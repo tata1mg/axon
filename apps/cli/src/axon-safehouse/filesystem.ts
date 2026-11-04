@@ -5,7 +5,7 @@ import { dirname, isAbsolute, join, parse, relative, resolve, sep } from "node:p
 import { z } from "zod";
 
 import type { AxonPaths } from "../product/paths.ts";
-import { type SandboxPolicy, sandboxFailure } from "./policy.ts";
+import { type AxonSafehousePolicy, axonSafehouseFailure } from "./policy.ts";
 
 const PROTECTED_HOME_PATHS = [
   ".deputydev",
@@ -30,8 +30,10 @@ export const PI_STATE_FILES = [
   "models.json",
   "models-store.json",
   "litellm-models-dev.json",
+  "axon-changelog.json",
 ] as const;
-export const PI_STATE_DIRECTORIES = ["sessions", "pi-org-telemetry"] as const;
+// Agent definitions are user-owned persistent data, not executable extension packages.
+export const PI_STATE_DIRECTORIES = ["sessions", "pi-org-telemetry", "agents"] as const;
 export type FilesystemOperation = "allow-read" | "allow-write" | "deny" | "revoke" | "mode";
 
 const pathList = z.array(z.string().min(1).max(4096)).max(64);
@@ -89,7 +91,7 @@ export async function canonicalPath(path: string, cwd = process.cwd()): Promise<
       (character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127,
     )
   ) {
-    throw sandboxFailure("Invalid filesystem permission path");
+    throw axonSafehouseFailure("Invalid filesystem permission path");
   }
   const expanded =
     path === "~" ? homedir() : path.startsWith("~/") ? join(homedir(), path.slice(2)) : path;
@@ -111,7 +113,7 @@ export async function canonicalPath(path: string, cwd = process.cwd()): Promise<
 export async function filesystemPreferencesPath(paths: AxonPaths, cwd: string): Promise<string> {
   const project = await canonicalPath(cwd);
   const key = createHash("sha256").update(project).digest("hex");
-  return join(paths.home, "sandbox", "filesystem", `${key}.json`);
+  return join(paths.home, "axon-safehouse", "filesystem", `${key}.json`);
 }
 
 export async function readFilesystemPreferences(
@@ -129,17 +131,17 @@ export async function readFilesystemPreferences(
     };
   }
   const parsed = filesystemPreferencesSchema.safeParse(value);
-  if (!parsed.success) throw sandboxFailure("Local filesystem permissions are invalid");
+  if (!parsed.success) throw axonSafehouseFailure("Local filesystem permissions are invalid");
   return parsed.data;
 }
 
 export async function protectedFilesystemPaths(
   paths: AxonPaths,
-  policy?: SandboxPolicy,
+  policy?: AxonSafehousePolicy,
 ): Promise<string[]> {
   const backendPaths = (policy?.protectedPaths ?? []).map((path) => {
     if (!isAbsolute(path) && !path.startsWith("~/"))
-      throw sandboxFailure("Backend protected paths must be absolute or home-relative");
+      throw axonSafehouseFailure("Backend protected paths must be absolute or home-relative");
     return path;
   });
   return Promise.all(
@@ -148,7 +150,7 @@ export async function protectedFilesystemPaths(
       paths.bin,
       paths.staged,
       paths.locks,
-      join(paths.home, "sandbox", "filesystem"),
+      join(paths.home, "axon-safehouse", "filesystem"),
       ...PROTECTED_HOME_PATHS.map((path) => join(homedir(), path)),
       ...backendPaths,
     ].map((path) => canonicalPath(path)),
@@ -172,11 +174,11 @@ export async function isBlockedProjectDirectory(paths: AxonPaths, cwd: string): 
 export async function validateFilesystemProject(paths: AxonPaths, cwd: string): Promise<string> {
   const project = await canonicalPath(cwd);
   if (await isBlockedProjectDirectory(paths, project))
-    throw sandboxFailure(
+    throw axonSafehouseFailure(
       "Choose a project directory, not a home, system root or Axon runtime directory",
     );
   if (!(await lstat(project)).isDirectory())
-    throw sandboxFailure("The project must be a directory");
+    throw axonSafehouseFailure("The project must be a directory");
   return project;
 }
 
@@ -184,7 +186,7 @@ export async function validateFilesystemPreferences(
   paths: AxonPaths,
   cwd: string,
   value: FilesystemPreferences,
-  policy?: SandboxPolicy,
+  policy?: AxonSafehousePolicy,
 ): Promise<FilesystemPreferences> {
   const project = await validateFilesystemProject(paths, cwd);
   const preferences = filesystemPreferencesSchema.parse(value);
@@ -192,7 +194,7 @@ export async function validateFilesystemPreferences(
     (policy?.allowAdditionalReadPaths === false && preferences.readPaths.length > 0) ||
     (policy?.allowAdditionalWritePaths === false && preferences.writePaths.length > 0)
   )
-    throw sandboxFailure("Backend policy does not permit these additional filesystem grants");
+    throw axonSafehouseFailure("Backend policy does not permit these additional filesystem grants");
   const home = await canonicalPath(homedir());
   const axonHome = await canonicalPath(paths.home);
   const protectedPaths = await protectedFilesystemPaths(paths, policy);
@@ -211,13 +213,13 @@ export async function validateFilesystemPreferences(
       ...new Set(await Promise.all(preferences[key].map((path) => canonicalPath(path, project)))),
     ];
     for (const path of preferences[key]) {
-      if (assigned.has(path)) throw sandboxFailure(`Assign only one access mode to ${path}`);
+      if (assigned.has(path)) throw axonSafehouseFailure(`Assign only one access mode to ${path}`);
       assigned.add(path);
       if (key === "denyPaths") {
         if (
           essentialPaths.some((essential) => isWithin(path, essential) || isWithin(essential, path))
         )
-          throw sandboxFailure(
+          throw axonSafehouseFailure(
             "Essential Pi state cannot be denied; choose a narrower project path",
           );
         continue;
@@ -228,9 +230,11 @@ export async function validateFilesystemPreferences(
         isWithin(path, axonHome) ||
         isWithin(axonHome, path)
       )
-        throw sandboxFailure("Filesystem grants cannot include home roots or Axon-managed storage");
+        throw axonSafehouseFailure(
+          "Filesystem grants cannot include home roots or Axon-managed storage",
+        );
       if (protectedPaths.some((protectedPath) => isWithin(protectedPath, path)))
-        throw sandboxFailure(`This path is protected: ${path}`);
+        throw axonSafehouseFailure(`This path is protected: ${path}`);
       let info: Awaited<ReturnType<typeof lstat>>;
       try {
         info = await lstat(path);
@@ -242,12 +246,12 @@ export async function validateFilesystemPreferences(
         throw error;
       }
       if (!info.isFile() && !info.isDirectory())
-        throw sandboxFailure("Grant only regular files or directories");
+        throw axonSafehouseFailure("Grant only regular files or directories");
     }
   }
   // Match the shared JSON reader's size bound so saved profiles can always be read back.
   if (Buffer.byteLength(JSON.stringify(preferences)) + 1 > 64 * 1024)
-    throw sandboxFailure("Filesystem permission profile exceeds the 64 KiB limit");
+    throw axonSafehouseFailure("Filesystem permission profile exceeds the 64 KiB limit");
   // A parent directory grant still excludes any protected descendants at policy generation.
   return preferences;
 }
@@ -258,14 +262,15 @@ export async function editFilesystemPreferences(
   preferences: FilesystemPreferences,
   operation: FilesystemOperation,
   value: string | readonly string[],
-  policy?: SandboxPolicy,
+  policy?: AxonSafehousePolicy,
 ): Promise<FilesystemPreferences> {
   const next = filesystemPreferencesSchema.parse(preferences);
   if (operation === "mode") {
     next.projectMode = z.enum(["read-only", "read-write"]).parse(value);
   } else {
     const values = typeof value === "string" ? [value] : value;
-    if (!values.length || values.some((path) => !path)) throw sandboxFailure("A path is required");
+    if (!values.length || values.some((path) => !path))
+      throw axonSafehouseFailure("A path is required");
     for (const entry of values) {
       const path = await canonicalPath(entry, cwd);
       if (operation === "allow-read" || operation === "allow-write") {
@@ -273,7 +278,7 @@ export async function editFilesystemPreferences(
           await lstat(path);
         } catch (error) {
           if (error instanceof Error && "code" in error && error.code === "ENOENT")
-            throw sandboxFailure(`This path does not exist: ${path}`);
+            throw axonSafehouseFailure(`This path does not exist: ${path}`);
           throw error;
         }
       }
@@ -293,19 +298,21 @@ export async function saveFilesystemPreferences(
   cwd: string,
   preferences: FilesystemPreferences,
   expected?: FilesystemPreferences,
-  policy?: SandboxPolicy,
+  policy?: AxonSafehousePolicy,
 ): Promise<FilesystemPreferences> {
   const destination = await filesystemPreferencesPath(paths, cwd);
   const revision = filesystemPreferencesRevision(paths);
   const current = await readFilesystemPreferences(paths, cwd);
   if (expected && JSON.stringify(current) !== JSON.stringify(expected))
-    throw sandboxFailure("Filesystem permissions changed; reopen the editor before saving");
+    throw axonSafehouseFailure("Filesystem permissions changed; reopen the editor before saving");
   const validated = await validateFilesystemPreferences(paths, cwd, preferences, policy);
   // Editors review canonical paths. A replaced symlink must not silently redirect an approval.
   if (JSON.stringify(validated) !== JSON.stringify(preferences))
-    throw sandboxFailure("Filesystem paths changed since review; reopen the editor before saving");
+    throw axonSafehouseFailure(
+      "Filesystem paths changed since review; reopen the editor before saving",
+    );
   if (filesystemPreferencesRevision(paths) !== revision)
-    throw sandboxFailure("Filesystem permissions changed; reopen the editor before saving");
+    throw axonSafehouseFailure("Filesystem permissions changed; reopen the editor before saving");
   commitFilesystemPreferences(paths, destination, validated);
   return validated;
 }

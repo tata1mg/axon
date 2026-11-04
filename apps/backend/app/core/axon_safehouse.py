@@ -1,4 +1,4 @@
-"""Backend-owned sandbox capabilities; clients may only narrow these permissions."""
+"""Backend-owned Axon Safehouse capabilities; clients may only narrow these permissions."""
 
 from typing import Annotated, Literal
 
@@ -12,7 +12,7 @@ ProtectedPath = Annotated[
 ]
 
 
-class CliSandboxPolicy(BaseModel):
+class CliAxonSafehousePolicy(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid", populate_by_name=True)
 
     schema_version: Literal[1] = Field(default=1, alias="schemaVersion")
@@ -31,13 +31,13 @@ class CliSandboxPolicy(BaseModel):
     protected_paths: tuple[ProtectedPath, ...] = Field(alias="protectedPaths", max_length=64)
 
 
-class SandboxSettings(BaseModel):
+class AxonSafehouseSettings(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid", strict=True)
 
     policy_id: str = Field(default="safehouse-v1", alias="POLICY_ID", pattern=r"^[a-zA-Z0-9._-]{1,128}$")
     max_session_seconds: int = Field(default=14400, alias="MAX_SESSION_SECONDS", ge=60, le=86400)
     local_git: Literal["deny", "read-only", "read-write"] = Field(default="read-only", alias="LOCAL_GIT")
-    # Enables sandboxed SSH-agent use and TCP access to the approved Git hosts.
+    # Enables SSH-agent use inside Axon Safehouse and TCP access to the approved Git hosts.
     remote_git: bool = Field(default=False, alias="REMOTE_GIT")
     remote_git_hosts: list[GitHost] = Field(default_factory=list, alias="REMOTE_GIT_HOSTS", max_length=2)
     allow_additional_read_paths: bool = Field(default=True, alias="ALLOW_ADDITIONAL_READ_PATHS")
@@ -53,8 +53,8 @@ class SandboxSettings(BaseModel):
     )
     protected_paths: list[ProtectedPath] = Field(default_factory=list, alias="PROTECTED_PATHS", max_length=64)
 
-    def cli_config(self) -> CliSandboxPolicy:
-        return CliSandboxPolicy(
+    def cli_config(self) -> CliAxonSafehousePolicy:
+        return CliAxonSafehousePolicy(
             policyId=self.policy_id,
             maxSessionSeconds=self.max_session_seconds,
             localGit=self.local_git,
@@ -68,9 +68,9 @@ class SandboxSettings(BaseModel):
         )
 
 
-def parse_sandbox(raw: dict[str, object]) -> SandboxSettings:
+def parse_axon_safehouse(raw: dict[str, object]) -> AxonSafehouseSettings:
     # Missing deployment settings still publish the reviewed restrictive baseline.
-    section = raw.get("SANDBOX", {})
+    section = raw.get("AXON_SAFEHOUSE", {})
     if not isinstance(section, dict):
-        raise ValueError("SANDBOX must be an object")
-    return SandboxSettings.model_validate(section)
+        raise ValueError("AXON_SAFEHOUSE must be an object")
+    return AxonSafehouseSettings.model_validate(section)

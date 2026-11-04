@@ -280,13 +280,13 @@ Each action must have bounded size, validation, an explicit deadline, correlatio
 - Keep the real Axon session, provider keys, and current loopback relay capability daemon-side. The UI bridge uses its own narrower capability.
 - Bind socket/capability ownership to one daemon instance, one agent, and one runtime generation. Validate provider association through the daemon API; do not trust arbitrary client-supplied paths or IDs.
 - Protect the local directory/socket with owner-only access and safe creation. Handle stale paths and macOS Unix-socket path-length limits deliberately.
-- Keep tokens out of command arguments, launch diagnostics, plugin logs, URLs used for navigation state, and persistent plugin settings. Environment delivery is a local trusted-process mechanism, not a sandbox against the same OS user.
+- Keep tokens out of command arguments, launch diagnostics, plugin logs, URLs used for navigation state, and persistent plugin settings. Environment delivery is a local trusted-process mechanism, not isolation from the same OS user.
 - Never serialize a login URL into `notify`, model-visible chat, timeline rows, telemetry, or durable client caches. Private RPC is a transport path, not a guarantee that application code will avoid logging/caching its result.
 - Validate login destinations against Axon's expected authentication origin and existing transaction checks; do not accept a browser URL supplied by another client. Require HTTPS outside the existing development-loopback exception.
 - Keep browser approval and model selection tied to explicit, current requests. Two devices must not apply contradictory late decisions.
 - Expose allowlisted UI actions only. No arbitrary shell command, filesystem read, relay forwarding, raw Pi frame injection, or unrestricted model endpoint.
 - Do not share the model relay's broad per-launch capability with the companion just to avoid designing a narrow bridge.
-- Plugins are trusted and unsandboxed. This design limits accidental exposure and remote misuse; it does not claim isolation from a malicious installed plugin or same-user host process.
+- Plugins are trusted and not isolated. This design limits accidental exposure and remote misuse; it does not claim isolation from a malicious installed plugin or same-user host process.
 
 ### 6.3 Failure behavior
 

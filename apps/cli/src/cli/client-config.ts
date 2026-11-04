@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  type AxonSafehousePolicy,
+  axonSafehousePolicySchema,
+} from "../axon-safehouse/contracts.ts";
 import { BUILD_INFO } from "../build-info.ts";
 import { isSingleCommandPrefix } from "../harnesses/pi/terminal-permissions/command-parser.ts";
 import {
@@ -6,7 +10,6 @@ import {
   SERVICE_ENDPOINTS,
   type ServiceEndpointPath,
 } from "../product/endpoints.ts";
-import { type SandboxPolicy, sandboxPolicySchema } from "../sandbox/contracts.ts";
 import { emitProductEvent } from "../telemetry/product-events.ts";
 
 export const CLIENT_CONFIG_TIMEOUT_MS = 700;
@@ -134,7 +137,7 @@ const litellmClientSchema = z.strictObject({
   defaultContextWindow: optionalOverride(positiveInteger),
 });
 const featureSchemas = {
-  sandbox: sandboxPolicySchema,
+  axonSafehouse: axonSafehousePolicySchema,
   pi: piSchema,
   telemetry: telemetrySchema,
   webSearch: webSearchSchema,
@@ -236,15 +239,15 @@ export function fetchClientConfig(
 }
 
 /** A public policy is a startup boundary, never proof of an authenticated session. */
-export async function fetchSandboxBootstrap(
+export async function fetchAxonSafehouseBootstrap(
   options: ClientConfigFetchOptions = {},
-): Promise<SandboxPolicy | undefined> {
+): Promise<AxonSafehousePolicy | undefined> {
   const result = await fetchConfigResponse(
     undefined,
-    SERVICE_ENDPOINTS.cli.sandboxBootstrap,
+    SERVICE_ENDPOINTS.cli.axonSafehouseBootstrap,
     options,
   );
-  return result.config?.sandbox;
+  return result.config?.axonSafehouse;
 }
 
 async function fetchConfigResponse(

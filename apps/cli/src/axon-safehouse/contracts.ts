@@ -8,7 +8,7 @@ export const PACKAGE_REGISTRY_HOSTS = [
   "files.pythonhosted.org",
 ] as const;
 
-export const sandboxPolicySchema = z.strictObject({
+export const axonSafehousePolicySchema = z.strictObject({
   schemaVersion: z.literal(1),
   required: z.literal(true),
   engine: z.literal("safehouse"),
@@ -47,4 +47,4 @@ export const sandboxPolicySchema = z.strictObject({
     .max(64),
 });
 
-export type SandboxPolicy = z.infer<typeof sandboxPolicySchema>;
+export type AxonSafehousePolicy = z.infer<typeof axonSafehousePolicySchema>;

@@ -18,7 +18,7 @@ const CONTROL_TIMEOUT_MS = 5_000;
 const BROWSER_LOGIN_TIMEOUT_MS = 5 * 60_000;
 const STATUS_KEY = "axon-auth";
 // Keep this bus contract in sync with axon.ts; both extensions ship standalone.
-const SANDBOX_EDITOR_CHANNEL = "axon:sandbox-editor";
+const AXON_SAFEHOUSE_EDITOR_CHANNEL = "axon:axon-safehouse-editor";
 
 const LOGIN_CHOICE = "Login from browser";
 const NOT_NOW_CHOICE = "Not now (keep chat open)";
@@ -399,7 +399,7 @@ export function createAxonAuth(options: AxonAuthOptions = {}): (pi: ExtensionAPI
     let activeContext: ExtensionContext | undefined;
     let lastRunFailed = false;
 
-    pi.events.on(SANDBOX_EDITOR_CHANNEL, (open) => {
+    pi.events.on(AXON_SAFEHOUSE_EDITOR_CHANNEL, (open) => {
       if (
         !activeContext ||
         (activeContext.mode !== "tui" && activeContext.mode !== "rpc") ||

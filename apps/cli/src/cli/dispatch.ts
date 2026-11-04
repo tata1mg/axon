@@ -48,7 +48,7 @@ export async function dispatch(argumentsVector: readonly string[]): Promise<void
 
   if (registration !== undefined) {
     // Provider diagnostics need the managed version before login. Reading the pin
-    // never resolves, installs or executes Pi, so no sandbox authorization is bypassed.
+    // never resolves, installs or executes Pi, so no Axon Safehouse authorization is bypassed.
     if (
       registration.id === "pi" &&
       harnessArguments.length === 1 &&

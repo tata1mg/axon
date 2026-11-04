@@ -7,7 +7,7 @@ import { readCertificates } from "../launcher/certificates.ts";
 import type { LaunchSpec } from "../launcher/contracts.ts";
 import type { AxonPaths } from "../product/paths.ts";
 import { privateDirectory } from "../sessions/files.ts";
-import { sandboxEnvironment } from "./environment.ts";
+import { axonSafehouseEnvironment } from "./environment.ts";
 import {
   canonicalPath,
   isBlockedProjectDirectory,
@@ -22,7 +22,7 @@ import {
 import { resolveGitAiBinary } from "./git-ai-binary.ts";
 import { type PackageProxy, startPackageProxy } from "./package-proxy.ts";
 import { installedPackagePaths, PACKAGE_WRITE_FILTERS, type PackageScanCache } from "./packages.ts";
-import { type SandboxAuthorization, sandboxFailure } from "./policy.ts";
+import { type AxonSafehouseAuthorization, axonSafehouseFailure } from "./policy.ts";
 import { restrictFilesystemGrants, restrictSafehouseBaseline } from "./profile.ts";
 import { ensureSafehouseRuntime, generateSafehousePolicy } from "./runtime.ts";
 import { projectSessionDirectory } from "./session-paths.ts";
@@ -95,11 +95,13 @@ async function gitMetadata(project: string): Promise<string[]> {
   const marker = join(project, ".git");
   try {
     const info = await lstat(marker);
-    if (info.isSymbolicLink()) throw sandboxFailure("Symlinked Git metadata is not supported");
+    if (info.isSymbolicLink())
+      throw axonSafehouseFailure("Symlinked Git metadata is not supported");
     if (info.isDirectory()) return [await realpath(marker)];
-    if (!info.isFile() || info.size > 8192) throw sandboxFailure("Invalid Git worktree metadata");
+    if (!info.isFile() || info.size > 8192)
+      throw axonSafehouseFailure("Invalid Git worktree metadata");
     const match = /^gitdir: (.+)\s*$/.exec(await Bun.file(marker).text());
-    if (!match?.[1]) throw sandboxFailure("Invalid Git worktree metadata");
+    if (!match?.[1]) throw axonSafehouseFailure("Invalid Git worktree metadata");
     const directory = await canonicalPath(match[1].trim(), project);
     const commonFile = join(directory, "commondir");
     const commonInfo = await lstat(commonFile).catch((error: unknown) => {
@@ -109,7 +111,7 @@ async function gitMetadata(project: string): Promise<string[]> {
     });
     if (!commonInfo) return [directory];
     if (!commonInfo.isFile() || commonInfo.isSymbolicLink() || commonInfo.size > 8192) {
-      throw sandboxFailure("Invalid shared Git metadata");
+      throw axonSafehouseFailure("Invalid shared Git metadata");
     }
     const common = await canonicalPath((await Bun.file(commonFile).text()).trim(), directory);
     return [directory, common];
@@ -119,7 +121,7 @@ async function gitMetadata(project: string): Promise<string[]> {
   }
 }
 
-export interface SandboxResources {
+export interface AxonSafehouseResources {
   readonly baseline: string;
   readonly runDirectory: string;
   readonly temporary: string;
@@ -136,24 +138,25 @@ export interface SandboxResources {
   dispose(): void;
 }
 
-interface SandboxLaunchOptions {
+interface AxonSafehouseLaunchOptions {
   readonly purpose?: "session" | "probe" | "provision" | "administration" | "operation";
   readonly project?: string;
   readonly writePaths?: readonly string[];
   readonly runtimeReadPaths?: readonly string[];
   readonly catalogOnly?: boolean;
-  readonly resources?: SandboxResources;
+  readonly resources?: AxonSafehouseResources;
 }
 
 /** Verify/download once and share the immutable baseline and proxy across an Axon invocation. */
-export async function createSandboxResources(
+export async function createAxonSafehouseResources(
   paths: AxonPaths,
   environment: NodeJS.ProcessEnv,
-  authorization: SandboxAuthorization,
-): Promise<SandboxResources> {
-  if (Date.now() >= authorization.expiresAt) throw sandboxFailure("Sandbox authorization expired");
+  authorization: AxonSafehouseAuthorization,
+): Promise<AxonSafehouseResources> {
+  if (Date.now() >= authorization.expiresAt)
+    throw axonSafehouseFailure("Axon Safehouse authorization expired");
   const runtime = await ensureSafehouseRuntime(paths);
-  const runs = join(paths.home, "sandbox", "runs");
+  const runs = join(paths.home, "axon-safehouse", "runs");
   await privateDirectory(runs);
   const runDirectory = await mkdtemp(join(runs, "session-"));
   let proxy: PackageProxy | undefined;
@@ -183,7 +186,7 @@ export async function createSandboxResources(
       ])
         certificateEnvironment[name] = certificatePath;
     }
-    let ssh: SandboxResources["ssh"];
+    let ssh: AxonSafehouseResources["ssh"];
     if (proxy.sshTunnels.length > 0) {
       const home = await canonicalPath(homedir());
       const backendProtectedPaths = await Promise.all(
@@ -191,12 +194,12 @@ export async function createSandboxResources(
       );
       const sourceKnownHosts = await canonicalPath(join(home, ".ssh", "known_hosts"));
       if (backendProtectedPaths.some((path) => isWithin(path, sourceKnownHosts)))
-        throw sandboxFailure("Backend policy protects SSH host-verification data");
+        throw axonSafehouseFailure("Backend policy protects SSH host-verification data");
       let hostKeys = "";
       try {
         const info = await lstat(join(home, ".ssh", "known_hosts"));
         if (!info.isFile() || info.isSymbolicLink() || info.size > 1024 * 1024)
-          throw sandboxFailure("SSH known_hosts must be a regular file smaller than 1 MiB");
+          throw axonSafehouseFailure("SSH known_hosts must be a regular file smaller than 1 MiB");
         hostKeys = await Bun.file(sourceKnownHosts).text();
       } catch (error) {
         if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
@@ -210,7 +213,7 @@ export async function createSandboxResources(
           if ((await lstat(candidate)).isSocket()) {
             const protectedPaths = await protectedFilesystemPaths(paths, authorization.policy);
             if (protectedPaths.some((path) => isWithin(path, candidate)))
-              throw sandboxFailure("SSH agent socket is inside a protected location");
+              throw axonSafehouseFailure("SSH agent socket is inside a protected location");
             agent = candidate;
           }
         } catch (error) {
@@ -280,20 +283,20 @@ export async function createSandboxResources(
 }
 
 /** Safehouse supplies runtime/process rules; Axon replaces its permissive file/network defaults. */
-export async function createSandboxLaunchSpec(
+export async function createAxonSafehouseLaunchSpec(
   specification: LaunchSpec,
   paths: AxonPaths,
-  authorization: SandboxAuthorization,
-  options: SandboxLaunchOptions = {},
+  authorization: AxonSafehouseAuthorization,
+  options: AxonSafehouseLaunchOptions = {},
 ): Promise<LaunchSpec> {
   const { policy, expiresAt } = authorization;
   const purpose = options.purpose ?? "session";
   const brokeredSession =
-    purpose === "session" && specification.environment["PI_AXON_SANDBOX_OPERATIONS"] === "1";
+    purpose === "session" && specification.environment["PI_AXON_SAFEHOUSE_OPERATIONS"] === "1";
   const catalogOnly = options.catalogOnly === true && purpose === "session";
   const catalogDirectory = catalogOnly ? options.resources?.temporary : undefined;
   if (catalogOnly && !catalogDirectory)
-    throw sandboxFailure("RPC catalog requires an owned sandbox");
+    throw axonSafehouseFailure("RPC catalog requires Axon Safehouse");
   // Global package commands (install/remove/update) need no project. Run them from home or
   // another non-project directory in a private empty directory, without project access.
   const globalAdministration =
@@ -302,13 +305,14 @@ export async function createSandboxLaunchSpec(
   const isolatedDirectory =
     catalogDirectory ?? (globalAdministration ? options.resources?.temporary : undefined);
   if (globalAdministration && !isolatedDirectory)
-    throw sandboxFailure("Package administration outside a project requires an owned sandbox");
+    throw axonSafehouseFailure("Package administration outside a project requires Axon Safehouse");
   const projectAccess =
     !catalogOnly &&
     !globalAdministration &&
     (purpose === "operation" || purpose === "administration" || purpose === "session");
   const provisioning = purpose === "provision" || purpose === "administration";
-  if (Date.now() >= expiresAt) throw sandboxFailure("Sandbox authorization expired during startup");
+  if (Date.now() >= expiresAt)
+    throw axonSafehouseFailure("Axon Safehouse authorization expired during startup");
   const project = isolatedDirectory
     ? await canonicalPath(isolatedDirectory)
     : purpose === "session" || purpose === "operation" || purpose === "administration"
@@ -328,11 +332,11 @@ export async function createSandboxLaunchSpec(
     (!policy.allowAdditionalReadPaths && preferences.readPaths.length > 0) ||
     (!policy.allowAdditionalWritePaths && preferences.writePaths.length > 0)
   ) {
-    throw sandboxFailure("Backend policy does not permit your additional filesystem grants");
+    throw axonSafehouseFailure("Backend policy does not permit your additional filesystem grants");
   }
   const relayOrigin = specification.environment["PI_AXON_AUTH_RELAY_URL"];
   if (purpose === "session" && !relayOrigin)
-    throw sandboxFailure("The parent-owned Axon relay is required");
+    throw axonSafehouseFailure("The parent-owned Axon relay is required");
   const relay = purpose === "session" && relayOrigin ? new URL(relayOrigin) : undefined;
   if (
     relay &&
@@ -341,7 +345,7 @@ export async function createSandboxLaunchSpec(
       !/^\d+$/.test(relay.port) ||
       relay.origin !== relayOrigin)
   ) {
-    throw sandboxFailure("Invalid parent-owned relay address");
+    throw axonSafehouseFailure("Invalid parent-owned relay address");
   }
   const requestedWritePaths = await Promise.all(
     (options.writePaths ?? []).map((path) => canonicalPath(path)),
@@ -371,14 +375,14 @@ export async function createSandboxLaunchSpec(
       (!provisionTargets.has(path) &&
         !(dirname(path) === runtimeRoot && /^\.staging-[a-zA-Z0-9-]+$/.test(basename(path))))
     ) {
-      throw sandboxFailure("Invalid Axon provisioning write target");
+      throw axonSafehouseFailure("Invalid Axon provisioning write target");
     }
     for (const protectedPath of policy.protectedPaths) {
       const protectedTarget = await canonicalPath(
         protectedPath.startsWith("~/") ? join(home, protectedPath.slice(2)) : protectedPath,
       );
       if (isWithin(protectedTarget, path) || isWithin(path, protectedTarget))
-        throw sandboxFailure("Backend policy protects an Axon provisioning target");
+        throw axonSafehouseFailure("Backend policy protects an Axon provisioning target");
     }
   }
   const protectedPaths = await protectedFilesystemPaths(paths, policy);
@@ -389,12 +393,12 @@ export async function createSandboxLaunchSpec(
     purpose === "session" &&
     stateFiles.some((path) => protectedPaths.some((protectedPath) => isWithin(protectedPath, path)))
   )
-    throw sandboxFailure(
+    throw axonSafehouseFailure(
       "Backend policy blocks essential Pi state; ask your administrator to allow Pi auth, settings, trust and model state",
     );
   const resources =
     options.resources ??
-    (await createSandboxResources(paths, specification.environment, authorization));
+    (await createAxonSafehouseResources(paths, specification.environment, authorization));
   const { baseline, runDirectory, temporary, proxy } = resources;
   try {
     const proxyPort = new URL(proxy.origin).port;
@@ -526,20 +530,22 @@ export async function createSandboxLaunchSpec(
     if (provisioning) {
       const trustPath = await canonicalPath(join(piRoot, "trust.json"));
       if (dirname(trustPath) !== piRoot)
-        throw sandboxFailure("Pi state files must remain inside the managed Pi directory");
+        throw axonSafehouseFailure("Pi state files must remain inside the managed Pi directory");
       rules.push(pathRule("allow file-read* file-write*", `${trustPath}.lock`));
     }
-    // Pi requires writable auth/settings/trust/model files and their lock directories.
+    // Pi and Axon require writable state files and their lock directories.
     // This is Pi's own state, never the shared Axon/DeputyDev login credential.
     for (const path of purpose === "session" ? stateFiles : []) {
       if (dirname(path) !== piRoot)
-        throw sandboxFailure("Pi state files must remain inside the managed Pi directory");
+        throw axonSafehouseFailure("Pi state files must remain inside the managed Pi directory");
       rules.push(`(allow file-read* file-write* (literal ${quoted(path)}))`);
       rules.push(pathRule("allow file-read* file-write*", `${path}.lock`));
-      // The provider's public catalog uses <file>.<pid>.<timestamp>.tmp + rename.
+      // The provider uses <file>.<pid>.<timestamp>.tmp; Axon's changelog uses a UUID.
       // Permit only those sibling files, not writes to the whole agent directory.
       const escapedPath = path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const temporaryPattern = `^${escapedPath}\\.[0-9]+\\.[0-9]+\\.tmp$`;
+      const temporaryIdPattern =
+        "([0-9]+|[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})";
+      const temporaryPattern = `^${escapedPath}\\.[0-9]+\\.${temporaryIdPattern}\\.tmp$`;
       rules.push(`(allow file-read* file-write* (regex #${quoted(temporaryPattern)}))`);
     }
     const repositories = projectAccess
@@ -622,7 +628,7 @@ export async function createSandboxLaunchSpec(
         join(paths.pi, "git"),
         join(paths.pi, "bin"),
         join(paths.pi, "extensions"),
-        join(paths.home, "sandbox", "runtime"),
+        join(paths.home, "axon-safehouse", "runtime"),
         resources.gitBin,
         ...(gitAiBinary ? [gitAiBinary] : []),
         ...(resources.ssh ? [resources.ssh.configuration, resources.ssh.knownHosts] : []),
@@ -698,7 +704,7 @@ export async function createSandboxLaunchSpec(
       mode: 0o400,
       flag: "wx",
     });
-    // Compile the policy and exercise getcwd before Pi starts; never fall back to unsandboxed execution.
+    // Compile the policy and exercise getcwd before Pi starts; never execute outside Axon Safehouse.
     const probe = Bun.spawn(["/usr/bin/sandbox-exec", "-f", profile, "/bin/pwd"], {
       cwd: project,
       env: { PATH: "/usr/bin:/bin" },
@@ -712,15 +718,16 @@ export async function createSandboxLaunchSpec(
       probe.exited,
     ]);
     if (probeExit !== 0)
-      throw sandboxFailure(
+      throw axonSafehouseFailure(
         "Generated Safehouse policy failed its working-directory startup check",
         new Error(
           `exit=${probeExit}; signal=${probe.signalCode ?? "none"}; ${probeDiagnostics.slice(0, 8192)}`,
         ),
       );
-    if (Date.now() >= expiresAt) throw sandboxFailure("Sandbox authorization expired during setup");
+    if (Date.now() >= expiresAt)
+      throw axonSafehouseFailure("Axon Safehouse authorization expired during setup");
     const environment = {
-      ...sandboxEnvironment(
+      ...axonSafehouseEnvironment(
         specification.environment,
         home,
         temporary,
@@ -746,7 +753,7 @@ export async function createSandboxLaunchSpec(
         if (
           name.startsWith("LITELLM_") ||
           name.startsWith("OTEL_") ||
-          (name.startsWith("PI_") && name !== "PI_CODING_AGENT_DIR" && name !== "PI_AXON_SANDBOX")
+          (name.startsWith("PI_") && name !== "PI_CODING_AGENT_DIR" && name !== "PI_AXON_SAFEHOUSE")
         )
           delete environment[name];
       }

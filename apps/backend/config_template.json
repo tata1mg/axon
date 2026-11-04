@@ -118,7 +118,7 @@
     "REQUIRE_GROUNDING": true,
     "SEARCH_CONTEXT_SIZE": null
   },
-  "SANDBOX": {
+  "AXON_SAFEHOUSE": {
     "POLICY_ID": "safehouse-v1",
     "MAX_SESSION_SECONDS": 14400,
     "LOCAL_GIT": "read-only",

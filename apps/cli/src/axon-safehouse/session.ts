@@ -3,19 +3,19 @@ import { isDeepStrictEqual } from "node:util";
 
 import { loadEncryptedSession } from "../cli/auth/session.ts";
 import type {
+  AxonSafehouseCommandOptions,
+  AxonSafehouseCommandResult,
+  AxonSafehouseSession,
   LaunchContext,
   LaunchSpec,
-  SandboxCommandOptions,
-  SandboxCommandResult,
-  SandboxSession,
 } from "../launcher/contracts.ts";
 import { filesystemPreferencesRevision, watchFilesystemPreferences } from "./filesystem.ts";
-import { createSandboxLaunchSpec, createSandboxResources } from "./launch.ts";
+import { createAxonSafehouseLaunchSpec, createAxonSafehouseResources } from "./launch.ts";
 import {
-  assertSandboxSupported,
-  authorizeSandbox,
-  type SandboxAuthorization,
-  sandboxFailure,
+  type AxonSafehouseAuthorization,
+  assertAxonSafehouseSupported,
+  authorizeAxonSafehouse,
+  axonSafehouseFailure,
 } from "./policy.ts";
 
 async function readCommandOutput(
@@ -58,13 +58,17 @@ async function readCommandOutput(
 }
 
 /** One authorization, runtime verification, baseline and proxy for the whole Axon invocation. */
-export async function createSandboxSession(
+export async function createAxonSafehouseSession(
   context: LaunchContext,
-  suppliedAuthorization?: SandboxAuthorization,
-): Promise<SandboxSession> {
-  assertSandboxSupported();
-  const authorization = suppliedAuthorization ?? (await authorizeSandbox(context.paths));
-  const resources = await createSandboxResources(context.paths, context.environment, authorization);
+  suppliedAuthorization?: AxonSafehouseAuthorization,
+): Promise<AxonSafehouseSession> {
+  assertAxonSafehouseSupported();
+  const authorization = suppliedAuthorization ?? (await authorizeAxonSafehouse(context.paths));
+  const resources = await createAxonSafehouseResources(
+    context.paths,
+    context.environment,
+    authorization,
+  );
   const profiles = new Map<string, Promise<LaunchSpec>>();
   const activeCommands = new Set<() => void>();
   const activeOperations = new Set<() => void>();
@@ -75,23 +79,24 @@ export async function createSandboxSession(
     resources.packageScans.clear();
   });
   let disposed = false;
-  let operationAuthorization: SandboxAuthorization | undefined;
-  let pendingAuthorization: Promise<SandboxAuthorization> | undefined;
+  let operationAuthorization: AxonSafehouseAuthorization | undefined;
+  let pendingAuthorization: Promise<AxonSafehouseAuthorization> | undefined;
 
   // The login UI and setup may use the public boundary, but project operations may not.
   // A fresh authenticated policy must match the already-compiled boundary exactly.
   const authorizeOperation = async (): Promise<void> => {
     if (!authorization.bootstrap) return;
     const session = await loadEncryptedSession(context.paths);
-    if (!session) throw sandboxFailure("Sign in to Axon before running sandbox operations");
+    if (!session)
+      throw axonSafehouseFailure("Sign in to Axon before running Axon Safehouse operations");
     if (operationAuthorization?.session !== session) {
-      const pending = pendingAuthorization ?? authorizeSandbox(context.paths);
+      const pending = pendingAuthorization ?? authorizeAxonSafehouse(context.paths);
       pendingAuthorization = pending;
       try {
         const verified = await pending;
         if (!isDeepStrictEqual(verified.policy, authorization.policy)) {
-          throw sandboxFailure(
-            "Sandbox policy changed after login; restart the agent for fresh authorization",
+          throw axonSafehouseFailure(
+            "Axon Safehouse policy changed after login; restart the agent for fresh authorization",
           );
         }
         operationAuthorization = verified;
@@ -104,15 +109,15 @@ export async function createSandboxSession(
       Date.now() >= operationAuthorization.expiresAt ||
       (await loadEncryptedSession(context.paths)) !== operationAuthorization.session
     ) {
-      throw sandboxFailure(
-        "Axon sandbox identity changed or authorization expired; retry after signing in",
+      throw axonSafehouseFailure(
+        "Axon Safehouse identity changed or authorization expired; retry after signing in",
       );
     }
   };
 
   const assertActive = (): void => {
     if (disposed || Date.now() >= authorization.expiresAt)
-      throw sandboxFailure("Axon sandbox authorization expired or was closed");
+      throw axonSafehouseFailure("Axon Safehouse authorization expired or was closed");
   };
   const dispose = (): void => {
     if (disposed) return;
@@ -131,48 +136,59 @@ export async function createSandboxSession(
     async configurationPolicy() {
       assertActive();
       if (context.catalogOnly)
-        throw sandboxFailure("RPC catalog probes cannot configure project permissions");
-      const verified = await authorizeSandbox(context.paths);
+        throw axonSafehouseFailure("RPC catalog probes cannot configure project permissions");
+      const verified = await authorizeAxonSafehouse(context.paths);
       assertActive();
       // A settings change cannot silently replace network/Git restrictions or renew the lease.
       // Changed backend boundaries require a new Axon invocation, not just a new Pi child.
       if (!isDeepStrictEqual(verified.policy, authorization.policy))
-        throw sandboxFailure(
-          "Backend sandbox policy changed; restart the agent before editing permissions",
+        throw axonSafehouseFailure(
+          "Backend Axon Safehouse policy changed; restart the agent before editing permissions",
         );
       if ((await loadEncryptedSession(context.paths)) !== verified.session)
-        throw sandboxFailure("Axon identity changed while validating sandbox permissions");
+        throw axonSafehouseFailure(
+          "Axon identity changed while validating Axon Safehouse permissions",
+        );
       assertActive();
       return verified.policy;
     },
     clientConfig(session) {
       assertActive();
       if (authorization.session !== undefined && authorization.session !== session)
-        throw sandboxFailure("Axon identity changed during setup; restart for fresh authorization");
+        throw axonSafehouseFailure(
+          "Axon identity changed during setup; restart for fresh authorization",
+        );
       return authorization.clientConfig;
     },
     async wrap(specification, options) {
       assertActive();
       const revision = filesystemPreferencesRevision(context.paths);
-      const wrapped = await createSandboxLaunchSpec(specification, context.paths, authorization, {
-        resources,
-        ...(context.catalogOnly ? { catalogOnly: true } : {}),
-        ...(options?.runtimeReadPaths ? { runtimeReadPaths: options.runtimeReadPaths } : {}),
-        ...(options?.packageAdministration
-          ? {
-              purpose: "administration" as const,
-              writePaths: [context.paths.pi, join(context.cwd, ".pi")].flatMap((root) =>
-                ["npm", "git", "settings.json", "settings.json.lock"].map((entry) =>
-                  join(root, entry),
+      const wrapped = await createAxonSafehouseLaunchSpec(
+        specification,
+        context.paths,
+        authorization,
+        {
+          resources,
+          ...(context.catalogOnly ? { catalogOnly: true } : {}),
+          ...(options?.runtimeReadPaths ? { runtimeReadPaths: options.runtimeReadPaths } : {}),
+          ...(options?.packageAdministration
+            ? {
+                purpose: "administration" as const,
+                writePaths: [context.paths.pi, join(context.cwd, ".pi")].flatMap((root) =>
+                  ["npm", "git", "settings.json", "settings.json.lock"].map((entry) =>
+                    join(root, entry),
+                  ),
                 ),
-              ),
-            }
-          : {}),
-      });
+              }
+            : {}),
+        },
+      );
       assertActive();
       if (revision !== filesystemPreferencesRevision(context.paths))
-        throw sandboxFailure("Sandbox settings changed during startup; retry the launch");
-      const brokered = specification.environment["PI_AXON_SANDBOX_OPERATIONS"] === "1";
+        throw axonSafehouseFailure(
+          "Axon Safehouse settings changed during startup; retry the launch",
+        );
+      const brokered = specification.environment["PI_AXON_SAFEHOUSE_OPERATIONS"] === "1";
       const revocation = new AbortController();
       const stopWatchingSession = brokered
         ? watchFilesystemPreferences(context.paths, () => revocation.abort())
@@ -198,7 +214,7 @@ export async function createSandboxSession(
       options.signal?.throwIfAborted();
       if (options.purpose === "operation") {
         if (context.catalogOnly)
-          throw sandboxFailure("RPC catalog probes cannot run project operations");
+          throw axonSafehouseFailure("RPC catalog probes cannot run project operations");
         await authorizeOperation();
       }
       assertActive();
@@ -226,7 +242,7 @@ export async function createSandboxSession(
       ]);
       let pending = profiles.get(key);
       if (!pending) {
-        pending = createSandboxLaunchSpec(command, context.paths, authorization, {
+        pending = createAxonSafehouseLaunchSpec(command, context.paths, authorization, {
           purpose: options.purpose,
           ...(options.purpose === "operation" ? { project: context.cwd } : {}),
           writePaths,
@@ -245,9 +261,9 @@ export async function createSandboxSession(
         options.purpose === "operation" &&
         revision !== filesystemPreferencesRevision(context.paths)
       )
-        throw sandboxFailure("Sandbox settings changed; retry the operation");
+        throw axonSafehouseFailure("Axon Safehouse settings changed; retry the operation");
       const profile = wrapped.arguments[1];
-      if (!profile) throw sandboxFailure("Missing sandbox command profile");
+      if (!profile) throw axonSafehouseFailure("Missing Axon Safehouse command profile");
       const child = Bun.spawn(
         [wrapped.executable, "-f", profile, specification.executable, ...specification.arguments],
         {
@@ -335,9 +351,9 @@ export async function createSandboxSession(
           options.purpose === "operation" &&
           revision !== filesystemPreferencesRevision(context.paths)
         )
-          throw sandboxFailure("Sandbox settings changed; retry the operation");
+          throw axonSafehouseFailure("Axon Safehouse settings changed; retry the operation");
         if (timedOut) throw new Error(`timeout:${(timeoutMs ?? 0) / 1000}`);
-        // Background jobs keep this operation's sandbox, never provisioning grants.
+        // Background jobs keep this operation's Axon Safehouse boundary, never provisioning grants.
         // Retain ownership so a settings change or session disposal still kills them.
         if (options.purpose === "operation") {
           try {
@@ -371,27 +387,28 @@ export async function createSandboxSession(
 }
 
 /** Missing Axon ownership is an error, never permission to spawn Pi directly. */
-export function runSandboxCommand(
+export function runAxonSafehouseCommand(
   context: LaunchContext,
   specification: LaunchSpec,
-  options: SandboxCommandOptions,
-): Promise<SandboxCommandResult> {
-  if (!context.sandbox) throw sandboxFailure("An Axon-owned sandbox is required before running Pi");
-  return context.sandbox.run(specification, options);
+  options: AxonSafehouseCommandOptions,
+): Promise<AxonSafehouseCommandResult> {
+  if (!context.axonSafehouse)
+    throw axonSafehouseFailure("Axon Safehouse is required before running Pi");
+  return context.axonSafehouse.run(specification, options);
 }
 
-export async function withSandboxSession<Result>(
+export async function withAxonSafehouseSession<Result>(
   context: LaunchContext,
   operation: (
-    sandboxedContext: LaunchContext & { readonly sandbox: SandboxSession },
+    axonSafehouseContext: LaunchContext & { readonly axonSafehouse: AxonSafehouseSession },
   ) => Promise<Result>,
-  suppliedAuthorization?: SandboxAuthorization,
+  suppliedAuthorization?: AxonSafehouseAuthorization,
 ): Promise<Result> {
-  if (context.sandbox) return operation({ ...context, sandbox: context.sandbox });
-  const sandbox = await createSandboxSession(context, suppliedAuthorization);
+  if (context.axonSafehouse) return operation({ ...context, axonSafehouse: context.axonSafehouse });
+  const axonSafehouse = await createAxonSafehouseSession(context, suppliedAuthorization);
   try {
-    return await operation({ ...context, sandbox });
+    return await operation({ ...context, axonSafehouse });
   } finally {
-    sandbox.dispose();
+    axonSafehouse.dispose();
   }
 }

@@ -79,8 +79,8 @@ const HOME_PACKAGE_PATHS = [
   "Library/Java/JavaVirtualMachines",
 ];
 
-// The sandbox runs as the same user, so a directory this scan cannot read or resolve
-// is equally inaccessible to sandboxed tools. Skip it instead of failing the launch.
+// Axon Safehouse runs as the same user, so a directory this scan cannot read or resolve
+// is equally inaccessible to its tools. Skip it instead of failing the launch.
 const SKIPPED_SCAN_ERRORS = new Set(["ENOENT", "ENOTDIR", "EACCES", "EPERM", "ELOOP"]);
 
 function skippableScanError(error: unknown): boolean {
@@ -207,7 +207,7 @@ async function scanInstalledPackagePaths(
   );
 }
 
-/** Per-invocation memo of package scans; cleared whenever sandbox settings change. */
+/** Per-invocation memo of package scans; cleared whenever Axon Safehouse settings change. */
 export type PackageScanCache = Map<string, Promise<readonly string[]>>;
 
 /**

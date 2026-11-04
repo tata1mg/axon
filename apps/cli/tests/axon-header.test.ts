@@ -244,7 +244,7 @@ describe("Axon startup tips", () => {
     const output = text(component);
     expect(output.match(/\[Tips\]/g)).toHaveLength(1);
     expect(output).toContain(
-      " [Tips]\n   Use /yolo to toggle approval-free terminal commands.\n   Only when your policy allows it.",
+      " [Tips]\n Use /yolo to toggle approval-free terminal commands.\n Only when your policy allows it.",
     );
     expect(output.indexOf("[Tips]")).toBeGreaterThan(output.indexOf("/hotkeys"));
     expect(output.indexOf("[Tips]")).toBeGreaterThan(output.indexOf("──╯"));

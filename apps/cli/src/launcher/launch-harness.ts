@@ -1,5 +1,13 @@
 import { homedir } from "node:os";
-
+import { validateAxonSafehouseResumeSession } from "../axon-safehouse/configuration-relay.ts";
+import { canonicalPath, isBlockedProjectDirectory } from "../axon-safehouse/filesystem.ts";
+import {
+  assertAxonSafehouseSupported,
+  authorizeAxonSafehouseBootstrap,
+  axonSafehouseFailure,
+} from "../axon-safehouse/policy.ts";
+import { createAxonSafehouseRpcTransport } from "../axon-safehouse/rpc-configuration.ts";
+import { withAxonSafehouseSession } from "../axon-safehouse/session.ts";
 import { piRestartArguments } from "../harnesses/pi/restart.ts";
 import {
   isPiOffline,
@@ -8,23 +16,14 @@ import {
 } from "../harnesses/pi/setup/packages/invocation.ts";
 import { loadHarnessAdapter } from "../harnesses/registry.ts";
 import { resolveAxonPaths } from "../product/paths.ts";
-import { validateSandboxResumeSession } from "../sandbox/configuration-relay.ts";
-import { canonicalPath, isBlockedProjectDirectory } from "../sandbox/filesystem.ts";
-import {
-  assertSandboxSupported,
-  authorizeSandboxBootstrap,
-  sandboxFailure,
-} from "../sandbox/policy.ts";
-import { createSandboxRpcTransport } from "../sandbox/rpc-configuration.ts";
-import { withSandboxSession } from "../sandbox/session.ts";
 import { emitProductEvent } from "../telemetry/product-events.ts";
 import type {
+  AxonSafehouseResumeSession,
+  AxonSafehouseSession,
   HarnessLaunchContext,
   HarnessRegistration,
   LaunchContext,
   LaunchSpec,
-  SandboxResumeSession,
-  SandboxSession,
 } from "./contracts.ts";
 import { isTrue, printDebugLaunchPreview } from "./debug-preview.ts";
 import { createHarnessEnvironment } from "./environment.ts";
@@ -43,14 +42,14 @@ export async function launchRegisteredHarness(
   const cwd = process.cwd();
   const inheritedEnvironment = process.env;
   const paths = resolveAxonPaths(inheritedEnvironment);
-  assertSandboxSupported();
+  assertAxonSafehouseSupported();
   if (isPiOffline(inheritedEnvironment, userArguments)) {
-    throw sandboxFailure(
-      "Offline Pi launches are disabled: fresh backend sandbox authorization is required",
+    throw axonSafehouseFailure(
+      "Offline Pi launches are disabled: fresh backend Axon Safehouse authorization is required",
     );
   }
   const authorization = options.authenticationDeferred
-    ? await authorizeSandboxBootstrap()
+    ? await authorizeAxonSafehouseBootstrap()
     : undefined;
   // Paseo's global catalog starts in homedir(), not a user-selected project.
   // Give that process only a private temporary cwd, never a grant to the home directory.
@@ -61,7 +60,7 @@ export async function launchRegisteredHarness(
     !piOptionTokens(userArguments).some((argument) =>
       ["--session", "--continue", "-c", "--resume", "-r", "--extension", "-e"].includes(argument),
     );
-  return withSandboxSession(
+  return withAxonSafehouseSession(
     {
       cwd,
       environment: inheritedEnvironment,
@@ -69,7 +68,7 @@ export async function launchRegisteredHarness(
       ...(catalogOnly ? { catalogOnly: true } : {}),
     },
     (context) =>
-      launchSandboxedHarness(
+      launchAxonSafehouseHarness(
         registration,
         catalogOnly ? [...userArguments, "--no-session"] : userArguments,
         Date.now(),
@@ -80,14 +79,14 @@ export async function launchRegisteredHarness(
   );
 }
 
-async function launchSandboxedHarness(
+async function launchAxonSafehouseHarness(
   registration: HarnessRegistration,
   userArguments: readonly string[],
   startedAt: number,
-  sandboxedContext: LaunchContext & { readonly sandbox: SandboxSession },
+  axonSafehouseContext: LaunchContext & { readonly axonSafehouse: AxonSafehouseSession },
   options: { readonly authenticationDeferred?: boolean },
 ): Promise<never> {
-  const { cwd, environment: inheritedEnvironment, paths } = sandboxedContext;
+  const { cwd, environment: inheritedEnvironment, paths } = axonSafehouseContext;
   // Pi dispatches package subcommands only from the first argument.
   const packageAdministration = ["install", "remove", "uninstall", "update"].includes(
     userArguments[0] ?? "",
@@ -111,21 +110,21 @@ async function launchSandboxedHarness(
   const executable =
     adapter.resolveExecutable === undefined
       ? (await resolveExecutablePath(registration, inheritedEnvironment, cwd)).path
-      : await adapter.resolveExecutable(sandboxedContext, registration, {
+      : await adapter.resolveExecutable(axonSafehouseContext, registration, {
           userArguments,
           allowInstall: true,
         });
 
-  let resumeSession: SandboxResumeSession | undefined;
+  let resumeSession: AxonSafehouseResumeSession | undefined;
   let editorClosed = Promise.resolve();
   const context: HarnessLaunchContext = Object.freeze({
-    ...sandboxedContext,
+    ...axonSafehouseContext,
     cwd,
     environment: inheritedEnvironment,
     paths,
     registration,
     executable,
-    prepareSandboxRestart(session: SandboxResumeSession) {
+    prepareAxonSafehouseRestart(session: AxonSafehouseResumeSession) {
       resumeSession = session;
       let finished: () => void = () => {};
       editorClosed = new Promise<void>((resolve) => {
@@ -202,7 +201,7 @@ async function launchSandboxedHarness(
     }
   }
   const wrap = (candidate: LaunchSpec): Promise<LaunchSpec> =>
-    sandboxedContext.sandbox.wrap(
+    axonSafehouseContext.axonSafehouse.wrap(
       {
         ...candidate,
         environment: createHarnessEnvironment(candidate.environment, {
@@ -219,7 +218,7 @@ async function launchSandboxedHarness(
   } catch (error) {
     specification.dispose?.();
     if (error instanceof LauncherError) throw error;
-    throw sandboxFailure("Could not prepare the mandatory Safehouse sandbox");
+    throw axonSafehouseFailure("Could not prepare mandatory Axon Safehouse protection");
   }
 
   if (isTrue(inheritedEnvironment[DEBUG_ENVIRONMENT_VARIABLE])) {
@@ -238,14 +237,14 @@ async function launchSandboxedHarness(
     durationMs: Date.now() - startedAt,
   });
   const rpc = isPiRpcMode(userArguments)
-    ? createSandboxRpcTransport({
+    ? createAxonSafehouseRpcTransport({
         paths,
         cwd,
-        sandbox: sandboxedContext.sandbox,
+        axonSafehouse: axonSafehouseContext.axonSafehouse,
         prepareRestart(session) {
-          if (!context.prepareSandboxRestart)
-            throw sandboxFailure("The parent-owned sandbox restart is unavailable");
-          return context.prepareSandboxRestart(session);
+          if (!context.prepareAxonSafehouseRestart)
+            throw axonSafehouseFailure("The parent-owned Axon Safehouse restart is unavailable");
+          return context.prepareAxonSafehouseRestart(session);
         },
       })
     : undefined;
@@ -254,8 +253,10 @@ async function launchSandboxedHarness(
     async () => {
       await editorClosed;
       if (!resumeSession)
-        throw sandboxFailure("Sandbox permissions changed without a validated resume session");
-      const session = await validateSandboxResumeSession(paths, resumeSession);
+        throw axonSafehouseFailure(
+          "Axon Safehouse permissions changed without a validated resume session",
+        );
+      const session = await validateAxonSafehouseResumeSession(paths, resumeSession);
       return wrap({
         ...originalSpecification,
         arguments: piRestartArguments(originalSpecification.arguments, session),

@@ -1,6 +1,6 @@
 import { stat } from "node:fs/promises";
 import { delimiter, resolve } from "node:path";
-
+import { runAxonSafehouseCommand, withAxonSafehouseSession } from "../../axon-safehouse/session.ts";
 import { BUILD_INFO } from "../../build-info.ts";
 import {
   HARNESS_REGISTRY,
@@ -20,7 +20,6 @@ import { compareSemVer } from "../../launcher/version.ts";
 import { PRODUCT_IDENTITY } from "../../product/identity.ts";
 import type { AxonPaths } from "../../product/paths.ts";
 import { hostReleaseTarget, RELEASE_TARGETS } from "../../product/release-targets.ts";
-import { runSandboxCommand, withSandboxSession } from "../../sandbox/session.ts";
 
 const PATH_ENVIRONMENT_VARIABLE = "PATH";
 
@@ -173,7 +172,7 @@ async function probeVersion(
   context: LaunchContext,
 ): Promise<string | undefined> {
   try {
-    const { stdout, stderr, exitCode } = await runSandboxCommand(
+    const { stdout, stderr, exitCode } = await runAxonSafehouseCommand(
       context,
       {
         executable,
@@ -255,8 +254,8 @@ async function inspectHarness(
   context: LaunchContext,
 ): Promise<DoctorResult> {
   try {
-    return await withSandboxSession(context, (sandboxedContext) =>
-      inspectSandboxedHarness(registration, sandboxedContext),
+    return await withAxonSafehouseSession(context, (axonSafehouseContext) =>
+      inspectAxonSafehouseHarness(registration, axonSafehouseContext),
     );
   } catch (error) {
     if (error instanceof LauncherError) {
@@ -275,7 +274,7 @@ async function inspectHarness(
   }
 }
 
-async function inspectSandboxedHarness(
+async function inspectAxonSafehouseHarness(
   registration: HarnessRegistration,
   context: LaunchContext,
 ): Promise<DoctorResult> {

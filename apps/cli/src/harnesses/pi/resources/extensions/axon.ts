@@ -27,9 +27,9 @@ import {
 } from "@earendil-works/pi-tui";
 
 const ENTRY_TYPE = "axon-status";
-const SANDBOX_REQUEST_TIMEOUT_MS = 5_000;
+const AXON_SAFEHOUSE_REQUEST_TIMEOUT_MS = 5_000;
 // Keep this bus contract in sync with axon-auth.ts; both extensions ship standalone.
-const SANDBOX_EDITOR_CHANNEL = "axon:sandbox-editor";
+const AXON_SAFEHOUSE_EDITOR_CHANNEL = "axon:axon-safehouse-editor";
 // Keep this bus contract in sync with session-backup/index.ts; this extension ships standalone.
 const BACKUP_HEADER_CHANNEL = "axon:backup-status";
 const BACKUP_LABELS = {
@@ -141,10 +141,12 @@ function createAxonHeader(
     );
   };
 
-  const sandboxBadge = (): string | undefined => {
-    if (process.env["PI_AXON_SANDBOX"] !== "safehouse") return undefined;
+  const axonSafehouseBadge = (): string | undefined => {
+    if (process.env["PI_AXON_SAFEHOUSE"] !== "safehouse") return undefined;
     return (
-      theme.fg("success", "●") + theme.fg("dim", " Sandbox: ") + theme.fg("success", "enabled")
+      theme.fg("success", "●") +
+      theme.fg("dim", " Axon Safehouse: ") +
+      theme.fg("success", "enabled")
     );
   };
 
@@ -168,15 +170,15 @@ function createAxonHeader(
       theme.bold(theme.fg("accent", "Axon")) + theme.fg("dim", ` by DeputyDev${version}`);
     const backup = backupBadge();
     const terminal = terminalBadge();
-    const sandbox = sandboxBadge();
-    const badges = [backup, terminal, sandbox].filter(
+    const axonSafehouse = axonSafehouseBadge();
+    const badges = [backup, terminal, axonSafehouse].filter(
       (badge): badge is string => badge !== undefined,
     );
     const combined = badges.join(separator);
     if (width - visibleWidth(combined) - 2 >= 4) {
       return { title: withBadge(title, width, 4, combined || undefined), overflow: [] };
     }
-    const runtimeBadges = [terminal, sandbox]
+    const runtimeBadges = [terminal, axonSafehouse]
       .filter((badge): badge is string => badge !== undefined)
       .join(separator);
     const overflow = runtimeBadges
@@ -319,14 +321,11 @@ function createAxonHeader(
             ]),
             brandWidth,
           );
-      const tipPadding = brandWidth > 2 ? 2 : 0;
       const tips = tip
         ? [
             "",
             theme.fg("accent", "[Tips]"),
-            ...wrapTextWithAnsi(tip, brandWidth - tipPadding).map(
-              (line) => " ".repeat(tipPadding) + theme.fg("muted", line),
-            ),
+            ...wrapTextWithAnsi(tip, brandWidth).map((line) => theme.fg("muted", line)),
           ]
         : [];
       return [...brand, "", ...help, ...tips].map((line) =>
@@ -359,7 +358,7 @@ function authRelayConfiguration(): { origin: string; capability: string } | unde
   }
 }
 
-interface SandboxScope {
+interface AxonSafehouseScope {
   readonly project: string;
   readonly projectMode: "read-only" | "read-write";
   readonly readPaths: string[];
@@ -367,8 +366,8 @@ interface SandboxScope {
   readonly denyPaths: string[];
 }
 
-function parseSandboxScope(value: unknown): SandboxScope {
-  const scope = value as Partial<SandboxScope> | null;
+function parseAxonSafehouseScope(value: unknown): AxonSafehouseScope {
+  const scope = value as Partial<AxonSafehouseScope> | null;
   if (
     !scope ||
     typeof scope.project !== "string" ||
@@ -381,17 +380,17 @@ function parseSandboxScope(value: unknown): SandboxScope {
         paths.every((path) => typeof path === "string" && path.length <= 4096),
     )
   ) {
-    throw new Error("Invalid sandbox status response");
+    throw new Error("Invalid Axon Safehouse status response");
   }
-  return scope as SandboxScope;
+  return scope as AxonSafehouseScope;
 }
 
 /** A live, display-only section below Pi's startup resources; grants stay parent-owned. */
-function createSandboxScopeDisplay(ctx: ExtensionContext) {
+function createAxonSafehouseScopeDisplay(ctx: ExtensionContext) {
   const config = authRelayConfiguration();
   if (ctx.mode !== "tui" || config === undefined) return undefined;
   const controller = new AbortController();
-  let scope: SandboxScope | undefined;
+  let scope: AxonSafehouseScope | undefined;
   let unavailable = false;
   let refreshDisplay: (() => void) | undefined;
   let removeSection: (() => void) | undefined;
@@ -412,7 +411,7 @@ function createSandboxScopeDisplay(ctx: ExtensionContext) {
         if (width <= 0) return [];
         // Match Pi's resource sections: flush-left headings, two-space body indent.
         const lines = [
-          theme.fg("mdHeading", "[Sandbox]"),
+          theme.fg("mdHeading", "[Axon Safehouse]"),
           settingLine("Scope", "this Axon session", "accent") +
             theme.fg("dim", " · resets on exit"),
         ];
@@ -455,7 +454,7 @@ function createSandboxScopeDisplay(ctx: ExtensionContext) {
           );
         }
         lines.push(
-          theme.fg("accent", "  /sandbox") +
+          theme.fg("accent", "  /safehouse") +
             theme.fg("dim", " to review or edit · changes apply after saving"),
         );
         return lines.map((line) => truncateToWidth(line, width));
@@ -504,17 +503,17 @@ function createSandboxScopeDisplay(ctx: ExtensionContext) {
     },
     async refresh(): Promise<void> {
       try {
-        const response = await fetch(new URL("/_axon/sandbox/status", config.origin), {
+        const response = await fetch(new URL("/_axon/axon-safehouse/status", config.origin), {
           headers: { Authorization: `Bearer ${config.capability}` },
           redirect: "error",
           cache: "no-store",
           signal: AbortSignal.any([
             controller.signal,
-            AbortSignal.timeout(SANDBOX_REQUEST_TIMEOUT_MS),
+            AbortSignal.timeout(AXON_SAFEHOUSE_REQUEST_TIMEOUT_MS),
           ]),
         });
-        if (!response.ok) throw new Error("Sandbox status unavailable");
-        const current = parseSandboxScope(await response.json());
+        if (!response.ok) throw new Error("Axon Safehouse status unavailable");
+        const current = parseAxonSafehouseScope(await response.json());
         if (controller.signal.aborted) return;
         scope = current;
         unavailable = false;
@@ -533,15 +532,15 @@ function createSandboxScopeDisplay(ctx: ExtensionContext) {
   };
 }
 
-async function requestSandboxOperation(
+async function requestAxonSafehouseOperation(
   tool: string,
   input: unknown,
   cwd: string,
   signal?: AbortSignal,
 ): Promise<unknown> {
   const config = authRelayConfiguration();
-  if (!config) throw new Error("The parent-owned sandbox operation relay is unavailable");
-  const response = await fetch(new URL("/_axon/sandbox/execute", config.origin), {
+  if (!config) throw new Error("The parent-owned Axon Safehouse operation relay is unavailable");
+  const response = await fetch(new URL("/_axon/axon-safehouse/execute", config.origin), {
     method: "POST",
     headers: {
       Authorization: `Bearer ${config.capability}`,
@@ -555,17 +554,19 @@ async function requestSandboxOperation(
   const result: unknown = await response.json();
   if (!response.ok) {
     const error = result as { error?: unknown } | null;
-    throw new Error(typeof error?.error === "string" ? error.error : "Sandbox operation failed");
+    throw new Error(
+      typeof error?.error === "string" ? error.error : "Axon Safehouse operation failed",
+    );
   }
   return result;
 }
 
 /** Shared by the bundled terminal guard; approvals still run before any shell operation. */
-export function createSandboxShellOperations(shellPath?: string): BashOperations | undefined {
-  if (process.env["PI_AXON_SANDBOX_OPERATIONS"] !== "1") return undefined;
+export function createAxonSafehouseShellOperations(shellPath?: string): BashOperations | undefined {
+  if (process.env["PI_AXON_SAFEHOUSE_OPERATIONS"] !== "1") return undefined;
   return {
     async exec(command, cwd, options) {
-      const result = (await requestSandboxOperation(
+      const result = (await requestAxonSafehouseOperation(
         "shell",
         {
           command,
@@ -582,8 +583,8 @@ export function createSandboxShellOperations(shellPath?: string): BashOperations
   };
 }
 
-function registerSandboxFileTools(pi: ExtensionAPI): void {
-  if (process.env["PI_AXON_SANDBOX_OPERATIONS"] !== "1") return;
+function registerAxonSafehouseFileTools(pi: ExtensionAPI): void {
+  if (process.env["PI_AXON_SAFEHOUSE_OPERATIONS"] !== "1") return;
   function register<TParams extends ToolDefinition["parameters"], TDetails>(
     nativeTool: ToolDefinition<TParams, TDetails>,
   ): void {
@@ -591,7 +592,7 @@ function registerSandboxFileTools(pi: ExtensionAPI): void {
       ...nativeTool,
       defaultActive: false,
       async execute(_toolCallId, parameters, signal, _onUpdate, ctx) {
-        return (await requestSandboxOperation(
+        return (await requestAxonSafehouseOperation(
           nativeTool.name,
           parameters,
           ctx.cwd,
@@ -622,9 +623,9 @@ export default function axonExtension(pi: ExtensionAPI): void {
       "Project-local configuration still uses .pi/.";
   });
 
-  registerSandboxFileTools(pi);
-  let sandboxDisplay: ReturnType<typeof createSandboxScopeDisplay>;
-  let sandboxEditorOpen = false;
+  registerAxonSafehouseFileTools(pi);
+  let axonSafehouseDisplay: ReturnType<typeof createAxonSafehouseScopeDisplay>;
+  let axonSafehouseEditorOpen = false;
   let backupState: BackupHeaderState | undefined;
   let terminalState: TerminalHeaderState | undefined;
   let refreshHeader: (() => void) | undefined;
@@ -663,9 +664,9 @@ export default function axonExtension(pi: ExtensionAPI): void {
     };
   });
   pi.on("session_start", (_event, ctx) => {
-    sandboxDisplay?.dispose();
-    sandboxDisplay = createSandboxScopeDisplay(ctx);
-    void sandboxDisplay?.refresh();
+    axonSafehouseDisplay?.dispose();
+    axonSafehouseDisplay = createAxonSafehouseScopeDisplay(ctx);
+    void axonSafehouseDisplay?.refresh();
     if (ctx.mode === "tui") {
       ctx.ui.setHeader((tui, theme) => {
         const component = createAxonHeader(
@@ -679,7 +680,7 @@ export default function axonExtension(pi: ExtensionAPI): void {
           tui.requestRender();
         };
         refreshHeader = refresh;
-        const display = sandboxDisplay;
+        const display = axonSafehouseDisplay;
         const header = {
           ...component,
           dispose() {
@@ -710,8 +711,8 @@ export default function axonExtension(pi: ExtensionAPI): void {
     refreshHeader = undefined;
     backupState = undefined;
     terminalState = undefined;
-    sandboxDisplay?.dispose();
-    sandboxDisplay = undefined;
+    axonSafehouseDisplay?.dispose();
+    axonSafehouseDisplay = undefined;
   });
 
   pi.registerEntryRenderer(ENTRY_TYPE, (entry, _options, theme) => {
@@ -720,19 +721,19 @@ export default function axonExtension(pi: ExtensionAPI): void {
     return new Text(theme.fg("accent", message), 1, 0);
   });
 
-  pi.registerCommand("sandbox", {
-    description: "Edit temporary filesystem access in your terminal or RPC client",
+  pi.registerCommand("safehouse", {
+    description: "Edit temporary Axon Safehouse filesystem access in your terminal or RPC client",
     handler: async (args, ctx) => {
       // The parent intercepts the user's RPC command and owns every settings dialog.
       // These child-side checkpoints only suspend competing login cards and save the branch;
       // neither this command nor the HTTP relay can approve RPC permission changes.
       if (ctx.mode === "rpc" && args.trim() === "--rpc-close") {
-        pi.events.emit(SANDBOX_EDITOR_CHANNEL, false);
+        pi.events.emit(AXON_SAFEHOUSE_EDITOR_CHANNEL, false);
         return;
       }
       if (args.trim()) {
         ctx.ui.notify(
-          "Use /sandbox without arguments to open the filesystem access editor.",
+          "Use /safehouse without arguments to open the Axon Safehouse filesystem access editor.",
           "warning",
         );
         return;
@@ -740,14 +741,14 @@ export default function axonExtension(pi: ExtensionAPI): void {
       const config = authRelayConfiguration();
       if ((ctx.mode !== "tui" && ctx.mode !== "rpc") || config === undefined) {
         ctx.ui.notify(
-          "Open an interactive Axon session to edit temporary sandbox permissions.",
+          "Open an interactive Axon session to edit temporary Axon Safehouse permissions.",
           "warning",
         );
         return;
       }
-      if (sandboxEditorOpen) return;
+      if (axonSafehouseEditorOpen) return;
       if (!ctx.isIdle() || ctx.hasPendingMessages()) {
-        ctx.ui.notify("Wait for the current turn to finish, then run /sandbox.", "warning");
+        ctx.ui.notify("Wait for the current turn to finish, then run /safehouse.", "warning");
         return;
       }
       const sessionId = ctx.sessionManager.getSessionId();
@@ -761,7 +762,7 @@ export default function axonExtension(pi: ExtensionAPI): void {
         );
       if (hasConversation && !sessionFile) {
         ctx.ui.notify(
-          "Save or resume a persisted session before changing sandbox permissions; an in-memory chat cannot survive Pi's required restart.",
+          "Save or resume a persisted session before changing Axon Safehouse permissions; an in-memory chat cannot survive Pi's required restart.",
           "warning",
         );
         return;
@@ -769,19 +770,19 @@ export default function axonExtension(pi: ExtensionAPI): void {
       if (hasConversation) {
         // Native resume chooses the last entry. This harmless checkpoint preserves
         // the selected branch, including a tree navigation without a subsequent turn.
-        pi.appendEntry("axon-sandbox-restart", {});
+        pi.appendEntry("axon-safehouse-restart", {});
       }
       if (ctx.mode === "rpc") {
-        pi.events.emit(SANDBOX_EDITOR_CHANNEL, true);
+        pi.events.emit(AXON_SAFEHOUSE_EDITOR_CHANNEL, true);
         return;
       }
       const resume = {
         sessionId,
         ...(hasConversation && sessionFile ? { sessionFile } : {}),
       };
-      sandboxEditorOpen = true;
+      axonSafehouseEditorOpen = true;
       // Suspend login dialogs while the parent owns the terminal.
-      pi.events.emit(SANDBOX_EDITOR_CHANNEL, true);
+      pi.events.emit(AXON_SAFEHOUSE_EDITOR_CHANNEL, true);
       try {
         const outcome = await ctx.ui.custom<{ opened: boolean; saved: boolean }>(
           async (tui, _theme, _keybindings, done) => {
@@ -790,21 +791,24 @@ export default function axonExtension(pi: ExtensionAPI): void {
             let outcome = { opened: false, saved: false };
             try {
               process.stdout.write("\x1b[2J\x1b[H");
-              const response = await fetch(new URL("/_axon/sandbox/configure", config.origin), {
-                method: "POST",
-                headers: {
-                  Authorization: `Bearer ${config.capability}`,
-                  "Content-Type": "application/json",
+              const response = await fetch(
+                new URL("/_axon/axon-safehouse/configure", config.origin),
+                {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Bearer ${config.capability}`,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify(resume),
+                  redirect: "error",
+                  cache: "no-store",
                 },
-                body: JSON.stringify(resume),
-                redirect: "error",
-                cache: "no-store",
-              });
-              if (!response.ok) throw new Error("Sandbox editor unavailable");
+              );
+              if (!response.ok) throw new Error("Axon Safehouse editor unavailable");
               const result: unknown = await response.json();
               const payload = result as { opened?: unknown; saved?: unknown } | null;
               if (typeof payload?.opened !== "boolean")
-                throw new Error("Invalid sandbox editor response");
+                throw new Error("Invalid Axon Safehouse editor response");
               outcome = { opened: payload.opened, saved: payload.saved === true };
             } finally {
               // Restore the chat even if the relay fails or the user cancels the editor.
@@ -817,26 +821,26 @@ export default function axonExtension(pi: ExtensionAPI): void {
         );
         if (outcome.saved) {
           ctx.ui.notify(
-            "Sandbox permissions saved. Axon will restart Pi and resume this chat under the new rules.",
+            "Axon Safehouse permissions saved. Axon will restart Pi and resume this chat under the new rules.",
             "info",
           );
           return;
         }
         ctx.ui.notify(
           outcome.opened
-            ? "Sandbox editor closed without saving. Your chat is unchanged."
-            : "Sandbox configuration cancelled. Your chat is unchanged.",
+            ? "Axon Safehouse editor closed without saving. Your chat is unchanged."
+            : "Axon Safehouse configuration cancelled. Your chat is unchanged.",
           "info",
         );
       } catch {
         ctx.ui.notify(
-          "Could not complete sandbox configuration. Run /sandbox again to review the current permissions.",
+          "Could not complete Axon Safehouse configuration. Run /safehouse again to review the current permissions.",
           "warning",
         );
       } finally {
-        await sandboxDisplay?.refresh();
-        sandboxEditorOpen = false;
-        pi.events.emit(SANDBOX_EDITOR_CHANNEL, false);
+        await axonSafehouseDisplay?.refresh();
+        axonSafehouseEditorOpen = false;
+        pi.events.emit(AXON_SAFEHOUSE_EDITOR_CHANNEL, false);
       }
     },
   });

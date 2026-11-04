@@ -11,7 +11,7 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-test("a detached sandboxed TUI receives terminal resize signals", async () => {
+test("a detached TUI inside Axon Safehouse receives terminal resize signals", async () => {
   const ready = join(root, "ready");
   const child = join(root, "child.ts");
   // The fake TUI exits 0 only if Axon forwards the resize; otherwise it times out with 3.

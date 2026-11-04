@@ -1,13 +1,12 @@
 import { lstat } from "node:fs/promises";
 import { join } from "node:path";
-
+import { runAxonSafehouseCommand } from "../../../../axon-safehouse/session.ts";
 import type { HarnessLaunchContext } from "../../../../launcher/contracts.ts";
 import { LauncherError } from "../../../../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../../../launcher/exit-status.ts";
 import { withFileLock } from "../../../../launcher/file-lock.ts";
 import { PRODUCT_IDENTITY } from "../../../../product/identity.ts";
 import { AXON_MANIFEST } from "../../../../product/manifest.ts";
-import { runSandboxCommand } from "../../../../sandbox/session.ts";
 import { createPiEnvironment } from "../../environment.ts";
 import { NpmInstallFailure, withNpmRegistryFallback } from "../../npm-registry.ts";
 import { type InstalledPackageInspection, inspectInstalledPackage } from "./inspect.ts";
@@ -97,7 +96,7 @@ async function runPiPackageActionOnce(
   request: PiPackageActionRequest,
   environment: NodeJS.ProcessEnv,
 ): Promise<{ readonly exitCode: number }> {
-  const result = await runSandboxCommand(
+  const result = await runAxonSafehouseCommand(
     context,
     {
       executable: context.executable,

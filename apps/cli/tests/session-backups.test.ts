@@ -17,7 +17,7 @@ import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import type { ExtensionAPI, ExtensionContext, SessionEntry } from "@earendil-works/pi-coding-agent";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
-
+import { axonSafehouseEnvironment } from "../src/axon-safehouse/environment.ts";
 import { BUILD_INFO } from "../src/build-info.ts";
 import { saveEncryptedSession } from "../src/cli/auth/session.ts";
 import { runSessions } from "../src/cli/commands/sessions.ts";
@@ -26,7 +26,6 @@ import sessionBackupExtension from "../src/harnesses/pi/session-backup/index.ts"
 import { createHarnessEnvironment } from "../src/launcher/environment.ts";
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../src/product/endpoints.ts";
 import { resolveAxonPaths } from "../src/product/paths.ts";
-import { sandboxEnvironment } from "../src/sandbox/environment.ts";
 import { BackupApi } from "../src/sessions/api.ts";
 import { SessionBackups } from "../src/sessions/backup.ts";
 import {
@@ -564,7 +563,7 @@ test("native backup bundle captures through the parent relay after final environ
     await events.get('session_shutdown')({}, ctx);
     console.log(JSON.stringify({ events: [...events.keys()], commands }));
   `;
-  const environment = sandboxEnvironment(
+  const environment = axonSafehouseEnvironment(
     createHarnessEnvironment(
       createPiEnvironment(
         {

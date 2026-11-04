@@ -28,7 +28,7 @@ using the same user configuration directory and survives restarts. Without saved
 sessions default to Standard. Set the policy to `false` to prohibit YOLO for all users,
 regardless of saved preferences; missing policy also prohibits it.
 `REQUIRE_APPROVAL_COMMANDS` applies only in Standard, while `BLOCKED_COMMANDS` is a
-best-effort literal-prefix list in both modes, not a sandbox. YOLO allows wrappers and
+best-effort literal-prefix list in both modes, not OS isolation. YOLO allows wrappers and
 complex syntax even when the blocklist cannot verify their contents.
 
 The supported settings are `YOLO_MODE`, `REQUIRE_APPROVAL_COMMANDS`, `BLOCKED_COMMANDS`,

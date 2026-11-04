@@ -21,7 +21,7 @@ import { readPiPackageState } from "../src/harnesses/pi/setup/packages/state.ts"
 import { synchronizePiPackages } from "../src/harnesses/pi/setup/packages/sync.ts";
 import { materializePiResources } from "../src/harnesses/pi/setup/resources.ts";
 import { resolveHarnessRegistration } from "../src/harnesses/registry.ts";
-import type { HarnessLaunchContext, SandboxSession } from "../src/launcher/contracts.ts";
+import type { AxonSafehouseSession, HarnessLaunchContext } from "../src/launcher/contracts.ts";
 import { withFileLock } from "../src/launcher/file-lock.ts";
 import { AXON_MANIFEST, EMBEDDED_PI_RESOURCES } from "../src/product/manifest.ts";
 import { resolveAxonPaths } from "../src/product/paths.ts";
@@ -172,10 +172,10 @@ await Bun.write(path + "/package.json", JSON.stringify({ name, version: "1.0.0" 
       FAKE_PRIMARY: primary,
       FAKE_RECORD: record,
     },
-    // Package actions require an Axon sandbox; this fixture runs the fake Pi directly.
-    sandbox: {
+    // Package actions require Axon Safehouse; this fixture runs the fake Pi directly.
+    axonSafehouse: {
       async configurationPolicy() {
-        throw new Error("Unexpected sandbox configuration in a registry fixture");
+        throw new Error("Unexpected Axon Safehouse configuration in a registry fixture");
       },
       clientConfig: () => undefined,
       async wrap() {
@@ -918,12 +918,12 @@ describe("Pi package synchronization", () => {
     expect(await attempts()).toHaveLength(1);
   });
 
-  test("routes Pi package actions through the sandbox with isolated environment and strict argv", async () => {
-    const contextBase = createContext("sandbox-subprocess");
+  test("routes Pi package actions through Axon Safehouse with isolated environment and strict argv", async () => {
+    const contextBase = createContext("axon-safehouse-subprocess");
     const fakePi = join(contextBase.paths.home, "fake-pi");
     const packageManifest = manifest([exactPackage("1.0.0")]);
-    // Simulate the install result at the sandbox boundary; never spawn an unwrapped fixture.
-    const runAction = mock<SandboxSession["run"]>(async () => {
+    // Simulate the install result at the Axon Safehouse boundary; never spawn an unwrapped fixture.
+    const runAction = mock<AxonSafehouseSession["run"]>(async () => {
       await writeNpmPackage(contextBase, packageManifest, "1.0.0");
       return { exitCode: 0, signalCode: null, stdout: "", stderr: "" };
     });
@@ -935,9 +935,9 @@ describe("Pi package synchronization", () => {
         ANTHROPIC_API_KEY: "secret",
         OPENAI_API_KEY: "secret",
       },
-      sandbox: {
+      axonSafehouse: {
         async configurationPolicy() {
-          throw new Error("Unexpected sandbox configuration in a package-action fixture");
+          throw new Error("Unexpected Axon Safehouse configuration in a package-action fixture");
         },
         clientConfig: () => undefined,
         async wrap() {

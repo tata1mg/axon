@@ -1,5 +1,5 @@
 import { Command, CommanderError } from "commander";
-
+import { canonicalPath, readFilesystemPreferences } from "../axon-safehouse/filesystem.ts";
 import { BUILD_INFO } from "../build-info.ts";
 import { currentPiInvocationEnvironment } from "../harnesses/pi/setup/packages/invocation.ts";
 import { resolveHarnessRegistration } from "../harnesses/registry.ts";
@@ -7,7 +7,6 @@ import { LauncherError } from "../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../launcher/exit-status.ts";
 import { PRODUCT_IDENTITY } from "../product/identity.ts";
 import { resolveAxonPaths } from "../product/paths.ts";
-import { canonicalPath, readFilesystemPreferences } from "../sandbox/filesystem.ts";
 import { withUpdateProgress } from "../updater/progress.ts";
 import { checkForUpdate, installUpdate, updateContext } from "../updater/update.ts";
 import { ensureAxonSession } from "./auth/preflight.ts";
@@ -17,10 +16,10 @@ import {
   runAuthLogout,
   runAuthStatus,
 } from "./commands/auth.ts";
+import { formatFilesystemPermissions } from "./commands/axon-safehouse.ts";
 import { runDoctor } from "./commands/doctor.ts";
 import { printHarnesses } from "./commands/harnesses.ts";
 import { printPaths } from "./commands/paths.ts";
-import { formatFilesystemPermissions } from "./commands/sandbox.ts";
 import { runSessions, runSessionsInteractive } from "./commands/sessions.ts";
 import { runSetup, type SetupOptions } from "./commands/setup.ts";
 import { runUninstall, type UninstallOptions } from "./commands/uninstall.ts";
@@ -56,45 +55,46 @@ function createLauncherProgram(): Command {
       printPaths(resolveAxonPaths());
     });
 
-  const configureSandbox = (): never => {
+  const configureSafehouse = (): never => {
     throw new LauncherError(
-      "Sandbox permissions are temporary and must be edited in the active Axon process",
+      "Axon Safehouse permissions are temporary and must be edited in the active Axon process",
       LAUNCHER_EXIT_STATUS.usage,
       {
-        remediation:
-          "Start axon pi, then use /sandbox. Changes apply immediately without restarting.",
+        remediation: "Start axon pi, then use /safehouse. Changes apply immediately after saving.",
       },
     );
   };
-  const sandbox = program
-    .command("sandbox")
-    .description("inspect filesystem defaults; use /sandbox in Pi to edit temporary permissions")
+  const safehouse = program
+    .command("safehouse")
+    .description(
+      "inspect Axon Safehouse defaults; use /safehouse in Pi to edit temporary permissions",
+    )
     .option("--project <directory>", "project whose default permissions to inspect", process.cwd())
-    .action(configureSandbox);
-  sandbox
+    .action(configureSafehouse);
+  safehouse
     .command("configure")
     .alias("config")
-    .description("use /sandbox inside Pi to edit temporary filesystem grants")
-    .action(configureSandbox);
-  sandbox
+    .description("use /safehouse inside Pi to edit temporary filesystem grants")
+    .action(configureSafehouse);
+  safehouse
     .command("show")
     .description("show this project's default filesystem rules for a new Axon run")
     .option("--json", "print only the local preference JSON for scripts")
     .action(async (options: { json?: boolean }) => {
       const paths = resolveAxonPaths();
-      const project = await canonicalPath(sandbox.opts<{ project: string }>().project);
+      const project = await canonicalPath(safehouse.opts<{ project: string }>().project);
       const preferences = await readFilesystemPreferences(paths, project);
       if (options.json) {
         console.log(JSON.stringify(preferences, null, 2));
         return;
       }
       console.log(
-        "Default permissions for a new Axon run. Use /sandbox inside Pi to inspect or edit its live permissions.",
+        "Default Axon Safehouse permissions for a new Axon run. Use /safehouse inside Pi to inspect or edit its live permissions.",
       );
       console.log(formatFilesystemPermissions(project, preferences));
     });
   for (const operation of ["allow-read", "allow-write", "deny", "revoke", "mode"] as const) {
-    sandbox
+    safehouse
       .command(operation)
       .description(
         operation === "mode"
@@ -102,7 +102,7 @@ function createLauncherProgram(): Command {
           : `${operation} a filesystem path`,
       )
       .argument(operation === "mode" ? "<read-only|read-write>" : "<paths...>")
-      .action(configureSandbox);
+      .action(configureSafehouse);
   }
 
   const auth = program.command("auth").description("manage the local Axon session");

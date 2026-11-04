@@ -11,6 +11,7 @@ from urllib.parse import urlsplit
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
+from app.core.axon_safehouse import AxonSafehouseSettings, parse_axon_safehouse
 from app.core.cli_config import (
     CliCompactionConfig,
     CliLiteLLMClientConfig,
@@ -26,7 +27,6 @@ from app.core.cli_config import (
     parse_otel_proxy,
 )
 from app.core.s3 import S3StorageSettings, parse_s3_storage
-from app.core.sandbox import SandboxSettings, parse_sandbox
 from app.core.session_storage import SessionStorageSettings, parse_session_storage
 from app.core.terminal_permissions import TerminalPermissionsSettings, parse_terminal_permissions
 from app.core.web_search import WebSearchSettings, parse_web_search
@@ -191,7 +191,7 @@ class Settings:
     cli_model_recommender: CliModelRecommenderConfig | None = None
     cli_litellm_client: CliLiteLLMClientConfig | None = None
     terminal_permissions: TerminalPermissionsSettings | None = None
-    sandbox: SandboxSettings = field(default_factory=SandboxSettings)
+    axon_safehouse: AxonSafehouseSettings = field(default_factory=AxonSafehouseSettings)
 
 
 def _cli_pi_settings(raw_config: dict[str, Any]) -> CliPiConfig | None:
@@ -518,11 +518,11 @@ def _terminal_permissions(raw: dict[str, Any]) -> TerminalPermissionsSettings | 
         raise ConfigurationError("config.TERMINAL_PERMISSIONS contains invalid settings") from None
 
 
-def _sandbox(raw: dict[str, Any]) -> SandboxSettings:
+def _axon_safehouse(raw: dict[str, Any]) -> AxonSafehouseSettings:
     try:
-        return parse_sandbox(raw)
+        return parse_axon_safehouse(raw)
     except (ValueError, TypeError):
-        raise ConfigurationError("config.SANDBOX contains invalid settings") from None
+        raise ConfigurationError("config.AXON_SAFEHOUSE contains invalid settings") from None
 
 
 @cache
@@ -723,7 +723,7 @@ def get_settings() -> Settings:
         web_search=web_search,
         model_recommender=_model_recommender(raw_config),
         terminal_permissions=terminal_permissions,
-        sandbox=_sandbox(raw_config),
+        axon_safehouse=_axon_safehouse(raw_config),
         backend_telemetry=backend_telemetry,
         log_level=log_level,
         log_format=log_format,

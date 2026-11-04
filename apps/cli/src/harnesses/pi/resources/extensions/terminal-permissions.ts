@@ -14,13 +14,13 @@ import {
   toggleYoloPreference,
   watchYoloPreference,
 } from "../../terminal-permissions/preferences.ts";
-import { createSandboxShellOperations } from "./axon.ts";
+import { createAxonSafehouseShellOperations } from "./axon.ts";
 
 /**
  * Standard auto-runs supported commands unless the model or policy requests review.
  * YOLO skips review, including for wrappers and complex shell syntax. Backend
  * yoloMode only grants eligibility; /yolo toggles a saved preference shared by local sessions.
- * Literal-prefix blocklists are best-effort, not an OS sandbox: scripts, wrappers,
+ * Literal-prefix blocklists are best-effort, not OS isolation: scripts, wrappers,
  * and other extensions can perform arbitrary work.
  *
  * PI_TERMINAL_REQUIRE_APPROVAL_COMMANDS='["rm","sudo"]'
@@ -234,7 +234,7 @@ function decide(
     return { action: "block", reason: "blocked_command" };
   }
   // YOLO deliberately allows unknown syntax and wrappers, even when blocked
-  // work could be hidden behind them. This check is best-effort, not a sandbox.
+  // work could be hidden behind them. This check is best-effort, not OS isolation.
   if (yoloMode) return { action: "allow", reason: "yolo_mode" };
   if (shell !== "bash" || commands === undefined) {
     return config.blockedCommands.length > 0
@@ -293,7 +293,7 @@ function registerShellTools(pi: ExtensionAPI): void {
         const shellPath = configuredPath?.startsWith("~/")
           ? join(homedir(), configuredPath.slice(2))
           : configuredPath;
-        const operations = createSandboxShellOperations(shellPath);
+        const operations = createAxonSafehouseShellOperations(shellPath);
         const executionTool =
           shell === "bash"
             ? createBashToolDefinition(ctx.cwd, {
@@ -585,7 +585,7 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
     const shellPath = configuredPath?.startsWith("~/")
       ? join(homedir(), configuredPath.slice(2))
       : configuredPath;
-    const operations = createSandboxShellOperations(shellPath);
+    const operations = createAxonSafehouseShellOperations(shellPath);
     return operations ? { operations } : undefined;
   });
 
@@ -650,7 +650,7 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
       });
       ctx.ui.notify(
         savedEnabled
-          ? "YOLO on for all local sessions, including future sessions: terminal commands run without approval where policy permits. Blocklists are best-effort, not a sandbox. Run /yolo to turn off."
+          ? "YOLO on for all local sessions, including future sessions: terminal commands run without approval where policy permits. Blocklists are best-effort, not OS isolation. Run /yolo to turn off."
           : "YOLO off for all local sessions: Standard mode restored for subsequent commands.",
         savedEnabled ? "warning" : "info",
       );

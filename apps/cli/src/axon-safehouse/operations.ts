@@ -3,8 +3,8 @@ import { dirname } from "node:path";
 import { pathToFileURL } from "node:url";
 import { z } from "zod";
 
-import type { LaunchSpec, SandboxSession } from "../launcher/contracts.ts";
-import { sandboxFailure } from "./policy.ts";
+import type { AxonSafehouseSession, LaunchSpec } from "../launcher/contracts.ts";
+import { axonSafehouseFailure } from "./policy.ts";
 
 const operationSchema = z.strictObject({
   tool: z.enum(["read", "write", "edit", "grep", "find", "ls", "shell"]),
@@ -38,14 +38,14 @@ try {
   });
   process.stdout.write(JSON.stringify(result));
 } catch (error) {
-  process.stderr.write(error instanceof Error ? error.message : "Sandbox operation failed");
+  process.stderr.write(error instanceof Error ? error.message : "Axon Safehouse operation failed");
   process.exitCode = 1;
 }
 `;
 
 /** The parent supplies the executable, environment and project; Pi can request only known operations. */
-export function createSandboxOperations(
-  sandbox: SandboxSession,
+export function createAxonSafehouseOperations(
+  axonSafehouse: AxonSafehouseSession,
   specification: LaunchSpec,
 ): (request: Request) => Promise<Response> {
   const node = Bun.which("node", { PATH: specification.environment["PATH"] ?? "/usr/bin:/bin" });
@@ -56,12 +56,15 @@ export function createSandboxOperations(
 
   return async (request) => {
     if (activeRequests >= 8)
-      return Response.json({ error: "Too many concurrent sandbox operations" }, { status: 429 });
+      return Response.json(
+        { error: "Too many concurrent Axon Safehouse operations" },
+        { status: 429 },
+      );
     activeRequests++;
     try {
       const text = await request.text();
       if (Buffer.byteLength(text) > 10 * 1024 * 1024)
-        return Response.json({ error: "Sandbox operation is too large" }, { status: 413 });
+        return Response.json({ error: "Axon Safehouse operation is too large" }, { status: 413 });
       const operation = operationSchema.parse(JSON.parse(text));
       const execute = async (): Promise<Response> => {
         request.signal.throwIfAborted();
@@ -75,7 +78,8 @@ export function createSandboxOperations(
           argumentsVector = ["-c", shell.command];
           timeoutMs = shell.timeout === undefined ? undefined : shell.timeout * 1000;
         } else {
-          if (!node) throw sandboxFailure("Node.js is required for sandboxed file operations");
+          if (!node)
+            throw axonSafehouseFailure("Node.js is required for Axon Safehouse file operations");
           toolsModule ??= realpath(specification.executable).then(
             (path) =>
               pathToFileURL(Bun.resolveSync("@earendil-works/pi-coding-agent", dirname(path))).href,
@@ -84,7 +88,7 @@ export function createSandboxOperations(
           argumentsVector = ["--input-type=module", "--eval", FILE_TOOL_RUNNER, await toolsModule];
           stdin = JSON.stringify(operation);
         }
-        const result = await sandbox.run(
+        const result = await axonSafehouse.run(
           {
             executable,
             arguments: argumentsVector,
@@ -102,7 +106,7 @@ export function createSandboxOperations(
         if (operation.tool === "shell")
           return Response.json(result, { headers: { "Cache-Control": "no-store" } });
         if (result.exitCode !== 0)
-          throw new Error(result.stderr.slice(0, 8192) || "Sandboxed file operation failed");
+          throw new Error(result.stderr.slice(0, 8192) || "Axon Safehouse file operation failed");
         return Response.json(JSON.parse(result.stdout), {
           headers: { "Cache-Control": "no-store" },
         });
@@ -116,7 +120,7 @@ export function createSandboxOperations(
       return await pending;
     } catch (error) {
       return Response.json(
-        { error: error instanceof Error ? error.message : "Sandbox operation failed" },
+        { error: error instanceof Error ? error.message : "Axon Safehouse operation failed" },
         { status: 400, headers: { "Cache-Control": "no-store" } },
       );
     } finally {

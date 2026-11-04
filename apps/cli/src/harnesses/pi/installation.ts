@@ -2,6 +2,7 @@ import { chmod, lstat, mkdir, realpath, rename, rm } from "node:fs/promises";
 import { isAbsolute, join, relative } from "node:path";
 
 import piVersion from "../../../pi-version.json";
+import { runAxonSafehouseCommand } from "../../axon-safehouse/session.ts";
 import { BUILD_INFO } from "../../build-info.ts";
 import type {
   DoctorFinding,
@@ -17,7 +18,6 @@ import { withFileLock } from "../../launcher/file-lock.ts";
 import { compareSemVer, isSemVer, parseFirstSemVer } from "../../launcher/version.ts";
 import { PRODUCT_IDENTITY } from "../../product/identity.ts";
 import type { AxonPaths } from "../../product/paths.ts";
-import { runSandboxCommand } from "../../sandbox/session.ts";
 import { createPiEnvironment } from "./environment.ts";
 import { NpmInstallFailure, withNpmRegistryFallback } from "./npm-registry.ts";
 import { isPiOffline } from "./setup/packages/invocation.ts";
@@ -280,14 +280,14 @@ async function captureVersion(
   context: LaunchContext,
 ): Promise<string | undefined> {
   try {
-    const result = await runSandboxCommand(
+    const result = await runAxonSafehouseCommand(
       context,
       { executable, arguments: ["--version"], environment, cwd: context.cwd },
       { purpose: "probe", timeoutMs: TOOLCHAIN_PROBE_TIMEOUT_MS },
     );
     return result.exitCode === 0 ? parseFirstSemVer(result.stdout) : undefined;
   } catch (error) {
-    // A denied sandbox is not evidence that Node.js is missing or incompatible.
+    // Denial by Axon Safehouse is not evidence that Node.js is missing or incompatible.
     if (error instanceof LauncherError) throw error;
     return undefined;
   }
@@ -309,7 +309,7 @@ async function probeInstalledToolchain(context: LaunchContext): Promise<PiToolch
 }
 
 async function runNpmCi(request: PiNpmCiRequest): Promise<void> {
-  const result = await runSandboxCommand(
+  const result = await runAxonSafehouseCommand(
     request.context,
     {
       executable: request.npmPath,

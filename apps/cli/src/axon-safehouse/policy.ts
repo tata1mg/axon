@@ -1,17 +1,17 @@
 import { loadEncryptedSession, refreshEncryptedSession } from "../cli/auth/session.ts";
 import {
   type ClientConfig,
+  fetchAxonSafehouseBootstrap,
   fetchClientConfig,
-  fetchSandboxBootstrap,
 } from "../cli/client-config.ts";
 import { LauncherError } from "../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../launcher/exit-status.ts";
 import type { AxonPaths } from "../product/paths.ts";
-import { type SandboxPolicy, sandboxPolicySchema } from "./contracts.ts";
+import { type AxonSafehousePolicy, axonSafehousePolicySchema } from "./contracts.ts";
 
-export { type SandboxPolicy, sandboxPolicySchema } from "./contracts.ts";
-export interface SandboxAuthorization {
-  readonly policy: SandboxPolicy;
+export { type AxonSafehousePolicy, axonSafehousePolicySchema } from "./contracts.ts";
+export interface AxonSafehouseAuthorization {
+  readonly policy: AxonSafehousePolicy;
   readonly expiresAt: number;
   readonly session?: string;
   readonly clientConfig?: ClientConfig;
@@ -19,29 +19,31 @@ export interface SandboxAuthorization {
   readonly bootstrap?: boolean;
 }
 
-export function sandboxFailure(message: string, cause?: unknown): LauncherError {
+export function axonSafehouseFailure(message: string, cause?: unknown): LauncherError {
   return new LauncherError(message, LAUNCHER_EXIT_STATUS.profileFailure, {
     ...(cause === undefined ? {} : { cause }),
     remediation:
-      "Check Axon login and backend sandbox policy, then restart axon pi. Sandboxing cannot be disabled.",
+      "Check Axon login and backend Axon Safehouse policy, then restart axon pi. Axon Safehouse cannot be disabled.",
   });
 }
 
-export function assertSandboxSupported(): void {
+export function assertAxonSafehouseSupported(): void {
   if (process.platform !== "darwin") {
     throw new LauncherError(
-      "Axon requires Agent Safehouse on macOS; this platform has no supported sandbox",
+      "Axon Safehouse requires Agent Safehouse on macOS; this platform is not supported",
       LAUNCHER_EXIT_STATUS.unsupportedEnvironment,
     );
   }
 }
 
-/** Signed-out RPC still fetches a fresh backend policy; no local fallback or sandbox bypass. */
-export async function authorizeSandboxBootstrap(): Promise<SandboxAuthorization> {
+/** Signed-out RPC still fetches a fresh backend policy; no local fallback or Axon Safehouse bypass. */
+export async function authorizeAxonSafehouseBootstrap(): Promise<AxonSafehouseAuthorization> {
   const requestedAt = Date.now();
-  const policy = await fetchSandboxBootstrap({ timeoutMs: 5_000 });
+  const policy = await fetchAxonSafehouseBootstrap({ timeoutMs: 5_000 });
   if (!policy)
-    throw sandboxFailure("Required backend sandbox bootstrap policy is missing or invalid");
+    throw axonSafehouseFailure(
+      "Required backend Axon Safehouse bootstrap policy is missing or invalid",
+    );
   return {
     policy,
     expiresAt: requestedAt + policy.maxSessionSeconds * 1_000,
@@ -50,23 +52,26 @@ export async function authorizeSandboxBootstrap(): Promise<SandboxAuthorization>
 }
 
 /** Security policy is required, never cached or replaced with optional preferences. */
-export async function authorizeSandbox(paths: AxonPaths): Promise<SandboxAuthorization> {
+export async function authorizeAxonSafehouse(
+  paths: AxonPaths,
+): Promise<AxonSafehouseAuthorization> {
   let session = await loadEncryptedSession(paths);
-  if (!session) throw sandboxFailure("A verified Axon session is required for sandbox policy");
+  if (!session)
+    throw axonSafehouseFailure("A verified Axon session is required for Axon Safehouse policy");
   const requestedAt = Date.now();
   const result = await fetchClientConfig(session, { timeoutMs: 5_000 });
   if (result.sessionRefreshToken) {
     if (!(await refreshEncryptedSession(paths, session, result.sessionRefreshToken))) {
-      throw sandboxFailure("Axon identity changed while fetching sandbox policy");
+      throw axonSafehouseFailure("Axon identity changed while fetching Axon Safehouse policy");
     }
     session = result.sessionRefreshToken;
   }
   if ((await loadEncryptedSession(paths)) !== session) {
-    throw sandboxFailure("Axon identity changed while fetching sandbox policy");
+    throw axonSafehouseFailure("Axon identity changed while fetching Axon Safehouse policy");
   }
-  const parsed = sandboxPolicySchema.safeParse(result.config?.sandbox);
+  const parsed = axonSafehousePolicySchema.safeParse(result.config?.axonSafehouse);
   if (!parsed.success)
-    throw sandboxFailure("Required backend sandbox policy is missing or invalid");
+    throw axonSafehouseFailure("Required backend Axon Safehouse policy is missing or invalid");
   return {
     policy: parsed.data,
     expiresAt: requestedAt + parsed.data.maxSessionSeconds * 1_000,

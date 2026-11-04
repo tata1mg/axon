@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { withFileLock } from "../launcher/file-lock.ts";
 import type { AxonPaths } from "../product/paths.ts";
 import { privateDirectory } from "../sessions/files.ts";
-import { sandboxFailure } from "./policy.ts";
+import { axonSafehouseFailure } from "./policy.ts";
 
 export const SAFEHOUSE_VERSION = "0.12.0";
 // GitHub release asset digest, pinned independently of download responses.
@@ -20,19 +20,19 @@ async function verifiedRuntime(path: string): Promise<boolean> {
     handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "ENOENT") return false;
-    throw sandboxFailure("Safehouse runtime could not be read safely");
+    throw axonSafehouseFailure("Safehouse runtime could not be read safely");
   }
   try {
     const info = await handle.stat();
     if (!info.isFile() || info.size > MAX_RUNTIME_BYTES || info.uid !== process.getuid?.()) {
-      throw sandboxFailure("Safehouse runtime has unsafe ownership or type");
+      throw axonSafehouseFailure("Safehouse runtime has unsafe ownership or type");
     }
     if (
       createHash("sha256")
         .update(await handle.readFile())
         .digest("hex") !== SAFEHOUSE_SHA256
     ) {
-      throw sandboxFailure("Safehouse runtime integrity verification failed");
+      throw axonSafehouseFailure("Safehouse runtime integrity verification failed");
     }
     return true;
   } finally {
@@ -41,7 +41,7 @@ async function verifiedRuntime(path: string): Promise<boolean> {
 }
 
 export async function ensureSafehouseRuntime(paths: AxonPaths): Promise<string> {
-  const directory = join(paths.home, "sandbox", "runtime", SAFEHOUSE_VERSION);
+  const directory = join(paths.home, "axon-safehouse", "runtime", SAFEHOUSE_VERSION);
   await privateDirectory(directory);
   const executable = join(directory, "safehouse.sh");
   return withFileLock(join(paths.locks, "safehouse.lock"), async () => {
@@ -56,7 +56,7 @@ export async function ensureSafehouseRuntime(paths: AxonPaths): Promise<string> 
       !response.body ||
       Number(response.headers.get("content-length")) > MAX_RUNTIME_BYTES
     ) {
-      throw sandboxFailure("Could not download the pinned Safehouse runtime");
+      throw axonSafehouseFailure("Could not download the pinned Safehouse runtime");
     }
     const chunks: Uint8Array[] = [];
     let length = 0;
@@ -67,7 +67,7 @@ export async function ensureSafehouseRuntime(paths: AxonPaths): Promise<string> 
         if (item.done) break;
         length += item.value.byteLength;
         if (length > MAX_RUNTIME_BYTES)
-          throw sandboxFailure("Safehouse download exceeds size limit");
+          throw axonSafehouseFailure("Safehouse download exceeds size limit");
         chunks.push(item.value);
       }
     } finally {
@@ -75,7 +75,7 @@ export async function ensureSafehouseRuntime(paths: AxonPaths): Promise<string> 
     }
     const content = Buffer.concat(chunks);
     if (createHash("sha256").update(content).digest("hex") !== SAFEHOUSE_SHA256) {
-      throw sandboxFailure("Downloaded Safehouse runtime failed integrity verification");
+      throw axonSafehouseFailure("Downloaded Safehouse runtime failed integrity verification");
     }
     const temporary = `${executable}.${crypto.randomUUID()}.tmp`;
     const handle = await open(temporary, "wx", 0o500);
@@ -128,7 +128,7 @@ export async function generateSafehousePolicy(
     !policy.includes("(version 1)") ||
     Buffer.byteLength(policy) > 2 * MAX_RUNTIME_BYTES
   ) {
-    throw sandboxFailure("Safehouse policy generation failed");
+    throw axonSafehouseFailure("Safehouse policy generation failed");
   }
   return policy;
 }

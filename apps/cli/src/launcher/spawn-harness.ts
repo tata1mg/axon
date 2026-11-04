@@ -1,5 +1,5 @@
+import type { AxonSafehouseRpcTransport } from "../axon-safehouse/rpc-configuration.ts";
 import { resolveAxonPaths } from "../product/paths.ts";
-import type { SandboxRpcTransport } from "../sandbox/rpc-configuration.ts";
 import { flushProductTelemetry } from "../telemetry/client.ts";
 import { emitProductEvent } from "../telemetry/product-events.ts";
 import type { LaunchSpec } from "./contracts.ts";
@@ -12,7 +12,7 @@ const FORWARDED_SIGNALS = ["SIGTERM", "SIGHUP"] as const;
 export async function spawnHarness(
   specification: LaunchSpec,
   restart?: () => Promise<LaunchSpec>,
-  rpc?: SandboxRpcTransport,
+  rpc?: AxonSafehouseRpcTransport,
 ): Promise<never> {
   let current = specification;
   try {
@@ -35,7 +35,7 @@ export async function spawnHarness(
 async function runHarness(
   specification: LaunchSpec,
   allowRestart: boolean,
-  rpc?: SandboxRpcTransport,
+  rpc?: AxonSafehouseRpcTransport,
 ): Promise<{
   readonly exitCode: number | null;
   readonly signalCode: NodeJS.Signals | number | null;
@@ -136,7 +136,7 @@ async function runHarness(
           () => {
             expired = true;
             console.error(
-              "axon: backend sandbox authorization expired; restart axon pi to continue",
+              "axon: backend Axon Safehouse authorization expired; restart axon pi to continue",
             );
             // Closing parent-owned capabilities immediately revokes all brokered network access.
             specification.dispose?.();

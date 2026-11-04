@@ -2,11 +2,10 @@ import { chmod, lstat, mkdir, rename, rm, stat } from "node:fs/promises";
 import { dirname } from "node:path";
 
 import { z } from "zod";
-
+import { runAxonSafehouseCommand } from "../../axon-safehouse/session.ts";
 import type { LaunchContext } from "../../launcher/contracts.ts";
 import { LauncherError } from "../../launcher/errors.ts";
 import { parseFirstSemVer } from "../../launcher/version.ts";
-import { runSandboxCommand } from "../../sandbox/session.ts";
 import { createPiEnvironment } from "./environment.ts";
 
 export type PiVersionProber = (
@@ -76,7 +75,7 @@ export async function probePiVersion(
   context: LaunchContext,
 ): Promise<string | undefined> {
   try {
-    const result = await runSandboxCommand(
+    const result = await runAxonSafehouseCommand(
       context,
       { executable, arguments: ["--version"], environment, cwd: context.cwd },
       { purpose: "probe", timeoutMs: PROBE_TIMEOUT_MS },
@@ -84,7 +83,7 @@ export async function probePiVersion(
     return result.exitCode === 0 ? parseFirstSemVer(result.stdout) : undefined;
   } catch (error) {
     // Authorization/policy failures must retain their original remediation, not look
-    // like an executable with an unknown version. Never retry outside the sandbox.
+    // like an executable with an unknown version. Never retry outside Axon Safehouse.
     if (error instanceof LauncherError) throw error;
     return undefined;
   }

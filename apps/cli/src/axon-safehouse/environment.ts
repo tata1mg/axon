@@ -34,7 +34,7 @@ const PASSTHROUGH = [
   "PI_AXON_AUTH_RELAY_URL",
   "PI_AXON_AUTH_RELAY_KEY",
   "PI_AXON_CONFIG_REFRESH_ENABLED",
-  "PI_AXON_SANDBOX_OPERATIONS",
+  "PI_AXON_SAFEHOUSE_OPERATIONS",
   "PI_TERMINAL_MANAGED_CONFIG",
   "PI_TERMINAL_REQUIRE_APPROVAL_COMMANDS",
   "PI_TERMINAL_BLOCKED_COMMANDS",
@@ -80,7 +80,7 @@ const PASSTHROUGH = [
 ] as const;
 
 /** Build from nothing: ambient tokens, shell hooks, injection variables and Safehouse flags stay out. */
-export function sandboxEnvironment(
+export function axonSafehouseEnvironment(
   source: NodeJS.ProcessEnv,
   home: string,
   temporary: string,
@@ -112,6 +112,6 @@ export function sandboxEnvironment(
   environment["GIT_CONFIG_NOSYSTEM"] = "1";
   environment["GIT_CONFIG_GLOBAL"] = "/dev/null";
   environment["GIT_TERMINAL_PROMPT"] = "0";
-  environment["PI_AXON_SANDBOX"] = "safehouse";
+  environment["PI_AXON_SAFEHOUSE"] = "safehouse";
   return environment;
 }

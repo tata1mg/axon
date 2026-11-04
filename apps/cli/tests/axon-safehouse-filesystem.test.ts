@@ -2,20 +2,19 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { chmod, mkdir, mkdtemp, realpath, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-
-import { startAuthenticatedRequestRelay } from "../src/cli/auth/request-relay.ts";
-import { resolveAxonPaths } from "../src/product/paths.ts";
 import {
   editFilesystemPreferences,
   type FilesystemPreferences,
   validateFilesystemPreferences,
-} from "../src/sandbox/filesystem.ts";
-import { installedPackagePaths, type PackageScanCache } from "../src/sandbox/packages.ts";
-import type { SandboxPolicy } from "../src/sandbox/policy.ts";
+} from "../src/axon-safehouse/filesystem.ts";
+import { installedPackagePaths, type PackageScanCache } from "../src/axon-safehouse/packages.ts";
+import type { AxonSafehousePolicy } from "../src/axon-safehouse/policy.ts";
+import { startAuthenticatedRequestRelay } from "../src/cli/auth/request-relay.ts";
+import { resolveAxonPaths } from "../src/product/paths.ts";
 
 let root: string;
 beforeEach(async () => {
-  root = await realpath(await mkdtemp(join(tmpdir(), "axon-sandbox-fs-")));
+  root = await realpath(await mkdtemp(join(tmpdir(), "axon-safehouse-fs-")));
 });
 afterEach(async () => {
   await chmod(join(root, "project", "locked"), 0o755).catch(() => {});
@@ -33,7 +32,7 @@ function preferences(overrides: Partial<FilesystemPreferences> = {}): Filesystem
   };
 }
 
-describe("sandbox package scan", () => {
+describe("Axon Safehouse package scan", () => {
   test("workspace links stay editable while external package links stay protected", async () => {
     const project = join(root, "project");
     const library = join(project, "packages", "lib");
@@ -81,7 +80,7 @@ describe("sandbox package scan", () => {
   });
 });
 
-describe("sandbox filesystem grants", () => {
+describe("Axon Safehouse filesystem grants", () => {
   test("a granted path deleted after approval no longer breaks validation", async () => {
     const paths = resolveAxonPaths({ HOME: join(root, "home") });
     const project = join(root, "project");
@@ -121,7 +120,7 @@ describe("sandbox filesystem grants", () => {
   });
 });
 
-describe("sandbox configuration relay", () => {
+describe("Axon Safehouse configuration relay", () => {
   test("the editor endpoints are unavailable without the invocation's policy check", async () => {
     const paths = resolveAxonPaths({ HOME: join(root, "home") });
     const project = join(root, "project");
@@ -129,7 +128,7 @@ describe("sandbox configuration relay", () => {
     const status = async (options: Parameters<typeof startAuthenticatedRequestRelay>[1]) => {
       const relay = startAuthenticatedRequestRelay(paths, options);
       try {
-        const response = await fetch(`${relay.origin}/_axon/sandbox/status`, {
+        const response = await fetch(`${relay.origin}/_axon/axon-safehouse/status`, {
           headers: { authorization: `Bearer ${relay.capability}` },
         });
         await response.body?.cancel();
@@ -139,12 +138,12 @@ describe("sandbox configuration relay", () => {
       }
     };
 
-    expect(await status({ cwd: project, allowSandboxConfiguration: true })).toBe(404);
+    expect(await status({ cwd: project, allowAxonSafehouseConfiguration: true })).toBe(404);
     expect(
       await status({
         cwd: project,
-        allowSandboxConfiguration: true,
-        sandboxConfigurationPolicy: async () => ({}) as SandboxPolicy,
+        allowAxonSafehouseConfiguration: true,
+        axonSafehouseConfigurationPolicy: async () => ({}) as AxonSafehousePolicy,
       }),
     ).toBe(200);
   });

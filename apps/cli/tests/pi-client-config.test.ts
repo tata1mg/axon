@@ -136,8 +136,8 @@ async function launchSpec(
       (options.interactive !== false) +
       " });",
     // These adapter-only tests inspect launch specs; no process may run through this stub.
-    'const sandbox = { clientConfig() {}, async wrap() { throw new Error("Unexpected fixture wrap"); }, async run() { throw new Error("Unexpected fixture process"); }, dispose() {} };',
-    'const context = { cwd: process.env.HOME, environment: process.env, paths: resolveAxonPaths(), registration: resolveHarnessRegistration("pi"), executable: "/unused", sandbox };',
+    'const axonSafehouse = { clientConfig() {}, async wrap() { throw new Error("Unexpected fixture wrap"); }, async run() { throw new Error("Unexpected fixture process"); }, dispose() {} };',
+    'const context = { cwd: process.env.HOME, environment: process.env, paths: resolveAxonPaths(), registration: resolveHarnessRegistration("pi"), executable: "/unused", axonSafehouse };',
     'import { flushProductTelemetry } from "./src/telemetry/client.ts";',
     'import { emitProductEvent } from "./src/telemetry/product-events.ts";',
     ...(options.lifecycle

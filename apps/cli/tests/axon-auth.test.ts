@@ -173,25 +173,35 @@ function setup(mode: "tui" | "rpc", options: { signedOut?: boolean; noRelay?: bo
     if (command === undefined) throw new Error("/axon-login was not registered");
     return command.handler(args, ctx);
   };
-  const sandboxEditor = (open: boolean) => busHandlers.get("axon:sandbox-editor")?.(open);
-  return { state, dialogs, notifications, statuses, requireLogin, runEnds, login, sandboxEditor };
+  const axonSafehouseEditor = (open: boolean) =>
+    busHandlers.get("axon:axon-safehouse-editor")?.(open);
+  return {
+    state,
+    dialogs,
+    notifications,
+    statuses,
+    requireLogin,
+    runEnds,
+    login,
+    axonSafehouseEditor,
+  };
 }
 
-test("terminal recovery pauses for the sandbox editor and resumes after it closes", async () => {
-  const { state, dialogs, requireLogin, sandboxEditor } = setup("tui");
-  requireLogin("recovery-during-sandbox");
+test("terminal recovery pauses for the Axon Safehouse editor and resumes after it closes", async () => {
+  const { state, dialogs, requireLogin, axonSafehouseEditor } = setup("tui");
+  requireLogin("recovery-during-axon-safehouse");
   await waitFor(() => dialogs.length === 1);
-  sandboxEditor(true);
+  axonSafehouseEditor(true);
   await settle();
   expect(await dialogs[0]?.settled).toBeUndefined();
   expect(state.cancels).toEqual([]);
   expect(dialogs).toHaveLength(1);
 
-  sandboxEditor(false);
+  axonSafehouseEditor(false);
   await waitFor(() => dialogs.length === 2);
   dialogs[1]?.answer("Login from browser");
   await waitFor(() => state.logins.length === 1);
-  expect(state.logins).toEqual(["recovery-during-sandbox"]);
+  expect(state.logins).toEqual(["recovery-during-axon-safehouse"]);
 });
 
 for (const mode of ["tui", "rpc"] as const) {

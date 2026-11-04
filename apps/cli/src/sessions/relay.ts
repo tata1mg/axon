@@ -1,10 +1,9 @@
 import { lstat } from "node:fs/promises";
 import { isAbsolute } from "node:path";
 import { z } from "zod";
-
+import { projectSessionDirectory } from "../axon-safehouse/session-paths.ts";
 import { BUILD_INFO } from "../build-info.ts";
 import type { AxonPaths } from "../product/paths.ts";
-import { projectSessionDirectory } from "../sandbox/session-paths.ts";
 import { emitProductEvent } from "../telemetry/product-events.ts";
 import { BackupApi, BackupApiError } from "./api.ts";
 import { BackupLocalSettingsError, BackupPolicyError, SessionBackups } from "./backup.ts";

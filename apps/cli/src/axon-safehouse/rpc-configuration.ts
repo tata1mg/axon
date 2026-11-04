@@ -5,12 +5,12 @@ import { stripVTControlCharacters } from "node:util";
 import { CANCEL_SYMBOL } from "@clack/prompts";
 import { z } from "zod";
 
-import { runSandboxMenu, type SandboxMenuUI } from "../cli/commands/sandbox.ts";
-import type { SandboxResumeSession, SandboxSession } from "../launcher/contracts.ts";
+import { type AxonSafehouseMenuUI, runAxonSafehouseMenu } from "../cli/commands/axon-safehouse.ts";
+import type { AxonSafehouseResumeSession, AxonSafehouseSession } from "../launcher/contracts.ts";
 import type { AxonPaths } from "../product/paths.ts";
-import { validateSandboxResumeSession } from "./configuration-relay.ts";
+import { validateAxonSafehouseResumeSession } from "./configuration-relay.ts";
 
-const DIALOG_PREFIX = "axon-sandbox-dialog-";
+const DIALOG_PREFIX = "axon-safehouse-dialog-";
 const MAX_RECORD_BYTES = 50 * 1024 * 1024;
 const READ_COMMANDS = new Set([
   "get_state",
@@ -41,7 +41,7 @@ const stateSchema = z.object({
 type RpcState = z.infer<typeof stateSchema>;
 type RpcRecord = Record<string, unknown>;
 
-export interface SandboxRpcTransport {
+export interface AxonSafehouseRpcTransport {
   attach(input: Bun.FileSink, output: ReadableStream<Uint8Array>): void;
   detach(restarting: boolean): Promise<void>;
   dispose(): void;
@@ -76,12 +76,12 @@ function lineReceiver(consume: (line: string) => void): (chunk: string) => void 
  * capability: even a compromised extension can neither submit grants nor approve its own dialog.
  * Keeping stdin/stdout here also keeps Paseo connected while a revoked Pi child is replaced.
  */
-export function createSandboxRpcTransport(options: {
+export function createAxonSafehouseRpcTransport(options: {
   readonly paths: AxonPaths;
   readonly cwd: string;
-  readonly sandbox: SandboxSession;
-  readonly prepareRestart: (session: SandboxResumeSession) => () => void;
-}): SandboxRpcTransport {
+  readonly axonSafehouse: AxonSafehouseSession;
+  readonly prepareRestart: (session: AxonSafehouseResumeSession) => () => void;
+}): AxonSafehouseRpcTransport {
   const lifetime = new AbortController();
   const forwarded = new Map<string, RpcRecord>();
   const privateRequests = new Map<
@@ -125,7 +125,7 @@ export function createSandboxRpcTransport(options: {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         privateRequests.delete(id);
-        reject(new Error("Pi RPC did not respond; no sandbox changes were applied"));
+        reject(new Error("Pi RPC did not respond; no Axon Safehouse changes were applied"));
       }, 30_000);
       const cleanup = () => {
         clearTimeout(timeout);
@@ -152,7 +152,9 @@ export function createSandboxRpcTransport(options: {
   const readIdleState = async (): Promise<RpcState> => {
     const state = stateSchema.parse(await request({ type: "get_state" }));
     if (state.isStreaming || state.isCompacting || state.pendingMessageCount > 0)
-      throw new Error("Wait for the current turn and queued messages to finish, then run /sandbox");
+      throw new Error(
+        "Wait for the current turn and queued messages to finish, then run /safehouse",
+      );
     return state;
   };
   const ask = (record: RpcRecord, signal: AbortSignal): Promise<RpcRecord> => {
@@ -170,14 +172,14 @@ export function createSandboxRpcTransport(options: {
       emit({ ...record, type: "extension_ui_request", id });
     });
   };
-  const menuUI = (signal: AbortSignal): SandboxMenuUI => {
+  const menuUI = (signal: AbortSignal): AxonSafehouseMenuUI => {
     const notes: string[] = [];
     const title = (message: string) => {
       const value = stripVTControlCharacters([...notes, message].join("\n\n"));
       notes.length = 0;
       return value;
     };
-    const select: SandboxMenuUI["select"] = async (settings) => {
+    const select: AxonSafehouseMenuUI["select"] = async (settings) => {
       // Map exact displayed choices back to parent-owned values; free-text replies cannot grant access.
       const choices = settings.options.map((option) =>
         stripVTControlCharacters(
@@ -197,7 +199,7 @@ export function createSandboxRpcTransport(options: {
       select,
       async autocomplete(settings) {
         if (!Array.isArray(settings.options))
-          throw new Error("RPC sandbox choices must be supplied by the parent");
+          throw new Error("RPC Axon Safehouse choices must be supplied by the parent");
         return select({ ...settings, options: settings.options });
       },
       async text(settings) {
@@ -236,23 +238,25 @@ export function createSandboxRpcTransport(options: {
     try {
       const initial = await readIdleState();
       // Refuse signed-out, expired or changed backend policies before opening the editor.
-      await options.sandbox.configurationPolicy();
+      await options.axonSafehouse.configurationPolicy();
       signal.throwIfAborted();
-      await request({ type: "prompt", message: "/sandbox" });
+      await request({ type: "prompt", message: "/safehouse" });
       checkpointed = true;
       const checkpoint = await readIdleState();
       if (checkpoint.sessionId !== initial.sessionId)
-        throw new Error("The active chat changed; run /sandbox again");
-      const resume = await validateSandboxResumeSession(options.paths, {
+        throw new Error("The active chat changed; run /safehouse again");
+      const resume = await validateAxonSafehouseResumeSession(options.paths, {
         sessionId: checkpoint.sessionId,
         ...(checkpoint.messageCount > 0 ? { sessionFile: checkpoint.sessionFile } : {}),
       });
       if (checkpoint.messageCount > 0 && !resume.sessionFile)
-        throw new Error("An in-memory chat cannot survive a sandbox restart; save it first");
-      saved = await runSandboxMenu(options.paths, options.cwd, menuUI(signal), {
+        throw new Error(
+          "An in-memory chat cannot survive an Axon Safehouse restart; save it first",
+        );
+      saved = await runAxonSafehouseMenu(options.paths, options.cwd, menuUI(signal), {
         signal,
         requireTerminal: false,
-        authorize: () => options.sandbox.configurationPolicy(),
+        authorize: () => options.axonSafehouse.configurationPolicy(),
         async beforeSave() {
           signal.throwIfAborted();
           const current = await readIdleState();
@@ -260,8 +264,8 @@ export function createSandboxRpcTransport(options: {
             current.sessionId !== checkpoint.sessionId ||
             current.sessionFile !== checkpoint.sessionFile
           )
-            throw new Error("The active chat changed; reopen the sandbox editor");
-          await validateSandboxResumeSession(options.paths, resume);
+            throw new Error("The active chat changed; reopen the Axon Safehouse editor");
+          await validateAxonSafehouseResumeSession(options.paths, resume);
           signal.throwIfAborted();
           finishRestart?.();
           finishRestart = options.prepareRestart(resume);
@@ -271,7 +275,7 @@ export function createSandboxRpcTransport(options: {
     } catch (error) {
       if (!lifetime.signal.aborted)
         notify(
-          error instanceof Error ? error.message : "Could not configure sandbox permissions",
+          error instanceof Error ? error.message : "Could not configure Axon Safehouse permissions",
           "warning",
         );
     } finally {
@@ -279,7 +283,7 @@ export function createSandboxRpcTransport(options: {
       if (!saved) {
         restartState = undefined;
         if (checkpointed && input && !lifetime.signal.aborted)
-          await request({ type: "prompt", message: "/sandbox --rpc-close" }).catch(() => {});
+          await request({ type: "prompt", message: "/safehouse --rpc-close" }).catch(() => {});
         editing = false;
       }
       if (editor === controller) editor = undefined;
@@ -324,24 +328,24 @@ export function createSandboxRpcTransport(options: {
       emit({ id: command["id"], type: "response", command: type, success: true });
       return;
     }
-    const sandboxCommand =
+    const safehouseCommand =
       type === "prompt" &&
       typeof command["message"] === "string" &&
-      /^\/sandbox(?:\s|$)/.test(command["message"]);
-    if (sandboxCommand) {
-      if (command["message"] !== "/sandbox" || command["images"] !== undefined) {
-        respond(command, "Use /sandbox without arguments or attachments");
+      /^\/safehouse(?:\s|$)/.test(command["message"]);
+    if (safehouseCommand) {
+      if (command["message"] !== "/safehouse" || command["images"] !== undefined) {
+        respond(command, "Use /safehouse without arguments or attachments");
         return;
       }
       if (editing || restoring || !input) {
-        respond(command, "The sandbox editor or restart is already active");
+        respond(command, "The Axon Safehouse editor or restart is already active");
         return;
       }
       if (
         childDialogs.size > 0 ||
         [...forwarded.values()].some((pending) => !READ_COMMANDS.has(String(pending["type"])))
       ) {
-        respond(command, "Finish the current command or approval dialog, then run /sandbox");
+        respond(command, "Finish the current command or approval dialog, then run /safehouse");
         return;
       }
       editing = true;
@@ -351,12 +355,12 @@ export function createSandboxRpcTransport(options: {
       return;
     }
     if ((editing || restoring) && !READ_COMMANDS.has(type)) {
-      respond(command, "Finish or cancel sandbox settings before sending another command");
+      respond(command, "Finish or cancel Axon Safehouse settings before sending another command");
       return;
     }
     if (!input || restoring) {
       if (READ_COMMANDS.has(type) && waitingReads.length < 100) waitingReads.push(command);
-      else respond(command, "Pi RPC is restarting; retry when sandbox settings are applied");
+      else respond(command, "Pi RPC is restarting; retry when Axon Safehouse settings are applied");
       return;
     }
     forward(command);
@@ -491,10 +495,10 @@ export function createSandboxRpcTransport(options: {
           restartState = undefined;
           restoring = false;
           editing = false;
-          notify("Sandbox permissions applied. Your chat has resumed under the new rules.");
+          notify("Axon Safehouse permissions applied. Your chat has resumed under the new rules.");
           for (const command of waitingReads.splice(0)) forward(command);
         })().catch((error: unknown) => {
-          notify(error instanceof Error ? error.message : "Sandbox restart failed", "error");
+          notify(error instanceof Error ? error.message : "Axon Safehouse restart failed", "error");
           // Do not accept work if restoring the approved session failed.
           closeInput();
         });

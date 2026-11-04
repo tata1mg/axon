@@ -3,7 +3,7 @@ import { lookup } from "node:dns/promises";
 import { createServer } from "node:http";
 import { BlockList, connect, createServer as createTcpServer, type Socket } from "node:net";
 
-import type { SandboxPolicy } from "./policy.ts";
+import type { AxonSafehousePolicy } from "./policy.ts";
 
 const blockedAddresses = new BlockList();
 // These hardcoded addresses define blocked private, local, and special-purpose IPv4
@@ -34,7 +34,7 @@ export async function lookupPublicAddress(hostname: string): Promise<string> {
     address === undefined ||
     addresses.some((entry) => blockedAddresses.check(entry.address, "ipv4"))
   )
-    throw new Error("Sandbox proxy destination must resolve only to public addresses");
+    throw new Error("Axon Safehouse proxy destination must resolve only to public addresses");
   return address.address;
 }
 
@@ -47,7 +47,7 @@ export interface PackageProxy {
 }
 
 /** HTTPS CONNECT only, exact backend-approved hosts, public DNS results pinned per connection. */
-export async function startPackageProxy(policy: SandboxPolicy): Promise<PackageProxy> {
+export async function startPackageProxy(policy: AxonSafehousePolicy): Promise<PackageProxy> {
   const capability = crypto.randomUUID();
   const provisioningCapability = crypto.randomUUID();
   const expected = Buffer.from(`Basic ${Buffer.from(`axon:${capability}`).toString("base64")}`);
@@ -152,7 +152,7 @@ export async function startPackageProxy(policy: SandboxPolicy): Promise<PackageP
     });
     // Seatbelt cannot restrict TCP by remote hostname/IP. One loopback listener per
     // approved host preserves the allowlist without granting general port-22 access.
-    // These are raw TCP tunnels only: SSH credentials and Git both stay in the sandbox.
+    // These are raw TCP tunnels only: SSH credentials and Git both stay inside Axon Safehouse.
     for (const host of policy.remoteGit ? new Set(policy.remoteGitHosts) : []) {
       const address = await lookupPublicAddress(host);
       const sshServer = createTcpServer({ allowHalfOpen: true }, (client) => {

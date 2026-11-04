@@ -1,6 +1,6 @@
 """Non-secret terminal approval preferences for the managed Pi extension.
 
-This is a client-side approval guard, not an operating-system sandbox.
+This is a client-side approval guard, not operating-system isolation.
 Command lists contain literal command prefixes, never regular expressions.
 """
 

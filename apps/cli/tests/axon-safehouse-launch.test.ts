@@ -2,16 +2,18 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, realpath, rm, symlink } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-
+import {
+  type AxonSafehouseResources,
+  createAxonSafehouseLaunchSpec,
+} from "../src/axon-safehouse/launch.ts";
+import type { AxonSafehouseAuthorization } from "../src/axon-safehouse/policy.ts";
 import type { LaunchSpec } from "../src/launcher/contracts.ts";
 import { resolveAxonPaths } from "../src/product/paths.ts";
-import { createSandboxLaunchSpec, type SandboxResources } from "../src/sandbox/launch.ts";
-import type { SandboxAuthorization } from "../src/sandbox/policy.ts";
 
 let root: string;
-let resources: SandboxResources;
+let resources: AxonSafehouseResources;
 beforeEach(async () => {
-  root = await realpath(await mkdtemp(join(tmpdir(), "axon-sandbox-launch-")));
+  root = await realpath(await mkdtemp(join(tmpdir(), "axon-safehouse-launch-")));
   const runDirectory = join(root, "run");
   const temporary = join(runDirectory, "tmp");
   const gitBin = join(runDirectory, "git-bin");
@@ -40,7 +42,7 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-const authorization: SandboxAuthorization = {
+const authorization: AxonSafehouseAuthorization = {
   expiresAt: Date.now() + 3_600_000,
   policy: {
     schemaVersion: 1,
@@ -72,7 +74,7 @@ async function administration(cwd: string) {
   const writePaths = [paths.pi, join(cwd, ".pi")].flatMap((base) =>
     ["npm", "git", "settings.json", "settings.json.lock"].map((entry) => join(base, entry)),
   );
-  const wrapped = await createSandboxLaunchSpec(specification, paths, authorization, {
+  const wrapped = await createAxonSafehouseLaunchSpec(specification, paths, authorization, {
     purpose: "administration",
     writePaths,
     resources,
@@ -82,7 +84,7 @@ async function administration(cwd: string) {
   return { paths, wrapped, profile: await Bun.file(profilePath).text() };
 }
 
-describe("sandboxed package administration", () => {
+describe("Axon Safehouse package administration", () => {
   test("global package commands from home run without project access", async () => {
     const home = await realpath(homedir());
     const { paths, wrapped, profile } = await administration(home);

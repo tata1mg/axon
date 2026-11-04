@@ -37,7 +37,7 @@ beforeAll(async () => {
       ) {
         return Response.json({
           schemaVersion: 1,
-          sandbox: {
+          axonSafehouse: {
             schemaVersion: 1,
             required: true,
             engine: "safehouse",

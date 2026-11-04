@@ -1,6 +1,6 @@
+import type { AxonSafehousePolicy } from "../axon-safehouse/contracts.ts";
 import type { ClientConfig } from "../cli/client-config.ts";
 import type { AxonPaths } from "../product/paths.ts";
-import type { SandboxPolicy } from "../sandbox/contracts.ts";
 
 export type StableHarnessId = "pi";
 
@@ -9,12 +9,12 @@ export interface LaunchContext {
   readonly environment: NodeJS.ProcessEnv;
   readonly paths: AxonPaths;
   /** Owned by Axon for the entire invocation, before any Pi executable runs. */
-  readonly sandbox?: SandboxSession;
+  readonly axonSafehouse?: AxonSafehouseSession;
   /** Global RPC discovery has no project and must never execute project operations. */
   readonly catalogOnly?: boolean;
 }
 
-export interface SandboxResumeSession {
+export interface AxonSafehouseResumeSession {
   readonly sessionId: string;
   readonly sessionFile?: string;
 }
@@ -22,8 +22,8 @@ export interface SandboxResumeSession {
 export interface HarnessLaunchContext extends LaunchContext {
   readonly registration: HarnessRegistration;
   readonly executable: string;
-  /** Register a validated resume target while the parent owns the sandbox editor. */
-  readonly prepareSandboxRestart?: (session: SandboxResumeSession) => () => void;
+  /** Register a validated resume target while the parent owns the Axon Safehouse editor. */
+  readonly prepareAxonSafehouseRestart?: (session: AxonSafehouseResumeSession) => () => void;
   /** The launch has no usable login yet; the harness must offer sign-in itself. */
   readonly authenticationDeferred?: boolean;
 }
@@ -43,7 +43,7 @@ export interface LaunchSpec {
   readonly dispose?: (options?: { readonly restarting: boolean }) => void;
 }
 
-export interface SandboxCommandOptions {
+export interface AxonSafehouseCommandOptions {
   readonly purpose: "probe" | "provision" | "operation";
   readonly signal?: AbortSignal;
   readonly stdin?: string;
@@ -52,16 +52,16 @@ export interface SandboxCommandOptions {
   readonly timeoutMs?: number;
 }
 
-export interface SandboxCommandResult {
+export interface AxonSafehouseCommandResult {
   readonly exitCode: number;
   readonly signalCode: NodeJS.Signals | number | null;
   readonly stdout: string;
   readonly stderr: string;
 }
 
-export interface SandboxSession {
+export interface AxonSafehouseSession {
   /** Revalidate settings against fresh authentication and this invocation's compiled boundary. */
-  configurationPolicy(): Promise<SandboxPolicy>;
+  configurationPolicy(): Promise<AxonSafehousePolicy>;
   /** Reuse startup configuration only while the verified credential is unchanged. */
   clientConfig(session: string): ClientConfig | undefined;
   wrap(
@@ -71,7 +71,10 @@ export interface SandboxSession {
       readonly runtimeReadPaths?: readonly string[];
     },
   ): Promise<LaunchSpec>;
-  run(specification: LaunchSpec, options: SandboxCommandOptions): Promise<SandboxCommandResult>;
+  run(
+    specification: LaunchSpec,
+    options: AxonSafehouseCommandOptions,
+  ): Promise<AxonSafehouseCommandResult>;
   dispose(): void;
 }
 

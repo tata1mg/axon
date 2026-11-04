@@ -1,12 +1,11 @@
 import { timingSafeEqual } from "node:crypto";
-
+import { createAxonSafehouseConfigurationRelay } from "../../axon-safehouse/configuration-relay.ts";
+import type { AxonSafehousePolicy } from "../../axon-safehouse/policy.ts";
 import { BUILD_INFO } from "../../build-info.ts";
 import { applyPiDefaults } from "../../harnesses/pi/settings-defaults.ts";
-import type { SandboxResumeSession } from "../../launcher/contracts.ts";
+import type { AxonSafehouseResumeSession } from "../../launcher/contracts.ts";
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../../product/endpoints.ts";
 import type { AxonPaths } from "../../product/paths.ts";
-import { createSandboxConfigurationRelay } from "../../sandbox/configuration-relay.ts";
-import type { SandboxPolicy } from "../../sandbox/policy.ts";
 import { createBackupRelay } from "../../sessions/relay.ts";
 import { emitProductEvent } from "../../telemetry/product-events.ts";
 import { fetchClientConfig } from "../client-config.ts";
@@ -466,11 +465,11 @@ export function startAuthenticatedRequestRelay(
   options: {
     readonly allowPiConfigRefresh?: boolean;
     readonly allowTelemetry?: boolean;
-    readonly allowSandboxConfiguration?: boolean;
-    /** Required for /sandbox saves: validates against the invocation's compiled policy. */
-    readonly sandboxConfigurationPolicy?: () => Promise<SandboxPolicy>;
-    readonly prepareSandboxRestart?: (session: SandboxResumeSession) => () => void;
-    readonly sandboxOperation?: (request: Request) => Promise<Response>;
+    readonly allowAxonSafehouseConfiguration?: boolean;
+    /** Required for /safehouse saves: validates against the invocation's compiled policy. */
+    readonly axonSafehouseConfigurationPolicy?: () => Promise<AxonSafehousePolicy>;
+    readonly prepareAxonSafehouseRestart?: (session: AxonSafehouseResumeSession) => () => void;
+    readonly axonSafehouseOperation?: (request: Request) => Promise<Response>;
     readonly cwd?: string;
     readonly signedOut?: SessionRecoveryOptions["signedOut"];
   } = {},
@@ -485,13 +484,13 @@ export function startAuthenticatedRequestRelay(
   const session = createRelaySession(paths, diagnostics.protectSecret);
   const backupRelay = createBackupRelay(paths, options.cwd ?? process.cwd());
   // Without the invocation's policy check the editor fails closed instead of using a fresh policy.
-  const sandboxConfiguration =
-    options.allowSandboxConfiguration && options.sandboxConfigurationPolicy
-      ? createSandboxConfigurationRelay(
+  const axonSafehouseConfiguration =
+    options.allowAxonSafehouseConfiguration && options.axonSafehouseConfigurationPolicy
+      ? createAxonSafehouseConfigurationRelay(
           paths,
           options.cwd ?? process.cwd(),
-          options.sandboxConfigurationPolicy,
-          options.prepareSandboxRestart,
+          options.axonSafehouseConfigurationPolicy,
+          options.prepareAxonSafehouseRestart,
         )
       : undefined;
   const server = Bun.serve({
@@ -514,14 +513,14 @@ export function startAuthenticatedRequestRelay(
         // Control calls never wait for authentication work so Pi can approve a pending login.
         const controlResponse = await recovery.handle(request, url);
         if (controlResponse !== undefined) return controlResponse;
-        if (url.pathname === "/_axon/sandbox/execute") {
-          if (!options.sandboxOperation || request.method !== "POST" || url.search !== "")
+        if (url.pathname === "/_axon/axon-safehouse/execute") {
+          if (!options.axonSafehouseOperation || request.method !== "POST" || url.search !== "")
             return relayError(404, "Axon endpoint is not available");
-          return await options.sandboxOperation(request);
+          return await options.axonSafehouseOperation(request);
         }
-        if (url.pathname.startsWith("/_axon/sandbox/")) {
-          if (!sandboxConfiguration) return relayError(404, "Axon endpoint is not available");
-          return await sandboxConfiguration.handle(request, url);
+        if (url.pathname.startsWith("/_axon/axon-safehouse/")) {
+          if (!axonSafehouseConfiguration) return relayError(404, "Axon endpoint is not available");
+          return await axonSafehouseConfiguration.handle(request, url);
         }
         if (url.pathname === "/_axon/pi-defaults/refresh") {
           if (!options.allowPiConfigRefresh || request.method !== "POST" || url.search !== "") {
@@ -572,7 +571,7 @@ export function startAuthenticatedRequestRelay(
     diagnosticsLogFile: diagnostics.logFile,
     diagnosticsLogLabel: diagnostics.logLabel,
     dispose: () => {
-      sandboxConfiguration?.dispose();
+      axonSafehouseConfiguration?.dispose();
       recovery.dispose();
       void server.stop(true);
     },

@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from app import authentication
 from app.clients.auth_service import AuthDataResponse, AuthServiceError
 from app.core import config as config_module
+from app.core.axon_safehouse import AxonSafehouseSettings
 from app.core.cli_config import (
     CliPiConfig,
     CliTelemetryConfig,
@@ -21,7 +22,6 @@ from app.core.cli_config import (
     parse_cli_telemetry,
 )
 from app.core.config import ConfigurationError, get_settings
-from app.core.sandbox import SandboxSettings
 from app.core.web_search import WebSearchSettings
 from app.routers.cli_config import router
 
@@ -59,10 +59,10 @@ def test_config_uses_session_guard_and_only_allowlisted_fields(monkeypatch: pyte
     app.include_router(router)
     web_search = WebSearchSettings()
     public_search = web_search.cli_config().model_dump(by_alias=True, mode="json", exclude_none=True)
-    sandbox = SandboxSettings()
-    public_sandbox = sandbox.cli_config().model_dump(by_alias=True, mode="json")
+    axon_safehouse = AxonSafehouseSettings()
+    public_axon_safehouse = axon_safehouse.cli_config().model_dump(by_alias=True, mode="json")
     app.dependency_overrides[get_settings] = lambda: SimpleNamespace(
-        sandbox=sandbox,
+        axon_safehouse=axon_safehouse,
         cli_telemetry=CliTelemetryConfig.model_validate(POLICY),
         cli_pi=CliPiConfig.model_validate(
             {
@@ -90,7 +90,7 @@ def test_config_uses_session_guard_and_only_allowlisted_fields(monkeypatch: pyte
     assert seen == ["Bearer saved-secret"]
     assert response.json() == {
         "schemaVersion": 1,
-        "sandbox": public_sandbox,
+        "axonSafehouse": public_axon_safehouse,
         "telemetry": POLICY,
         "pi": {
             "codemodeEnabled": True,
@@ -109,7 +109,7 @@ def test_config_uses_session_guard_and_only_allowlisted_fields(monkeypatch: pyte
     assert response.headers["x-session-refresh-token"] == "rotated-secret"
     assert "secret" not in response.text
     app.dependency_overrides[get_settings] = lambda: SimpleNamespace(
-        sandbox=sandbox,
+        axon_safehouse=axon_safehouse,
         cli_telemetry=None,
         cli_pi=None,
         cli_compaction=None,
@@ -120,7 +120,7 @@ def test_config_uses_session_guard_and_only_allowlisted_fields(monkeypatch: pyte
     )
     assert client.get("/api/v1/cli/config", headers={"Authorization": "Bearer second-user"}).json() == {
         "schemaVersion": 1,
-        "sandbox": public_sandbox,
+        "axonSafehouse": public_axon_safehouse,
         "webSearch": public_search,
     }
 

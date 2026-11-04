@@ -3,13 +3,13 @@ import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { resolveGitAiBinary as resolveAxonSafehouseGitAiBinary } from "../src/axon-safehouse/git-ai-binary.ts";
 import {
   type CheckpointPayload,
   createGitAiExtension,
   resolveGitAiBinary,
   runGitAiCommand,
 } from "../src/harnesses/pi/resources/extensions/git-ai.ts";
-import { resolveGitAiBinary as resolveSandboxGitAiBinary } from "../src/sandbox/git-ai-binary.ts";
 
 let root: string;
 beforeEach(async () => {
@@ -174,10 +174,10 @@ describe("optional git-ai availability", () => {
     expect(f.payloads()).toHaveLength(0);
   });
 
-  // The sandbox launcher keeps its own copy because the extension ships as a file asset.
+  // The Axon Safehouse launcher keeps its own copy because the extension ships as a file asset.
   for (const [label, resolve] of [
     ["extension", resolveGitAiBinary],
-    ["sandbox", resolveSandboxGitAiBinary],
+    ["Axon Safehouse", resolveAxonSafehouseGitAiBinary],
   ] as const) {
     test(`${label}: discovers official install before PATH, including symlinks`, async () => {
       const official = await executable(join(root, ".git-ai", "bin", "git-ai"));

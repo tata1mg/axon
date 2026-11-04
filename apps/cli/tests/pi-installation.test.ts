@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { checkPiVersion } from "../scripts/check-pi-version.ts";
+import { axonSafehouseFailure } from "../src/axon-safehouse/policy.ts";
 import {
   managedPiExecutable,
   PI_INSTALL_VERSION,
@@ -24,12 +25,11 @@ import {
 import { probePiVersion, resolvePiVersion } from "../src/harnesses/pi/version.ts";
 import { resolveHarnessRegistration } from "../src/harnesses/registry.ts";
 import type {
+  AxonSafehouseSession,
   HarnessRegistration,
   LaunchContext,
-  SandboxSession,
 } from "../src/launcher/contracts.ts";
 import { resolveAxonPaths } from "../src/product/paths.ts";
-import { sandboxFailure } from "../src/sandbox/policy.ts";
 
 const fixtureRoots: string[] = [];
 const DEVELOPMENT_VERSION = PI_INSTALL_VERSION === "0.90.0" ? "0.91.0" : "0.90.0";
@@ -271,7 +271,7 @@ describe("Pi version probe cache", () => {
     // A changed executable invalidates the cached record.
     await Bun.sleep(5);
     await writePi(executable, "0.86.0 with a longer banner line\n");
-    const runProbe = mock<SandboxSession["run"]>(async (specification, options) => {
+    const runProbe = mock<AxonSafehouseSession["run"]>(async (specification, options) => {
       expect(specification.executable).toBe(executable);
       expect(specification.arguments).toEqual(["--version"]);
       expect(specification.environment["PI_OFFLINE"]).toBe("1");
@@ -283,11 +283,11 @@ describe("Pi version probe cache", () => {
         stderr: "",
       };
     });
-    const sandboxedContext: LaunchContext = {
+    const axonSafehouseContext: LaunchContext = {
       ...fixture.context,
-      sandbox: {
+      axonSafehouse: {
         async configurationPolicy() {
-          throw new Error("Unexpected sandbox configuration in a version-probe fixture");
+          throw new Error("Unexpected Axon Safehouse configuration in a version-probe fixture");
         },
         clientConfig: () => undefined,
         async wrap() {
@@ -297,24 +297,26 @@ describe("Pi version probe cache", () => {
         dispose() {},
       },
     };
-    expect(await resolvePiVersion(executable, sandboxedContext)).toBe("0.86.0");
-    expect(await resolvePiVersion(executable, sandboxedContext)).toBe("0.86.0");
+    expect(await resolvePiVersion(executable, axonSafehouseContext)).toBe("0.86.0");
+    expect(await resolvePiVersion(executable, axonSafehouseContext)).toBe("0.86.0");
     expect(runProbe).toHaveBeenCalledTimes(1);
 
     // Missing/expired authorization must not be mistaken for an unknown version.
     await expect(
       probePiVersion(executable, fixture.context.environment, fixture.context),
-    ).rejects.toThrow("An Axon-owned sandbox is required before running Pi");
-    const authorizationError = sandboxFailure("Axon sandbox authorization expired or was closed");
+    ).rejects.toThrow("Axon Safehouse is required before running Pi");
+    const authorizationError = axonSafehouseFailure(
+      "Axon Safehouse authorization expired or was closed",
+    );
     runProbe.mockRejectedValueOnce(authorizationError);
     await expect(
-      probePiVersion(executable, fixture.context.environment, sandboxedContext),
+      probePiVersion(executable, fixture.context.environment, axonSafehouseContext),
     ).rejects.toBe(authorizationError);
 
     // Ordinary process failures remain an unknown version and are never cached.
     runProbe.mockRejectedValueOnce(new Error("Fixture process could not start"));
     expect(
-      await probePiVersion(executable, fixture.context.environment, sandboxedContext),
+      await probePiVersion(executable, fixture.context.environment, axonSafehouseContext),
     ).toBeUndefined();
   });
 });
@@ -478,12 +480,12 @@ await chmod("node_modules/.bin/pi", 0o755);
     await chmod(npmPath, 0o755);
     const { dependencies } = installerDependencies(fixture, PI_INSTALL_VERSION);
     const { runNpmCi: _unused, ...productionDependencies } = dependencies;
-    // Installs require an Axon sandbox; this fixture runs the fake npm directly.
-    const sandboxedContext: LaunchContext = {
+    // Installs require Axon Safehouse; this fixture runs the fake npm directly.
+    const axonSafehouseContext: LaunchContext = {
       ...fixture.context,
-      sandbox: {
+      axonSafehouse: {
         async configurationPolicy() {
-          throw new Error("Unexpected sandbox configuration in an npm fallback fixture");
+          throw new Error("Unexpected Axon Safehouse configuration in an npm fallback fixture");
         },
         clientConfig: () => undefined,
         async wrap() {
@@ -508,7 +510,7 @@ await chmod("node_modules/.bin/pi", 0o755);
       },
     };
     const executable = await resolvePiExecutable(
-      sandboxedContext,
+      axonSafehouseContext,
       piRegistration(),
       launchOptions,
       {
@@ -619,7 +621,7 @@ await chmod("node_modules/.bin/pi", 0o755);
       remediation: expect.stringContaining("https://pi.dev/install.sh"),
     });
 
-    // The real toolchain probe must preserve missing sandbox authorization, too.
+    // The real toolchain probe must preserve missing Axon Safehouse authorization, too.
     await writePi(join(fixture.bin, "node"), healthyToolchain.nodeVersion ?? "22.19.0");
     await writePi(join(fixture.bin, "npm"), "10.0.0");
     await expect(
@@ -628,7 +630,7 @@ await chmod("node_modules/.bin/pi", 0o755);
         runNpmCi: dependencies.runNpmCi,
         probeVersion: dependencies.probeVersion,
       }),
-    ).rejects.toThrow("An Axon-owned sandbox is required before running Pi");
+    ).rejects.toThrow("Axon Safehouse is required before running Pi");
     expect(state.fetched).toEqual([]);
   });
 

@@ -48,7 +48,7 @@ test.each(["unminified", "minified"] as const)(
           configRequests++;
           return Response.json({
             schemaVersion: 1,
-            sandbox: {
+            axonSafehouse: {
               schemaVersion: 1,
               required: true,
               engine: "safehouse",
@@ -78,7 +78,7 @@ test.each(["unminified", "minified"] as const)(
     });
     try {
       const executable = join(root, "axon");
-      const fixture = join(import.meta.dir, "fixtures", "launcher-sandbox.ts");
+      const fixture = join(import.meta.dir, "fixtures", "launcher-axon-safehouse.ts");
       const build = await Bun.build({
         entrypoints: [join(projectRoot, "src", "index.ts")],
         compile: { outfile: executable, autoloadDotenv: false, autoloadBunfig: false },
@@ -93,14 +93,14 @@ test.each(["unminified", "minified"] as const)(
         },
         plugins: [
           {
-            name: "compiled-resource-test-sandbox",
+            name: "compiled-resource-test-axon-safehouse",
             setup(builder) {
               // Keep the actual entrypoint and asset loaders; substitute only the test boundary.
-              builder.onLoad({ filter: /\/src\/sandbox\/session\.ts$/ }, () => ({
+              builder.onLoad({ filter: /\/src\/axon-safehouse\/session\.ts$/ }, () => ({
                 contents: `export {
-                  createFixtureSandbox as createSandboxSession,
-                  withFixtureSandbox as withSandboxSession,
-                  runFixtureCommand as runSandboxCommand,
+                  createFixtureAxonSafehouse as createAxonSafehouseSession,
+                  withFixtureAxonSafehouse as withAxonSafehouseSession,
+                  runFixtureCommand as runAxonSafehouseCommand,
                 } from ${JSON.stringify(fixture)};`,
                 loader: "ts",
                 resolveDir: projectRoot,
@@ -195,7 +195,7 @@ if (process.argv[2] === "--version") {
       });
       expect(configRequests).toBe(1);
       expect(exported.some((body) => body.includes(Buffer.from("axon.startup.events")))).toBe(true);
-      // CLI help stays local; forwarded Pi administration still requires sandbox authorization.
+      // CLI help stays local; forwarded Pi administration still requires Axon Safehouse authorization.
       const before = configRequests;
       expect((await run(["--help"])).status).toBe(0);
       expect((await run(["pi", "--help"])).status).toBe(0);

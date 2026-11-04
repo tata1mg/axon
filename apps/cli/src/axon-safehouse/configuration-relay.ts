@@ -4,12 +4,12 @@ import { isAbsolute } from "node:path";
 import * as prompts from "@clack/prompts";
 import { z } from "zod";
 
-import { runSandboxMenu } from "../cli/commands/sandbox.ts";
-import type { SandboxResumeSession } from "../launcher/contracts.ts";
+import { runAxonSafehouseMenu } from "../cli/commands/axon-safehouse.ts";
+import type { AxonSafehouseResumeSession } from "../launcher/contracts.ts";
 import type { AxonPaths } from "../product/paths.ts";
 import { assertInside } from "../sessions/files.ts";
 import { canonicalPath, readFilesystemPreferences } from "./filesystem.ts";
-import type { SandboxPolicy } from "./policy.ts";
+import type { AxonSafehousePolicy } from "./policy.ts";
 
 const configurationSchema = z.strictObject({
   sessionId: z.uuid(),
@@ -17,10 +17,10 @@ const configurationSchema = z.strictObject({
 });
 
 /** Validate again after the old process group is gone, before constructing resume argv. */
-export async function validateSandboxResumeSession(
+export async function validateAxonSafehouseResumeSession(
   paths: AxonPaths,
   value: unknown,
-): Promise<SandboxResumeSession> {
+): Promise<AxonSafehouseResumeSession> {
   const session = configurationSchema.parse(value);
   if (!session.sessionFile) return { sessionId: session.sessionId };
   if (!session.sessionFile.endsWith(".jsonl")) throw new Error("Invalid resume session file");
@@ -46,12 +46,12 @@ export async function validateSandboxResumeSession(
 }
 
 /** Pi may request the editor, but only the human at Axon's terminal can choose and save grants. */
-export function createSandboxConfigurationRelay(
+export function createAxonSafehouseConfigurationRelay(
   paths: AxonPaths,
   cwd: string,
   /** The invocation's compiled boundary; saves must never validate against a newer policy. */
-  authorize: () => Promise<SandboxPolicy>,
-  prepareRestart?: (session: SandboxResumeSession) => () => void,
+  authorize: () => Promise<AxonSafehousePolicy>,
+  prepareRestart?: (session: AxonSafehouseResumeSession) => () => void,
 ) {
   const shutdown = new AbortController();
   let busy = false;
@@ -62,7 +62,7 @@ export function createSandboxConfigurationRelay(
     async handle(request: Request, url: URL): Promise<Response> {
       // Report the parent's live invocation settings, never a persisted or child-supplied profile.
       if (
-        url.pathname === "/_axon/sandbox/status" &&
+        url.pathname === "/_axon/axon-safehouse/status" &&
         request.method === "GET" &&
         url.search === "" &&
         !shutdown.signal.aborted
@@ -71,11 +71,11 @@ export function createSandboxConfigurationRelay(
           const preferences = await readFilesystemPreferences(paths, cwd);
           return reply({ project: cwd, ...preferences });
         } catch {
-          return reply({ error: "Current sandbox settings are unavailable" }, 503);
+          return reply({ error: "Current Axon Safehouse settings are unavailable" }, 503);
         }
       }
       if (
-        url.pathname !== "/_axon/sandbox/configure" ||
+        url.pathname !== "/_axon/axon-safehouse/configure" ||
         request.method !== "POST" ||
         url.search !== "" ||
         !prepareRestart ||
@@ -83,9 +83,9 @@ export function createSandboxConfigurationRelay(
         !process.stdout.isTTY ||
         shutdown.signal.aborted
       ) {
-        return reply({ error: "Interactive sandbox configuration is unavailable" }, 404);
+        return reply({ error: "Interactive Axon Safehouse configuration is unavailable" }, 404);
       }
-      if (busy) return reply({ error: "The sandbox editor is already open" }, 409);
+      if (busy) return reply({ error: "The Axon Safehouse editor is already open" }, 409);
       busy = true;
       const signal = AbortSignal.any([request.signal, shutdown.signal]);
       let editorClosed: (() => void) | undefined;
@@ -93,15 +93,18 @@ export function createSandboxConfigurationRelay(
         // Pi supplies only its resume identity, never grants, argv, transcript data or a project.
         const body = await request.text();
         if (Buffer.byteLength(body) > 8192)
-          return reply({ error: "Sandbox configuration request is too large" }, 413);
-        const session = await validateSandboxResumeSession(paths, JSON.parse(body));
+          return reply({ error: "Axon Safehouse configuration request is too large" }, 413);
+        const session = await validateAxonSafehouseResumeSession(paths, JSON.parse(body));
         signal.throwIfAborted();
         // Arm the resume target before saving can revoke and terminate the old process.
         editorClosed = prepareRestart(session);
-        const saved = await runSandboxMenu(paths, cwd, prompts, { signal, authorize });
+        const saved = await runAxonSafehouseMenu(paths, cwd, prompts, { signal, authorize });
         return reply({ opened: true, saved });
       } catch {
-        return reply({ error: "Could not open sandbox settings; try /sandbox again" }, 503);
+        return reply(
+          { error: "Could not open Axon Safehouse settings; try /safehouse again" },
+          503,
+        );
       } finally {
         busy = false;
         // A replacement TUI must not compete with the parent's terminal editor.

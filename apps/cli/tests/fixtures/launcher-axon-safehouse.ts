@@ -1,29 +1,32 @@
 import { realpath } from "node:fs/promises";
 import { isAbsolute, relative, sep } from "node:path";
-
+import { axonSafehouseEnvironment } from "../../src/axon-safehouse/environment.ts";
+import { authorizeAxonSafehouse, axonSafehouseFailure } from "../../src/axon-safehouse/policy.ts";
 import type {
+  AxonSafehouseCommandOptions,
+  AxonSafehouseCommandResult,
+  AxonSafehouseSession,
   LaunchContext,
   LaunchSpec,
-  SandboxCommandOptions,
-  SandboxCommandResult,
-  SandboxSession,
 } from "../../src/launcher/contracts.ts";
-import { sandboxEnvironment } from "../../src/sandbox/environment.ts";
-import { authorizeSandbox, sandboxFailure } from "../../src/sandbox/policy.ts";
 
 const configuredRoot = process.env["AXON_LAUNCHER_FIXTURE_ROOT"];
-if (!configuredRoot) throw new Error("Launcher sandbox fixture requires its temporary root");
+if (!configuredRoot) throw new Error("Launcher Axon Safehouse fixture requires its temporary root");
 const fixtureRoot = await realpath(configuredRoot);
 
 /** Test only: exercise launcher dispatch without downloading or invoking Safehouse. */
-export async function createFixtureSandbox(context: LaunchContext): Promise<SandboxSession> {
+export async function createFixtureAxonSafehouse(
+  context: LaunchContext,
+): Promise<AxonSafehouseSession> {
   // Keep real backend policy validation; a missing policy must still fail closed.
-  const authorization = await authorizeSandbox(context.paths);
+  const authorization = await authorizeAxonSafehouse(context.paths);
   let disposed = false;
 
   const prepareFixture = async (specification: LaunchSpec): Promise<LaunchSpec> => {
     if (disposed || Date.now() >= authorization.expiresAt)
-      throw sandboxFailure("Launcher fixture sandbox authorization expired or was closed");
+      throw axonSafehouseFailure(
+        "Launcher fixture Axon Safehouse authorization expired or was closed",
+      );
     const executable = await realpath(specification.executable);
     const difference = relative(fixtureRoot, executable);
     if (
@@ -34,13 +37,13 @@ export async function createFixtureSandbox(context: LaunchContext): Promise<Sand
     ) {
       throw new Error("Launcher fixture may execute only its generated fake Pi executable");
     }
-    const environment = sandboxEnvironment(
+    const environment = axonSafehouseEnvironment(
       specification.environment,
       fixtureRoot,
       fixtureRoot,
       "http://127.0.0.1:9",
     );
-    // Fixture controls are not production sandbox passthroughs.
+    // Fixture controls are not production Axon Safehouse passthroughs.
     for (const name of ["FAKE_PI_VERSION", "FAKE_EXIT_CODE", "FAKE_SIGNAL"] as const) {
       if (specification.environment[name] !== undefined)
         environment[name] = specification.environment[name];
@@ -50,11 +53,11 @@ export async function createFixtureSandbox(context: LaunchContext): Promise<Sand
 
   return {
     async configurationPolicy() {
-      throw new Error("Unexpected sandbox configuration in a launcher fixture");
+      throw new Error("Unexpected Axon Safehouse configuration in a launcher fixture");
     },
     clientConfig(session) {
       if (session !== authorization.session)
-        throw sandboxFailure("Launcher fixture identity changed during setup");
+        throw axonSafehouseFailure("Launcher fixture identity changed during setup");
       return authorization.clientConfig;
     },
     wrap: prepareFixture,
@@ -86,23 +89,26 @@ export async function createFixtureSandbox(context: LaunchContext): Promise<Sand
   };
 }
 
-export async function withFixtureSandbox<Result>(
+export async function withFixtureAxonSafehouse<Result>(
   context: LaunchContext,
-  operation: (context: LaunchContext & { readonly sandbox: SandboxSession }) => Promise<Result>,
+  operation: (
+    context: LaunchContext & { readonly axonSafehouse: AxonSafehouseSession },
+  ) => Promise<Result>,
 ): Promise<Result> {
-  const sandbox = await createFixtureSandbox(context);
+  const axonSafehouse = await createFixtureAxonSafehouse(context);
   try {
-    return await operation({ ...context, sandbox });
+    return await operation({ ...context, axonSafehouse });
   } finally {
-    sandbox.dispose();
+    axonSafehouse.dispose();
   }
 }
 
 export function runFixtureCommand(
   context: LaunchContext,
   specification: LaunchSpec,
-  options: SandboxCommandOptions,
-): Promise<SandboxCommandResult> {
-  if (!context.sandbox) throw sandboxFailure("An Axon-owned sandbox is required before running Pi");
-  return context.sandbox.run(specification, options);
+  options: AxonSafehouseCommandOptions,
+): Promise<AxonSafehouseCommandResult> {
+  if (!context.axonSafehouse)
+    throw axonSafehouseFailure("Axon Safehouse is required before running Pi");
+  return context.axonSafehouse.run(specification, options);
 }

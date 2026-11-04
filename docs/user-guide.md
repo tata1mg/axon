@@ -158,7 +158,7 @@ Inside the coding session, type:
 - Each subsequent terminal command uses the latest preference; other session headers update within about half a second. The saved preference never overrides administrator restrictions.
 - The file is normally `~/.axon/pi/terminal-preferences.json` (`$PI_CODING_AGENT_DIR/terminal-preferences.json`). A missing, unreadable, or corrupt preference defaults to Standard mode.
 
-> **Use with care:** YOLO runs terminal commands without approval, including commands that would normally need review. This can modify or delete files or affect external systems. Recognized blocked commands are still denied, but blocklists are best-effort—not a security sandbox. Use a clean working tree or commit your work first. Turning YOLO off does not stop commands already running or resolve approval prompts already open.
+> **Use with care:** YOLO runs terminal commands without approval, including commands that would normally need review. This can modify or delete files or affect external systems. Recognized blocked commands are still denied, but blocklists are best-effort—not a security boundary. Use a clean working tree or commit your work first. Turning YOLO off does not stop commands already running or resolve approval prompts already open.
 
 ## 6. Update Axon
 

@@ -1,4 +1,4 @@
-import type { SandboxResumeSession } from "../../launcher/contracts.ts";
+import type { AxonSafehouseResumeSession } from "../../launcher/contracts.ts";
 
 // Mirror the pinned Pi CLI's value consumption so option values cannot become prompts.
 const VALUE_OPTIONS = new Set([
@@ -56,7 +56,7 @@ const STARTUP_VALUE_OPTIONS = new Set(["--provider", "--model", "--thinking", "-
 /** Retain launch options, not startup messages/files, and resume exactly the current session. */
 export function piRestartArguments(
   original: readonly string[],
-  session: SandboxResumeSession,
+  session: AxonSafehouseResumeSession,
 ): readonly string[] {
   const retained: string[] = [];
   for (let index = 0; index < original.length; index++) {
