@@ -1,0 +1,209 @@
+apps/cli/src/harnesses/pi/resources/extensions/pi-org-telemetry.mjs
+  h_dc688f708c4675 264,267-268
+apps/cli/src/product/manifest.ts
+  h_dc688f708c4675 5-7,76-79,143,157,174,207-209
+  h_dc688f708c4675 80-81,210
+apps/cli/src/harnesses/pi/resources/extensions/session-backup.mjs
+  h_dc688f708c4675 2,6,17-18,23,30,52-53,56,58
+apps/cli/src/harnesses/pi/resources/extensions/terminal-permissions.mjs
+  h_dc688f708c4675 2-7,9,11-12
+.github/workflows/ci.yml
+  h_dc688f708c4675 80
+.github/workflows/release.yml
+  h_dc688f708c4675 135
+apps/backend/README.md
+  h_dc688f708c4675 24-29
+apps/backend/app/core/terminal_permissions.py
+  h_dc688f708c4675 96
+apps/backend/app/main.py
+  h_dc688f708c4675 22
+apps/backend/app/proxies/otel.py
+  h_dc688f708c4675 261-283,296-297
+apps/backend/app/services/model_recommendation/model_catalog.json
+  h_dc688f708c4675 8,10-12
+apps/backend/pyproject.toml
+  h_dc688f708c4675 3,9-12,17-18,26-27
+apps/backend/tests/test_otel_proxy.py
+  h_dc688f708c4675 23,26,39-40,194,202-220,274,281-283,295
+apps/backend/uv.lock
+  h_dc688f708c4675 64,91-94,102-103,108-109,115,122,124,129,136,138,788,797,799
+apps/cli/README.md
+  h_dc688f708c4675 23,45,94,102-155,166,220,226-255,312,360-369,417,451-452,457,501-502,510-513,515-523,574,580-581
+apps/cli/package.json
+  h_dc688f708c4675 3,32,38-39,43,47-48,65,67
+apps/cli/pi-version.json
+  h_dc688f708c4675 2
+apps/cli/src/cli/auth/relay-diagnostics.ts
+  h_dc688f708c4675 6,10-11,14-16,24-28,32-34,40,120-121,125-127,131-137,141-143,146-152,160-199,201-222,226,230-234,236-260,265-279,292,298-303,312-325,329-333,340,347
+apps/cli/src/cli/auth/relay-error-details.ts
+  h_dc688f708c4675 1-189
+apps/cli/src/cli/auth/relay-http-errors.ts
+  h_dc688f708c4675 1-23
+apps/cli/src/cli/auth/request-relay.ts
+  h_dc688f708c4675 9,18,109-112,151-153,165,172-173,194-198,238,265,293,320-332,334,367,373-385,395,398-399,401,404-405,410-427,432-435,446-453,455,470-471,484-485,487-496,503-504,512-520,522-524,526-551,558,561-562
+apps/cli/src/cli/auth/session-recovery.ts
+  h_dc688f708c4675 70,77-81,95-96,98-103,107,122-129,243-246
+apps/cli/src/cli/auth/session.ts
+  h_dc688f708c4675 142,144
+apps/cli/src/cli/auth/verification.ts
+  h_dc688f708c4675 4,8,17-20,23-30,33-43,55-58,61-62,95,105-108,120,144-153,167-170
+apps/cli/src/cli/client-config.ts
+  h_dc688f708c4675 65
+apps/cli/src/cli/commands/auth.ts
+  h_dc688f708c4675 9,15,30-31,136-145,147,165-212
+apps/cli/src/cli/commands/setup-paseo.ts
+  h_dc688f708c4675 1-52
+apps/cli/src/cli/commands/setup.ts
+  h_dc688f708c4675 5,18,20,30-45,55
+apps/cli/src/cli/launcher-program.ts
+  h_dc688f708c4675 179-185,230-231,235-238
+apps/cli/src/harnesses/pi/adapter.ts
+  h_dc688f708c4675 28,75-78,82,163-164,166,176
+apps/cli/src/harnesses/pi/environment.ts
+  h_dc688f708c4675 6,89-90
+apps/cli/src/harnesses/pi/installation.ts
+  h_dc688f708c4675 22,330-331,333-334,339,446,451-454
+apps/cli/src/harnesses/pi/npm-registry.ts
+  h_dc688f708c4675 1-162
+apps/cli/src/harnesses/pi/resources/extensions/axon-changelog.ts
+  h_dc688f708c4675 1-244
+apps/cli/src/harnesses/pi/resources/extensions/axon.ts
+  h_dc688f708c4675 98-101,167-168,251,266,322-332
+apps/cli/src/harnesses/pi/resources/extensions/terminal-permissions.ts
+  h_dc688f708c4675 11-16,22,30,315,317,371-378,412,539-540,543-544,546-554,593-594,598-599,602-605,619-620,625,630-646,648,652-655,673,677-678
+apps/cli/src/harnesses/pi/settings-defaults.ts
+  h_dc688f708c4675 41-49
+apps/cli/src/harnesses/pi/setup/packages/sync.ts
+  h_dc688f708c4675 2,12,78-99,106,125-127
+apps/cli/src/harnesses/pi/telemetry-environment.ts
+  h_dc688f708c4675 47-48,53
+apps/cli/src/harnesses/pi/telemetry/README.md
+  h_dc688f708c4675 77-106,118-122
+apps/cli/src/harnesses/pi/telemetry/docs/deployment.md
+  h_dc688f708c4675 49
+apps/cli/src/harnesses/pi/telemetry/docs/limitations.md
+  h_dc688f708c4675 15
+apps/cli/src/harnesses/pi/telemetry/docs/telemetry-schema.md
+  h_dc688f708c4675 3,159
+apps/cli/src/harnesses/pi/telemetry/grafana-metrics-only.json
+  h_dc688f708c4675 143,188,233,278,323,369,414,459,504,549,665,670,756-763,765,774-776,779-790,793-797,800,826,834,842,850,858,866,874,1065,1112,1159,1219,1269,1316,1321,1326,1331,1381,1388,1395,1402,1449,1457,1465,1473,1481,1489,1701,1748,1795,1842,1892,2030,2077,2124,2171,2176,2221,2226,2271,2276,2311-2313,2321-2327,2332-2336,2343-2348,2351,2354,2358,2361-2363,2371-2374,2378-2381,2384-2395,2399-2402,2406-2430,2432,2436-2441,2444,2447-2452,2455-2457,2459,2462-2468,2470,2479-2480,2506-2511,2513-2516,2518-2519,2523-2525,2533-2534,2538-2539,2543-2549,2554-2558,2565-2570,2579,2583-2584,2592-2593,2597-2598,2602-2608,2613-2617,2624-2629,2632,2639,2642-2647,2649,2651-3705,3716,3718-3719,3722-3723,3731-3737,3756,3758-3759,3763,3771-3772,3777,3791,3793-3809,3811-3813,3821-3845,3847-3865,3867-3871,3874-3885,3888-3892,3896-3920,3922-3930,3933-3942,3945-3947,3949,3953-3954,3962-3968,3973-3977,3984-3989,3992,3995,3997,3999,4002-4004,4012-4015,4018-4029,4032-4036,4040-4064,4066-4074,4077-4086,4089-4091,4093,4096,4100,4106,4110-4112,4120-4123,4126-4137,4140-4144,4152,4154,4157-4159,4167-4170,4173-4184,4187-4191,4199,4201,4205-4206,4214-4215,4219-4220,4225-4229,4236-4241,4244,4247,4249,4251,4254-4256,4264-4267,4271,4274-4283,4286-4291,4294-4296,4298-4299,4302-4303,4311-4317,4322-4326,4333-4338,4341,4344-4346,4348,4351-4353,4361-4364,4367-4378,4381-4385,4392-4393,4395,4398-4400,4408-4411,4414-4425,4428-4432,4439-4440,4442,4445
+apps/cli/src/harnesses/pi/telemetry/grafana.json
+  h_dc688f708c4675 151,196,241,286,331,377,422,467,512,557,673,678,764-771,773,782-784,787-798,801-805,808,834,842,850,858,866,874,882,1073,1120,1167,1255,1305,1352,1357,1362,1367,1417,1424,1431,1438,1485,1493,1501,1509,1517,1525,1737,1784,1831,1878,1928,2066,2113,2160,2207,2212,2257,2262,2307,2312,2347-2349,2357-2363,2368-2372,2379-2384,2387,2390,2394,2397-2399,2401-2402,2407-2417,2421-2440,2444-2445,2448,2451-2453,2461-2464,2468,2472-2477,2480,2483-2488,2491-2493,2495,2498-2504,2506,2515-2516,2542-2560,2566,2568-2581,2585-2587,2595-2596,2600-2601,2605-2611,2616-2620,2627-2632,2641,2645-2646,2654-2655,2659-2660,2664-2670,2675-2679,2686-2691,2694,2701-3200,3205-3889,3895,3899-3901,3909-3912,3915-3926,3929-3933,3939,3941,3943,3946-3948,3956-3959,3962-3973,3976-3980,3986-3988,3990,3993-3995,4003-4006,4009-4020,4023-4027,4033-4035,4037,4041-4042,4050-4051,4055-4056,4061-4065,4072-4077,4080,4083-4085,4087,4090-4092,4100-4103,4106-4117,4120-4124,4130-4132,4134,4137-4139,4147-4150,4153-4164,4167-4171,4177-4179,4181,4185,4194,4205,4207,4210,4214,4220,4224-4226,4234-4237,4240-4251,4254-4258,4266,4268,4271-4273,4281-4284,4287-4298,4301-4305,4313,4315,4319-4320,4328-4329,4333-4334,4339-4343,4350-4355,4358,4361,4363,4365,4368-4370,4378-4381,4385,4388-4397,4400-4405,4408-4410,4412-4413,4416-4417,4425-4431,4436-4440,4447-4452,4455,4458-4460,4462,4465-4467,4475-4478,4481-4492,4495-4499,4506-4507,4509,4512-4514,4522-4525,4528-4539,4542-4546,4550-4570,4572-4574,4578,4580,4582,4585
+apps/cli/src/harnesses/pi/telemetry/src/config.ts
+  h_dc688f708c4675 23
+apps/cli/src/harnesses/pi/telemetry/src/otel/managed-exporter.ts
+  h_dc688f708c4675 72-73,101,124,142-143,151-156
+apps/cli/src/harnesses/pi/telemetry/src/tracker.ts
+  h_dc688f708c4675 128
+apps/cli/src/harnesses/pi/telemetry/tests/config.test.ts
+  h_dc688f708c4675 23-28
+apps/cli/src/harnesses/pi/telemetry/tests/grafana-counters.promql.json
+  h_dc688f708c4675 1-136
+apps/cli/src/harnesses/pi/telemetry/tests/grafana.test.ts
+  h_dc688f708c4675 4-6,23,136,206,215-342
+apps/cli/src/harnesses/pi/telemetry/tests/managed-exporter.test.ts
+  h_dc688f708c4675 2,87-106,162-221,246
+apps/cli/src/harnesses/pi/telemetry/tests/tracker.test.ts
+  h_dc688f708c4675 297-298,305,307-312
+apps/cli/src/harnesses/pi/terminal-permissions/preferences.ts
+  h_dc688f708c4675 1-65
+apps/cli/src/integrations/paseo.ts
+  h_dc688f708c4675 1-312
+apps/cli/src/launcher/contracts.ts
+  h_dc688f708c4675 57
+apps/cli/src/launcher/exit-status.ts
+  h_dc688f708c4675 1-2,16,19-30,32
+apps/cli/src/launcher/launch-harness.ts
+  h_dc688f708c4675 12,91-109,214
+apps/cli/src/launcher/spawn-harness.ts
+  h_dc688f708c4675 41,124-129,166
+apps/cli/src/product/tips.ts
+  h_dc688f708c4675 1-13
+apps/cli/src/sandbox/configuration-relay.ts
+  h_dc688f708c4675 12,52-53,101
+apps/cli/src/sandbox/environment.ts
+  h_dc688f708c4675 31
+apps/cli/src/sandbox/filesystem.ts
+  h_dc688f708c4675 29,159-160,164,169-175,235-244,272-280
+apps/cli/src/sandbox/git-ai-binary.ts
+  h_dc688f708c4675 1-39
+apps/cli/src/sandbox/launch.ts
+  h_dc688f708c4675 13,22,24,134-135,267,297-305,308,312-313,346,349-355,364,393,524-533,552-560,598-602,639,759
+apps/cli/src/sandbox/packages.ts
+  h_dc688f708c4675 82-89,100,115-116,124-128,138-147,157,162-174,182,192-202,209-235
+apps/cli/src/sandbox/session.ts
+  h_dc688f708c4675 74-75,283-285,309-312
+apps/cli/src/updater/startup.ts
+  h_dc688f708c4675 18,42,57
+apps/cli/tests/axon-changelog.test.ts
+  h_dc688f708c4675 1-394
+apps/cli/tests/axon-header.test.ts
+  h_dc688f708c4675 20,239-309,316,320-321,329-350,362-364,370,502-503,509-510
+apps/cli/tests/client-config.test.ts
+  h_dc688f708c4675 312-313,315
+apps/cli/tests/compiled-pi-resources.test.ts
+  h_dc688f708c4675 10,134,180,184
+apps/cli/tests/exit-status.test.ts
+  h_dc688f708c4675 1-45
+apps/cli/tests/git-ai.test.ts
+  h_dc688f708c4675 12,177-191,193-203
+apps/cli/tests/launcher.test.ts
+  h_dc688f708c4675 342-343,373-375
+apps/cli/tests/litellm-client-provider.test.ts
+  h_dc688f708c4675 43,191-244
+apps/cli/tests/npm-registry.test.ts
+  h_dc688f708c4675 1-266
+apps/cli/tests/paseo-setup.test.ts
+  h_dc688f708c4675 1-573
+apps/cli/tests/pi-client-config.test.ts
+  h_dc688f708c4675 224
+apps/cli/tests/pi-installation.test.ts
+  h_dc688f708c4675 2,12,19-23,402-533
+apps/cli/tests/pi-model-cache.test.ts
+  h_dc688f708c4675 31,104-105
+apps/cli/tests/pi-package-setup.test.ts
+  h_dc688f708c4675 2,5,135-209,236,238,834-926,1022
+apps/cli/tests/pi-settings-defaults.test.ts
+  h_dc688f708c4675 6-10,33-65
+apps/cli/tests/relay-diagnostics.test.ts
+  h_dc688f708c4675 41,49,61-69,72-75,107,119-124,128,139-230
+apps/cli/tests/relay-error-details.test.ts
+  h_dc688f708c4675 1-247
+apps/cli/tests/relay-http-errors.test.ts
+  h_dc688f708c4675 1-54
+apps/cli/tests/request-relay.test.ts
+  h_dc688f708c4675 107-108,110-111,118-334,354-356,482,490-498,1252-1253,1264
+apps/cli/tests/sandbox-filesystem.test.ts
+  h_dc688f708c4675 1-151
+apps/cli/tests/sandbox-launch.test.ts
+  h_dc688f708c4675 1-107
+apps/cli/tests/spawn-harness-resize.test.ts
+  h_dc688f708c4675 1-63
+apps/cli/tests/startup-tips.test.ts
+  h_dc688f708c4675 1-36
+apps/cli/tests/terminal-permissions.test.ts
+  h_dc688f708c4675 2,19-22,35-37,45,49-52,55-59,99,284,311,316,321,323,325-328,331,335,338-343,346-410,445-446,602-619
+apps/cli/tests/terminal-preferences.test.ts
+  h_dc688f708c4675 1-116
+apps/cli/tests/update.test.ts
+  h_dc688f708c4675 122,129,136,147-150,157,174,194,201-207,213,222,226-228,242,261,292-295,300
+bun.lock
+  h_dc688f708c4675 13,18-19,23,27-28,45,47,117,119,121,123,125,127,129-131,139-140,213,281,291,373,389,431,451
+docs/relay-diagnostics.md
+  h_dc688f708c4675 1-99
+docs/session-backup-and-restore.md
+  h_dc688f708c4675 12
+docs/user-guide.md
+  h_dc688f708c4675 138,157-159
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "87bc4ec3bbdd3f18d741f396982de5f6d9f0837c",
+  "prompts": {},
+  "humans": {
+    "h_dc688f708c4675": {
+      "author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  }
+}
