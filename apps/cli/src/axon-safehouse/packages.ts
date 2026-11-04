@@ -13,6 +13,11 @@ const PACKAGE_PATH_PATTERNS = [
   "/[.]pnp[.](cjs|loader[.]mjs)$",
 ];
 const PACKAGE_PATH_MATCHERS = PACKAGE_PATH_PATTERNS.map((pattern) => new RegExp(pattern));
+
+export function isPackageWriteProtectedPath(path: string): boolean {
+  return PACKAGE_PATH_MATCHERS.some((matcher) => matcher.test(path));
+}
+
 export const PACKAGE_WRITE_FILTERS = PACKAGE_PATH_PATTERNS.map(
   (pattern) => `(regex #${JSON.stringify(pattern)})`,
 );

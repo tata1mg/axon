@@ -14,7 +14,7 @@ import {
   toggleYoloPreference,
   watchYoloPreference,
 } from "../../terminal-permissions/preferences.ts";
-import { createAxonSafehouseShellOperations } from "./axon.ts";
+import { createAxonSafehouseShellOperations, reviewAxonSafehouseAccessRequest } from "./axon.ts";
 
 /**
  * Standard auto-runs supported commands unless the model or policy requests review.
@@ -293,7 +293,9 @@ function registerShellTools(pi: ExtensionAPI): void {
         const shellPath = configuredPath?.startsWith("~/")
           ? join(homedir(), configuredPath.slice(2))
           : configuredPath;
-        const operations = createAxonSafehouseShellOperations(shellPath);
+        const operations = createAxonSafehouseShellOperations(shellPath, (id) =>
+          reviewAxonSafehouseAccessRequest(pi, id, ctx, signal),
+        );
         const executionTool =
           shell === "bash"
             ? createBashToolDefinition(ctx.cwd, {
@@ -585,7 +587,9 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
     const shellPath = configuredPath?.startsWith("~/")
       ? join(homedir(), configuredPath.slice(2))
       : configuredPath;
-    const operations = createAxonSafehouseShellOperations(shellPath);
+    const operations = createAxonSafehouseShellOperations(shellPath, (id) =>
+      reviewAxonSafehouseAccessRequest(pi, id, ctx),
+    );
     return operations ? { operations } : undefined;
   });
 

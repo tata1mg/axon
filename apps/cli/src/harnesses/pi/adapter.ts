@@ -163,12 +163,16 @@ export function createPiAdapter(): HarnessAdapter {
         const axonSafehouse = context.axonSafehouse;
         if (!axonSafehouse) throw axonSafehouseFailure("Axon Safehouse is required");
         relay = startAuthenticatedRequestRelay(context.paths, {
-          axonSafehouseOperation: createAxonSafehouseOperations(axonSafehouse, {
-            executable: context.executable,
-            arguments: [],
-            environment: context.environment,
-            cwd: context.cwd,
-          }),
+          axonSafehouseOperation: createAxonSafehouseOperations(
+            axonSafehouse,
+            {
+              executable: context.executable,
+              arguments: [],
+              environment: context.environment,
+              cwd: context.cwd,
+            },
+            context.paths,
+          ),
           allowPiConfigRefresh: !setup.offline,
           ...(context.authenticationDeferred ? { signedOut: { session: encryptedSession } } : {}),
           allowTelemetry: config?.telemetry?.enabled === true,

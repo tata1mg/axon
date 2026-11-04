@@ -8,6 +8,8 @@ import { z } from "zod";
 import { type AxonSafehouseMenuUI, runAxonSafehouseMenu } from "../cli/commands/axon-safehouse.ts";
 import type { AxonSafehouseResumeSession, AxonSafehouseSession } from "../launcher/contracts.ts";
 import type { AxonPaths } from "../product/paths.ts";
+import { registerFilesystemAccessReviewer } from "./access-relay.ts";
+import { runFilesystemAccessPrompt } from "./access-requests.ts";
 import { validateAxonSafehouseResumeSession } from "./configuration-relay.ts";
 
 const DIALOG_PREFIX = "axon-safehouse-dialog-";
@@ -98,6 +100,7 @@ export function createAxonSafehouseRpcTransport(options: {
   let dialog: { id: string; resolve: (response: RpcRecord) => void } | undefined;
   let editor: AbortController | undefined;
   let listening = false;
+  let reviewingAccess = false;
 
   const emit = (record: RpcRecord): void => {
     if (lifetime.signal.aborted || process.stdout.destroyed) return;
@@ -228,6 +231,29 @@ export function createAxonSafehouseRpcTransport(options: {
     };
   };
 
+  const stopAccessReviews = registerFilesystemAccessReviewer(options.paths, async (id, signal) => {
+    if (editing || restoring || !input || childDialogs.size > 0)
+      throw new Error("Finish the current approval dialog before reviewing filesystem access");
+    const controller = new AbortController();
+    const reviewSignal = AbortSignal.any([signal, lifetime.signal, controller.signal]);
+    editor = controller;
+    editing = true;
+    reviewingAccess = true;
+    try {
+      // The tool is waiting, not aborted. No idle checkpoint or child restart is needed
+      // for a validated expansion of the brokered workers' filesystem permissions.
+      return await runFilesystemAccessPrompt(options.paths, options.cwd, id, menuUI(reviewSignal), {
+        signal: reviewSignal,
+        authorize: () => options.axonSafehouse.configurationPolicy(),
+        liveGrant: true,
+      });
+    } finally {
+      reviewingAccess = false;
+      editing = false;
+      if (editor === controller) editor = undefined;
+    }
+  });
+
   const edit = async (): Promise<void> => {
     const controller = new AbortController();
     editor = controller;
@@ -253,7 +279,7 @@ export function createAxonSafehouseRpcTransport(options: {
         throw new Error(
           "An in-memory chat cannot survive an Axon Safehouse restart; save it first",
         );
-      saved = await runAxonSafehouseMenu(options.paths, options.cwd, menuUI(signal), {
+      const settings = {
         signal,
         requireTerminal: false,
         authorize: () => options.axonSafehouse.configurationPolicy(),
@@ -271,7 +297,8 @@ export function createAxonSafehouseRpcTransport(options: {
           finishRestart = options.prepareRestart(resume);
           restartState = current;
         },
-      });
+      };
+      saved = await runAxonSafehouseMenu(options.paths, options.cwd, menuUI(signal), settings);
     } catch (error) {
       if (!lifetime.signal.aborted)
         notify(
@@ -325,7 +352,8 @@ export function createAxonSafehouseRpcTransport(options: {
     }
     if (type === "abort" && editing && !restoring) {
       editor?.abort();
-      emit({ id: command["id"], type: "response", command: type, success: true });
+      if (reviewingAccess) forward(command);
+      else emit({ id: command["id"], type: "response", command: type, success: true });
       return;
     }
     const safehouseCommand =
@@ -521,6 +549,7 @@ export function createAxonSafehouseRpcTransport(options: {
       }
     },
     dispose() {
+      stopAccessReviews();
       closeInput();
       process.stdin.off("data", onInput);
       process.stdin.off("end", closeInput);

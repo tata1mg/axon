@@ -8,6 +8,7 @@ import { runAxonSafehouseMenu } from "../cli/commands/axon-safehouse.ts";
 import type { AxonSafehouseResumeSession } from "../launcher/contracts.ts";
 import type { AxonPaths } from "../product/paths.ts";
 import { assertInside } from "../sessions/files.ts";
+import { createFilesystemAccessRelay } from "./access-relay.ts";
 import { canonicalPath, readFilesystemPreferences } from "./filesystem.ts";
 import type { AxonSafehousePolicy } from "./policy.ts";
 
@@ -54,6 +55,7 @@ export function createAxonSafehouseConfigurationRelay(
   prepareRestart?: (session: AxonSafehouseResumeSession) => () => void,
 ) {
   const shutdown = new AbortController();
+  const access = createFilesystemAccessRelay(paths, cwd, authorize);
   let busy = false;
   const reply = (value: unknown, status = 200) =>
     Response.json(value, { status, headers: { "Cache-Control": "no-store" } });
@@ -75,6 +77,15 @@ export function createAxonSafehouseConfigurationRelay(
         }
       }
       if (
+        url.pathname === "/_axon/axon-safehouse/access" &&
+        request.method === "POST" &&
+        url.search === "" &&
+        !shutdown.signal.aborted
+      ) {
+        if (busy) return reply({ error: "The Axon Safehouse editor is already open" }, 409);
+        return access.handle(request);
+      }
+      if (
         url.pathname !== "/_axon/axon-safehouse/configure" ||
         request.method !== "POST" ||
         url.search !== "" ||
@@ -85,7 +96,8 @@ export function createAxonSafehouseConfigurationRelay(
       ) {
         return reply({ error: "Interactive Axon Safehouse configuration is unavailable" }, 404);
       }
-      if (busy) return reply({ error: "The Axon Safehouse editor is already open" }, 409);
+      if (busy || access.isReviewing)
+        return reply({ error: "The Axon Safehouse editor or access review is already open" }, 409);
       busy = true;
       const signal = AbortSignal.any([request.signal, shutdown.signal]);
       let editorClosed: (() => void) | undefined;
@@ -94,11 +106,19 @@ export function createAxonSafehouseConfigurationRelay(
         const body = await request.text();
         if (Buffer.byteLength(body) > 8192)
           return reply({ error: "Axon Safehouse configuration request is too large" }, 413);
-        const session = await validateAxonSafehouseResumeSession(paths, JSON.parse(body));
+        const resume = configurationSchema.parse(JSON.parse(body));
+        const session = await validateAxonSafehouseResumeSession(paths, resume);
         signal.throwIfAborted();
         // Arm the resume target before saving can revoke and terminate the old process.
         editorClosed = prepareRestart(session);
-        const saved = await runAxonSafehouseMenu(paths, cwd, prompts, { signal, authorize });
+        const beforeSave = async () => {
+          await validateAxonSafehouseResumeSession(paths, resume);
+        };
+        const saved = await runAxonSafehouseMenu(paths, cwd, prompts, {
+          signal,
+          authorize,
+          beforeSave,
+        });
         return reply({ opened: true, saved });
       } catch {
         return reply(
@@ -114,6 +134,7 @@ export function createAxonSafehouseConfigurationRelay(
     dispose(): void {
       // Release terminal prompts if Pi exits or its backend authorization expires.
       shutdown.abort();
+      access.dispose();
     },
   };
 }

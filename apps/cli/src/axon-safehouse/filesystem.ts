@@ -48,14 +48,17 @@ export type FilesystemPreferences = z.infer<typeof filesystemPreferencesSchema>;
 
 // Parent-owned memory only: never read legacy profiles or share grants with another Axon process.
 const invocationPreferences = new Map<string, FilesystemPreferences>();
-const preferenceListeners = new Map<string, Set<() => void>>();
+const preferenceListeners = new Map<string, Set<(requiresRestart: boolean) => void>>();
 const preferenceRevisions = new Map<string, number>();
 
 export function filesystemPreferencesRevision(paths: AxonPaths): number {
   return preferenceRevisions.get(paths.home) ?? 0;
 }
 
-export function watchFilesystemPreferences(paths: AxonPaths, changed: () => void): () => void {
+export function watchFilesystemPreferences(
+  paths: AxonPaths,
+  changed: (requiresRestart: boolean) => void,
+): () => void {
   let listeners = preferenceListeners.get(paths.home);
   if (!listeners) {
     listeners = new Set();
@@ -72,9 +75,10 @@ function commitFilesystemPreferences(
   paths: AxonPaths,
   key: string,
   preferences: FilesystemPreferences,
+  requiresRestart: boolean,
 ): void {
-  // Revoke active operations before publishing the new permissions.
-  for (const changed of preferenceListeners.get(paths.home) ?? []) changed();
+  // Revocations must stop the old processes before publishing the new permissions.
+  for (const changed of preferenceListeners.get(paths.home) ?? []) changed(requiresRestart);
   invocationPreferences.set(key, structuredClone(preferences));
   preferenceRevisions.set(paths.home, filesystemPreferencesRevision(paths) + 1);
 }
@@ -299,7 +303,9 @@ export async function saveFilesystemPreferences(
   preferences: FilesystemPreferences,
   expected?: FilesystemPreferences,
   policy?: AxonSafehousePolicy,
+  options?: { readonly liveGrant: boolean; readonly signal?: AbortSignal },
 ): Promise<FilesystemPreferences> {
+  options?.signal?.throwIfAborted();
   const destination = await filesystemPreferencesPath(paths, cwd);
   const revision = filesystemPreferencesRevision(paths);
   const current = await readFilesystemPreferences(paths, cwd);
@@ -313,6 +319,32 @@ export async function saveFilesystemPreferences(
     );
   if (filesystemPreferencesRevision(paths) !== revision)
     throw axonSafehouseFailure("Filesystem permissions changed; reopen the editor before saving");
-  commitFilesystemPreferences(paths, destination, validated);
+  if (options?.liveGrant) {
+    const project = await canonicalPath(cwd);
+    const writableRoots = [
+      ...(current.projectMode === "read-write" ? [project] : []),
+      ...current.writePaths,
+    ];
+    // A live approval may only expand access. Any revocation still requires replacing Pi,
+    // whose compiled profile could otherwise retain permissions that have been removed.
+    if (
+      JSON.stringify(current.denyPaths) !== JSON.stringify(validated.denyPaths) ||
+      (current.projectMode === "read-write" && validated.projectMode !== "read-write") ||
+      current.writePaths.some((path) => !validated.writePaths.includes(path)) ||
+      current.readPaths.some(
+        (path) => !validated.readPaths.includes(path) && !validated.writePaths.includes(path),
+      ) ||
+      validated.readPaths.some(
+        (path) =>
+          !current.readPaths.includes(path) &&
+          writableRoots.some((root) => isWithin(root, path) || isWithin(path, root)),
+      )
+    )
+      throw axonSafehouseFailure("Revoking filesystem access requires the /safehouse editor");
+    if (filesystemPreferencesRevision(paths) !== revision)
+      throw axonSafehouseFailure("Filesystem permissions changed; retry the access request");
+  }
+  options?.signal?.throwIfAborted();
+  commitFilesystemPreferences(paths, destination, validated, !options?.liveGrant);
   return validated;
 }

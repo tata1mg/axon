@@ -532,11 +532,118 @@ function createAxonSafehouseScopeDisplay(ctx: ExtensionContext) {
   };
 }
 
+/** Both standalone extension bundles use the same bus to serialize in-chat reviews. */
+export function reviewAxonSafehouseAccessRequest(
+  pi: ExtensionAPI,
+  id: string,
+  ctx: ExtensionContext,
+  signal = ctx.signal,
+): Promise<boolean> {
+  if (!ctx.hasUI || signal?.aborted) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    const finish = (saved: boolean) => {
+      signal?.removeEventListener("abort", cancel);
+      resolve(saved);
+    };
+    const cancel = () => finish(false);
+    signal?.addEventListener("abort", cancel, { once: true });
+    pi.events.emit("axon:safehouse-access-request", { id, ctx, signal, finish });
+  });
+}
+
+async function openFilesystemAccessReview(
+  id: string,
+  ctx: ExtensionContext,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  const config = authRelayConfiguration();
+  if (!config || !ctx.hasUI || signal?.aborted) return false;
+  const request = () =>
+    fetch(new URL("/_axon/axon-safehouse/access", config.origin), {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.capability}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ accessRequest: id }),
+      ...(signal ? { signal } : {}),
+      redirect: "error",
+      cache: "no-store",
+    });
+  if (ctx.mode === "rpc") {
+    const response = await request();
+    if (!response.ok) return false;
+    const result = (await response.json()) as { saved?: unknown };
+    return result.saved === true;
+  }
+  if (ctx.mode !== "tui") return false;
+  return ctx.ui.custom<boolean>((tui, theme, _keybindings, done) => {
+    const component = new Text(theme.fg("warning", "Reviewing blocked filesystem access…"), 1, 1);
+    // Release only terminal input, not the TUI renderer or the active agent turn. The
+    // parent reads actual keystrokes and streams display state; the child cannot approve.
+    tui.terminal.stop();
+    void (async () => {
+      let saved = false;
+      try {
+        const response = await request();
+        if (!response.ok || !response.body) return;
+        const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+        let buffer = "";
+        try {
+          while (true) {
+            const chunk = await reader.read();
+            if (chunk.done) break;
+            buffer += chunk.value;
+            let newline = buffer.indexOf("\n");
+            while (newline !== -1) {
+              const record = JSON.parse(buffer.slice(0, newline)) as {
+                type?: string;
+                title?: string;
+                choices?: string[];
+                selected?: number;
+                saved?: boolean;
+              };
+              buffer = buffer.slice(newline + 1);
+              newline = buffer.indexOf("\n");
+              if (record.type === "complete") saved = record.saved === true;
+              if (record.type === "dialog" && record.title && Array.isArray(record.choices)) {
+                component.setText(
+                  [
+                    theme.fg("warning", record.title),
+                    "",
+                    ...record.choices.map((choice, index) =>
+                      index === record.selected ? theme.fg("accent", `› ${choice}`) : `  ${choice}`,
+                    ),
+                    "",
+                    theme.fg("dim", "↑/↓ to choose · Enter to confirm · Esc to deny"),
+                  ].join("\n"),
+                );
+                tui.requestRender();
+              }
+            }
+          }
+        } finally {
+          await reader.cancel().catch(() => {});
+          reader.releaseLock();
+        }
+      } catch {
+        // Dismissal, cancellation and failed reviews never grant access or abort the chat.
+      } finally {
+        tui.start();
+        done(saved);
+        tui.requestRender();
+      }
+    })();
+    return component;
+  });
+}
+
 async function requestAxonSafehouseOperation(
   tool: string,
   input: unknown,
   cwd: string,
   signal?: AbortSignal,
+  onAccessRequest?: (id: string) => Promise<boolean>,
 ): Promise<unknown> {
   const config = authRelayConfiguration();
   if (!config) throw new Error("The parent-owned Axon Safehouse operation relay is unavailable");
@@ -551,18 +658,40 @@ async function requestAxonSafehouseOperation(
     redirect: "error",
     cache: "no-store",
   });
-  const result: unknown = await response.json();
-  if (!response.ok) {
-    const error = result as { error?: unknown } | null;
-    throw new Error(
-      typeof error?.error === "string" ? error.error : "Axon Safehouse operation failed",
-    );
+  const result = (await response.json()) as {
+    accessRequest?: unknown;
+    error?: unknown;
+    stderr?: string;
+  } | null;
+  let review: string | undefined;
+  if (typeof result?.accessRequest === "string" && /^[a-f0-9-]{36}$/.test(result.accessRequest)) {
+    const saved = (await onAccessRequest?.(result.accessRequest).catch(() => false)) === true;
+    signal?.throwIfAborted();
+    // Only idempotent inspection tools can be transparently retried. Shell commands,
+    // writes and edits may already have side effects before reporting a denied path.
+    if (saved && ["read", "grep", "find", "ls"].includes(tool))
+      return requestAxonSafehouseOperation(tool, input, cwd, signal);
+    review = saved
+      ? "[Safehouse access review: granted for this session. Continue the task. The failed operation was not replayed; inspect any partial effects before retrying a command or edit.]"
+      : "[Safehouse access review: not granted. Keep this path blocked and continue with permitted work; do not retry the denied path.]";
+    if (tool === "denial") return { ...result, accessGranted: saved };
   }
+  if (!response.ok)
+    throw new Error(
+      [typeof result?.error === "string" ? result.error : "Axon Safehouse operation failed", review]
+        .filter(Boolean)
+        .join("\n"),
+    );
+  if (review && tool === "shell")
+    return { ...result, stderr: `${result?.stderr ?? ""}\n${review}` };
   return result;
 }
 
 /** Shared by the bundled terminal guard; approvals still run before any shell operation. */
-export function createAxonSafehouseShellOperations(shellPath?: string): BashOperations | undefined {
+export function createAxonSafehouseShellOperations(
+  shellPath?: string,
+  onAccessRequest?: (id: string) => Promise<boolean>,
+): BashOperations | undefined {
   if (process.env["PI_AXON_SAFEHOUSE_OPERATIONS"] !== "1") return undefined;
   return {
     async exec(command, cwd, options) {
@@ -575,6 +704,7 @@ export function createAxonSafehouseShellOperations(shellPath?: string): BashOper
         },
         cwd,
         options.signal,
+        onAccessRequest,
       )) as { exitCode: number; stdout: string; stderr: string };
       options.onData(Buffer.from(result.stdout));
       options.onData(Buffer.from(result.stderr));
@@ -597,6 +727,7 @@ function registerAxonSafehouseFileTools(pi: ExtensionAPI): void {
           parameters,
           ctx.cwd,
           signal,
+          (id) => reviewAxonSafehouseAccessRequest(pi, id, ctx, signal),
         )) as Awaited<ReturnType<typeof nativeTool.execute>>;
       },
     });
@@ -620,12 +751,81 @@ export default function axonExtension(pi: ExtensionAPI): void {
       "You are running through Axon Pi, not Pi directly. " +
       "Use PI_CODING_AGENT_DIR (normally ~/.axon/pi), not ~/.pi/agent, for user-level configuration: " +
       "MCP servers in mcp.json, skills in skills/, and extensions in extensions/. " +
-      "Project-local configuration still uses .pi/.";
+      "Project-local configuration still uses .pi/. " +
+      "When Safehouse blocks filesystem access, the tool waits for the user's in-chat permission review. " +
+      "After approval, continue the same task using the granted access. After denial, continue only with permitted work. " +
+      "Do not retry the same path through another tool or command to bypass the restriction.";
   });
 
   registerAxonSafehouseFileTools(pi);
   let axonSafehouseDisplay: ReturnType<typeof createAxonSafehouseScopeDisplay>;
   let axonSafehouseEditorOpen = false;
+  let accessReviews = Promise.resolve();
+  // Keep this channel in sync with the separately bundled terminal guard. Every tool
+  // waits for its review; concurrent tools cannot replace each other's approval UI.
+  pi.events.on("axon:safehouse-access-request", (data) => {
+    const request = data as {
+      id: string;
+      ctx: ExtensionContext;
+      signal?: AbortSignal;
+      finish: (saved: boolean) => void;
+    };
+    if (!request || typeof request.id !== "string" || typeof request.finish !== "function") return;
+    accessReviews = accessReviews.then(async () => {
+      let saved = false;
+      try {
+        if (!axonSafehouseEditorOpen && !request.signal?.aborted) {
+          pi.events.emit(AXON_SAFEHOUSE_EDITOR_CHANNEL, true);
+          saved = await openFilesystemAccessReview(request.id, request.ctx, request.signal);
+        }
+      } catch {
+        // A failed review is a denial, not a reason to abort the active task.
+      } finally {
+        pi.events.emit(AXON_SAFEHOUSE_EDITOR_CHANNEL, false);
+        await axonSafehouseDisplay?.refresh();
+        request.finish(saved);
+      }
+    });
+  });
+  pi.on("tool_result", async (event, ctx) => {
+    if (ctx.hasUI && event.isError && process.env["PI_AXON_SAFEHOUSE_OPERATIONS"] === "1") {
+      const diagnostic = event.content
+        .filter((content) => content.type === "text")
+        .map((content) => content.text)
+        .join("\n")
+        .slice(0, 64 * 1024);
+      if (
+        !diagnostic.includes("[Safehouse access review:") &&
+        /\b(?:EACCES|EPERM|permission denied|operation not permitted)\b/i.test(diagnostic)
+      ) {
+        // Also cover tools supplied by other extensions, without inspecting successful results.
+        const review = (await requestAxonSafehouseOperation(
+          "denial",
+          {
+            tool: event.toolName,
+            diagnostic,
+            ...(typeof event.input["path"] === "string" ? { path: event.input["path"] } : {}),
+          },
+          ctx.cwd,
+          ctx.signal,
+          (id) => reviewAxonSafehouseAccessRequest(pi, id, ctx),
+        ).catch(() => undefined)) as { accessGranted?: boolean } | undefined;
+        if (typeof review?.accessGranted === "boolean")
+          return {
+            content: [
+              ...event.content,
+              {
+                type: "text" as const,
+                text: review.accessGranted
+                  ? "[Safehouse access review: granted. Continue the task; use the brokered file or shell tools for the newly allowed path. Check partial effects before retrying commands or edits.]"
+                  : "[Safehouse access review: not granted. Continue only with permitted work; do not retry this path.]",
+              },
+            ],
+          };
+      }
+    }
+    return undefined;
+  });
   let backupState: BackupHeaderState | undefined;
   let terminalState: TerminalHeaderState | undefined;
   let refreshHeader: (() => void) | undefined;
@@ -721,128 +921,130 @@ export default function axonExtension(pi: ExtensionAPI): void {
     return new Text(theme.fg("accent", message), 1, 0);
   });
 
-  pi.registerCommand("safehouse", {
-    description: "Edit temporary Axon Safehouse filesystem access in your terminal or RPC client",
-    handler: async (args, ctx) => {
-      // The parent intercepts the user's RPC command and owns every settings dialog.
-      // These child-side checkpoints only suspend competing login cards and save the branch;
-      // neither this command nor the HTTP relay can approve RPC permission changes.
-      if (ctx.mode === "rpc" && args.trim() === "--rpc-close") {
-        pi.events.emit(AXON_SAFEHOUSE_EDITOR_CHANNEL, false);
-        return;
-      }
-      if (args.trim()) {
-        ctx.ui.notify(
-          "Use /safehouse without arguments to open the Axon Safehouse filesystem access editor.",
-          "warning",
-        );
-        return;
-      }
-      const config = authRelayConfiguration();
-      if ((ctx.mode !== "tui" && ctx.mode !== "rpc") || config === undefined) {
-        ctx.ui.notify(
-          "Open an interactive Axon session to edit temporary Axon Safehouse permissions.",
-          "warning",
-        );
-        return;
-      }
-      if (axonSafehouseEditorOpen) return;
-      if (!ctx.isIdle() || ctx.hasPendingMessages()) {
-        ctx.ui.notify("Wait for the current turn to finish, then run /safehouse.", "warning");
-        return;
-      }
-      const sessionId = ctx.sessionManager.getSessionId();
-      const sessionFile = ctx.sessionManager.getSessionFile();
-      const hasConversation = ctx.sessionManager
-        .getEntries()
-        .some(
-          (entry) =>
-            entry.type === "message" &&
-            (entry.message.role === "user" || entry.message.role === "assistant"),
-        );
-      if (hasConversation && !sessionFile) {
-        ctx.ui.notify(
-          "Save or resume a persisted session before changing Axon Safehouse permissions; an in-memory chat cannot survive Pi's required restart.",
-          "warning",
-        );
-        return;
-      }
-      if (hasConversation) {
-        // Native resume chooses the last entry. This harmless checkpoint preserves
-        // the selected branch, including a tree navigation without a subsequent turn.
-        pi.appendEntry("axon-safehouse-restart", {});
-      }
-      if (ctx.mode === "rpc") {
-        pi.events.emit(AXON_SAFEHOUSE_EDITOR_CHANNEL, true);
-        return;
-      }
-      const resume = {
-        sessionId,
-        ...(hasConversation && sessionFile ? { sessionFile } : {}),
-      };
-      axonSafehouseEditorOpen = true;
-      // Suspend login dialogs while the parent owns the terminal.
+  const configureAxonSafehouse = async (args: string, ctx: ExtensionContext): Promise<void> => {
+    // The parent intercepts the user's RPC command and owns every settings dialog.
+    // These child-side checkpoints only suspend competing login cards and save the branch;
+    // neither this command nor the HTTP relay can approve RPC permission changes.
+    if (ctx.mode === "rpc" && args.trim() === "--rpc-close") {
+      pi.events.emit(AXON_SAFEHOUSE_EDITOR_CHANNEL, false);
+      return;
+    }
+    if (args.trim()) {
+      ctx.ui.notify(
+        "Use /safehouse without arguments to open the Axon Safehouse filesystem access editor.",
+        "warning",
+      );
+      return;
+    }
+    const config = authRelayConfiguration();
+    if ((ctx.mode !== "tui" && ctx.mode !== "rpc") || config === undefined) {
+      ctx.ui.notify(
+        "Open an interactive Axon session to edit temporary Axon Safehouse permissions.",
+        "warning",
+      );
+      return;
+    }
+    if (axonSafehouseEditorOpen) return;
+    if (!ctx.isIdle() || ctx.hasPendingMessages()) {
+      ctx.ui.notify("Wait for the current turn to finish, then run /safehouse.", "warning");
+      return;
+    }
+    const sessionId = ctx.sessionManager.getSessionId();
+    const sessionFile = ctx.sessionManager.getSessionFile();
+    const hasConversation = ctx.sessionManager
+      .getEntries()
+      .some(
+        (entry) =>
+          entry.type === "message" &&
+          (entry.message.role === "user" || entry.message.role === "assistant"),
+      );
+    if (hasConversation && !sessionFile) {
+      ctx.ui.notify(
+        "Save or resume a persisted session before changing Axon Safehouse permissions; an in-memory chat cannot survive Pi's required restart.",
+        "warning",
+      );
+      return;
+    }
+    if (hasConversation) {
+      // Native resume chooses the last entry. This harmless checkpoint preserves
+      // the selected branch, including a tree navigation without a subsequent turn.
+      pi.appendEntry("axon-safehouse-restart", {});
+    }
+    if (ctx.mode === "rpc") {
       pi.events.emit(AXON_SAFEHOUSE_EDITOR_CHANNEL, true);
-      try {
-        const outcome = await ctx.ui.custom<{ opened: boolean; saved: boolean }>(
-          async (tui, _theme, _keybindings, done) => {
-            // Release stdin and terminal protocols before Axon takes over the same terminal.
-            tui.stop();
-            let outcome = { opened: false, saved: false };
-            try {
-              process.stdout.write("\x1b[2J\x1b[H");
-              const response = await fetch(
-                new URL("/_axon/axon-safehouse/configure", config.origin),
-                {
-                  method: "POST",
-                  headers: {
-                    Authorization: `Bearer ${config.capability}`,
-                    "Content-Type": "application/json",
-                  },
-                  body: JSON.stringify(resume),
-                  redirect: "error",
-                  cache: "no-store",
+      return;
+    }
+    const resume = {
+      sessionId,
+      ...(hasConversation && sessionFile ? { sessionFile } : {}),
+    };
+    axonSafehouseEditorOpen = true;
+    // Suspend login dialogs while the parent owns the terminal.
+    pi.events.emit(AXON_SAFEHOUSE_EDITOR_CHANNEL, true);
+    try {
+      const outcome = await ctx.ui.custom<{ opened: boolean; saved: boolean }>(
+        async (tui, _theme, _keybindings, done) => {
+          // Release stdin and terminal protocols before Axon takes over the same terminal.
+          tui.stop();
+          let outcome = { opened: false, saved: false };
+          try {
+            process.stdout.write("\x1b[2J\x1b[H");
+            const response = await fetch(
+              new URL("/_axon/axon-safehouse/configure", config.origin),
+              {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${config.capability}`,
+                  "Content-Type": "application/json",
                 },
-              );
-              if (!response.ok) throw new Error("Axon Safehouse editor unavailable");
-              const result: unknown = await response.json();
-              const payload = result as { opened?: unknown; saved?: unknown } | null;
-              if (typeof payload?.opened !== "boolean")
-                throw new Error("Invalid Axon Safehouse editor response");
-              outcome = { opened: payload.opened, saved: payload.saved === true };
-            } finally {
-              // Restore the chat even if the relay fails or the user cancels the editor.
-              tui.start();
-              tui.requestRender(true);
-            }
-            done(outcome);
-            return { render: () => [], invalidate: () => {} };
-          },
-        );
-        if (outcome.saved) {
-          ctx.ui.notify(
-            "Axon Safehouse permissions saved. Axon will restart Pi and resume this chat under the new rules.",
-            "info",
-          );
-          return;
-        }
+                body: JSON.stringify(resume),
+                redirect: "error",
+                cache: "no-store",
+              },
+            );
+            if (!response.ok) throw new Error("Axon Safehouse editor unavailable");
+            const result: unknown = await response.json();
+            const payload = result as { opened?: unknown; saved?: unknown } | null;
+            if (typeof payload?.opened !== "boolean")
+              throw new Error("Invalid Axon Safehouse editor response");
+            outcome = { opened: payload.opened, saved: payload.saved === true };
+          } finally {
+            // Restore the chat even if the relay fails or the user cancels the editor.
+            tui.start();
+            tui.requestRender(true);
+          }
+          done(outcome);
+          return { render: () => [], invalidate: () => {} };
+        },
+      );
+      if (outcome.saved) {
         ctx.ui.notify(
-          outcome.opened
-            ? "Axon Safehouse editor closed without saving. Your chat is unchanged."
-            : "Axon Safehouse configuration cancelled. Your chat is unchanged.",
+          "Axon Safehouse permissions saved. Axon will restart Pi and resume this chat under the new rules.",
           "info",
         );
-      } catch {
-        ctx.ui.notify(
-          "Could not complete Axon Safehouse configuration. Run /safehouse again to review the current permissions.",
-          "warning",
-        );
-      } finally {
-        await axonSafehouseDisplay?.refresh();
-        axonSafehouseEditorOpen = false;
-        pi.events.emit(AXON_SAFEHOUSE_EDITOR_CHANNEL, false);
+        return;
       }
-    },
+      ctx.ui.notify(
+        outcome.opened
+          ? "Axon Safehouse editor closed without saving. Your chat is unchanged."
+          : "Axon Safehouse configuration cancelled. Your chat is unchanged.",
+        "info",
+      );
+    } catch {
+      ctx.ui.notify(
+        "Could not complete Axon Safehouse configuration. Run /safehouse again to review the current permissions.",
+        "warning",
+      );
+    } finally {
+      await axonSafehouseDisplay?.refresh();
+      axonSafehouseEditorOpen = false;
+      pi.events.emit(AXON_SAFEHOUSE_EDITOR_CHANNEL, false);
+    }
+  };
+
+  pi.registerCommand("safehouse", {
+    description: "Edit temporary Axon Safehouse filesystem access in your terminal or RPC client",
+    handler: (args, ctx) => configureAxonSafehouse(args, ctx),
   });
 
   pi.registerCommand("axon-status", {

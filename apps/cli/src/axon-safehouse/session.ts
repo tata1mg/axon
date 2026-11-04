@@ -72,8 +72,8 @@ export async function createAxonSafehouseSession(
   const profiles = new Map<string, Promise<LaunchSpec>>();
   const activeCommands = new Set<() => void>();
   const activeOperations = new Set<() => void>();
-  const stopWatching = watchFilesystemPreferences(context.paths, () => {
-    for (const stop of activeOperations) stop();
+  const stopWatching = watchFilesystemPreferences(context.paths, (requiresRestart) => {
+    if (requiresRestart) for (const stop of activeOperations) stop();
     profiles.clear();
     // A settings change rescans package roots, picking up links created since.
     resources.packageScans.clear();
@@ -191,7 +191,11 @@ export async function createAxonSafehouseSession(
       const brokered = specification.environment["PI_AXON_SAFEHOUSE_OPERATIONS"] === "1";
       const revocation = new AbortController();
       const stopWatchingSession = brokered
-        ? watchFilesystemPreferences(context.paths, () => revocation.abort())
+        ? watchFilesystemPreferences(context.paths, (requiresRestart) => {
+            // Brokered workers compile fresh profiles for added grants. The chat's older,
+            // narrower read-only profile remains safe until an actual revocation occurs.
+            if (requiresRestart) revocation.abort();
+          })
         : () => {};
       return {
         ...wrapped,

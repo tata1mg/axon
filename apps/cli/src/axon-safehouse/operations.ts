@@ -4,12 +4,22 @@ import { pathToFileURL } from "node:url";
 import { z } from "zod";
 
 import type { AxonSafehouseSession, LaunchSpec } from "../launcher/contracts.ts";
+import type { AxonPaths } from "../product/paths.ts";
+import { createFilesystemAccessRequest } from "./access-requests.ts";
 import { axonSafehouseFailure } from "./policy.ts";
 
 const operationSchema = z.strictObject({
-  tool: z.enum(["read", "write", "edit", "grep", "find", "ls", "shell"]),
+  tool: z.enum(["read", "write", "edit", "grep", "find", "ls", "shell", "denial"]),
   input: z.record(z.string(), z.unknown()),
   cwd: z.string().min(1).max(4096),
+});
+const denialSchema = z.strictObject({
+  tool: z.string().min(1).max(128),
+  diagnostic: z
+    .string()
+    .min(1)
+    .max(64 * 1024),
+  path: z.string().min(1).max(4096).optional(),
 });
 const shellSchema = z.strictObject({
   command: z.string().max(1024 * 1024),
@@ -47,6 +57,7 @@ try {
 export function createAxonSafehouseOperations(
   axonSafehouse: AxonSafehouseSession,
   specification: LaunchSpec,
+  paths: AxonPaths,
 ): (request: Request) => Promise<Response> {
   const node = Bun.which("node", { PATH: specification.environment["PATH"] ?? "/usr/bin:/bin" });
   let toolsModule: Promise<string> | undefined;
@@ -66,6 +77,24 @@ export function createAxonSafehouseOperations(
       if (Buffer.byteLength(text) > 10 * 1024 * 1024)
         return Response.json({ error: "Axon Safehouse operation is too large" }, { status: 413 });
       const operation = operationSchema.parse(JSON.parse(text));
+      if (operation.tool === "denial") {
+        // Other extensions can report a failed tool, but cannot execute host code or grant access.
+        const denial = denialSchema.parse(operation.input);
+        request.signal.throwIfAborted();
+        const accessRequest = await createFilesystemAccessRequest({
+          paths,
+          project: specification.cwd,
+          cwd: operation.cwd,
+          tool: denial.tool,
+          input: denial.path ? { path: denial.path } : {},
+          diagnostic: denial.diagnostic,
+          authorize: () => axonSafehouse.configurationPolicy(),
+        });
+        return Response.json(
+          { ...(accessRequest ? { accessRequest } : {}) },
+          { headers: { "Cache-Control": "no-store" } },
+        );
+      }
       const execute = async (): Promise<Response> => {
         request.signal.throwIfAborted();
         let executable: string;
@@ -103,10 +132,28 @@ export function createAxonSafehouseOperations(
             ...(timeoutMs === undefined ? {} : { timeoutMs }),
           },
         );
+        const accessRequest = await createFilesystemAccessRequest({
+          paths,
+          project: specification.cwd,
+          cwd: operation.cwd,
+          tool: operation.tool,
+          input: operation.input,
+          diagnostic: result.stderr,
+          authorize: () => axonSafehouse.configurationPolicy(),
+        }).catch(() => undefined);
         if (operation.tool === "shell")
-          return Response.json(result, { headers: { "Cache-Control": "no-store" } });
+          return Response.json(
+            { ...result, ...(accessRequest ? { accessRequest } : {}) },
+            { headers: { "Cache-Control": "no-store" } },
+          );
         if (result.exitCode !== 0)
-          throw new Error(result.stderr.slice(0, 8192) || "Axon Safehouse file operation failed");
+          return Response.json(
+            {
+              error: result.stderr.slice(0, 8192) || "Axon Safehouse file operation failed",
+              ...(accessRequest ? { accessRequest } : {}),
+            },
+            { status: accessRequest ? 403 : 400, headers: { "Cache-Control": "no-store" } },
+          );
         return Response.json(JSON.parse(result.stdout), {
           headers: { "Cache-Control": "no-store" },
         });
