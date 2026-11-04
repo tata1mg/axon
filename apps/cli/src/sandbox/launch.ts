@@ -390,7 +390,7 @@ export async function createSandboxLaunchSpec(
     stateFiles.some((path) => protectedPaths.some((protectedPath) => isWithin(protectedPath, path)))
   )
     throw sandboxFailure(
-      "Backend policy blocks essential Pi state; ask your administrator to allow Pi auth, settings and model state",
+      "Backend policy blocks essential Pi state; ask your administrator to allow Pi auth, settings, trust and model state",
     );
   const resources =
     options.resources ??
@@ -521,8 +521,16 @@ export async function createSandboxLaunchSpec(
         );
       }
     }
-    // Pi requires writable auth/settings/model files and their lock directories.
-    // This is Pi's provider state, never the shared Axon/DeputyDev login credential.
+    // Pi 1.5 also locks the trust store when only reading saved decisions during
+    // package setup. Allow that lock without letting installers change decisions.
+    if (provisioning) {
+      const trustPath = await canonicalPath(join(piRoot, "trust.json"));
+      if (dirname(trustPath) !== piRoot)
+        throw sandboxFailure("Pi state files must remain inside the managed Pi directory");
+      rules.push(pathRule("allow file-read* file-write*", `${trustPath}.lock`));
+    }
+    // Pi requires writable auth/settings/trust/model files and their lock directories.
+    // This is Pi's own state, never the shared Axon/DeputyDev login credential.
     for (const path of purpose === "session" ? stateFiles : []) {
       if (dirname(path) !== piRoot)
         throw sandboxFailure("Pi state files must remain inside the managed Pi directory");

@@ -139,8 +139,9 @@ export async function saveEncryptedSession(
   paths: AxonPaths,
   encryptedSession: string,
   expectedSession?: string,
+  signal?: AbortSignal,
 ): Promise<void> {
-  await persistEncryptedSession(paths, encryptedSession, expectedSession);
+  await persistEncryptedSession(paths, encryptedSession, expectedSession, signal);
 }
 
 /** Clear the shared local credential, preserving DeputyDev's unrelated settings. */

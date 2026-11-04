@@ -1,6 +1,7 @@
 import { BUILD_INFO } from "../../build-info.ts";
 import { LauncherError } from "../../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
+import { withFileLock } from "../../launcher/file-lock.ts";
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../../product/endpoints.ts";
 import type { AxonPaths } from "../../product/paths.ts";
 import { emitProductEvent } from "../../telemetry/product-events.ts";
@@ -13,7 +14,10 @@ export type SessionVerificationStatus = "VERIFIED" | "NOT_VERIFIED" | "EXPIRED";
 export async function verifyEncryptedSession(
   encryptedSession: string,
   paths?: AxonPaths,
-  options: { readonly onCredential?: (value: string) => void } = {},
+  options: {
+    readonly onCredential?: (value: string) => void;
+    readonly signal?: AbortSignal;
+  } = {},
 ): Promise<SessionVerificationStatus> {
   const startedAt = Date.now();
   // LauncherError causes may also be printed by AXON_DEBUG outside the relay.
@@ -23,10 +27,20 @@ export async function verifyEncryptedSession(
     redactor.protectSecret(value);
     options.onCredential?.(value);
   };
-  try {
+  const verify = async (): Promise<SessionVerificationStatus> => {
     // A concurrent login/refresh must be verified, never overwritten or treated as expired.
     for (let attempt = 0; attempt < 3; attempt += 1) {
+      options.signal?.throwIfAborted();
       protectCredential(encryptedSession);
+      if (paths) {
+        // Check before contacting auth: refreshing an obsolete ancestor can revoke
+        // the whole Supabase session, even if a later conditional write is skipped.
+        const currentSession = await loadEncryptedSession(paths);
+        if (currentSession === undefined)
+          throw new Error("Saved session changed during verification");
+        encryptedSession = currentSession;
+        protectCredential(encryptedSession);
+      }
       const response = await fetch(
         resolveServiceUrl(
           BUILD_INFO.serviceOrigin,
@@ -38,7 +52,10 @@ export async function verifyEncryptedSession(
           headers: { Authorization: `Bearer ${encryptedSession}` },
           redirect: "error",
           cache: "no-store",
-          signal: AbortSignal.timeout(10_000),
+          signal: AbortSignal.any([
+            AbortSignal.timeout(10_000),
+            ...(options.signal === undefined ? [] : [options.signal]),
+          ]),
         },
       );
       const refreshedSession = response.headers.get("x-session-refresh-token");
@@ -124,6 +141,16 @@ export async function verifyEncryptedSession(
       return status;
     }
     throw new Error("Saved session kept changing during verification");
+  };
+  try {
+    // Startup checks and recovery in different Axon processes share the same
+    // refresh-capable verification lock, independently of the short write lock.
+    return paths
+      ? await withFileLock(`${paths.sharedAuthLock}.verify`, verify, {
+          timeoutMs: 60_000,
+          ...(options.signal === undefined ? {} : { signal: options.signal }),
+        })
+      : await verify();
   } catch (error) {
     emitProductEvent({
       category: "auth",

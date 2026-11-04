@@ -26,6 +26,7 @@ const PROTECTED_HOME_PATHS = [
 export const PI_STATE_FILES = [
   "auth.json",
   "settings.json",
+  "trust.json",
   "models.json",
   "models-store.json",
   "litellm-models-dev.json",
