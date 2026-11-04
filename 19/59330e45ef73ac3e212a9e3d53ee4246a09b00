@@ -1,0 +1,185 @@
+apps/cli/src/harnesses/pi/resources/extensions/session-backup.mjs
+  h_dc688f708c4675 2,6
+  h_dc688f708c4675 56,58
+apps/cli/tests/git-ai.test.ts
+  s_a92d030421d3bf::t_be89f79d72f0b6 6
+  s_a92d030421d3bf::t_8bdb4cb7b74291 177,180
+apps/backend/app/core/config.py
+  s_a92d030421d3bf::t_f65d25e05c82eb 14
+  s_a92d030421d3bf::t_a6cad0eea503e7 194,521,523,525,726
+apps/cli/tests/axon-header.test.ts
+  s_92be98cac1b5a8::t_a925338f25888e 247
+apps/cli/src/harnesses/pi/resources/extensions/axon-auth.ts
+  s_a92d030421d3bf::t_bc37cf1085031e 21,402
+apps/cli/src/launcher/spawn-harness.ts
+  s_a92d030421d3bf::t_b68301be810c85 1,15,38
+  s_a92d030421d3bf::t_9e3d5c0286197d 139
+apps/cli/src/cli/auth/request-relay.ts
+  s_a92d030421d3bf::t_251e3700e049b4 6,468,470-472,487-489,492-493,516-517,519,521-523,574
+  s_a92d030421d3bf::t_f24bde87cd01ad 2-3
+  s_a92d030421d3bf::t_1573774c145dd5 469
+apps/cli/tests/compiled-pi-resources.test.ts
+  s_a92d030421d3bf::t_1beb522b7aad50 51,81,96,99,101-103,198
+apps/cli/tests/launcher.test.ts
+  s_a92d030421d3bf::t_e77b82b0977653 40
+apps/backend/config_template.json
+  s_a92d030421d3bf::t_eecb4716e6968e 121
+apps/backend/app/core/terminal_permissions.py
+  s_a92d030421d3bf::t_f86c2ea23fe60c 3
+apps/cli/docs/ux-orchestrator-os-feasibility.md
+  s_a92d030421d3bf::t_eb4880687b856f 34,77,219
+apps/cli/src/cli/commands/setup.ts
+  s_a92d030421d3bf::t_26dd45606b440c 1,61-63
+  s_a92d030421d3bf::t_937b42dd44b41f 67
+apps/cli/tests/pi-package-setup.test.ts
+  s_a92d030421d3bf::t_7548c089363e83 24,175-176,178,921-922,925-926,938,940
+apps/cli/src/launcher/contracts.ts
+  s_a92d030421d3bf::t_979b69ab9b1444 12,17,25-26,46,55,62,64
+  s_a92d030421d3bf::t_c2f08cf5ac247a 1,74-77
+docs/user-guide.md
+  s_a92d030421d3bf::t_f797ad57567435 161
+apps/backend/app/routers/cli_config.py
+  s_a92d030421d3bf::t_8850cd7773a16b 1,24,26,31,41-42,44-46,48,60
+  s_a92d030421d3bf::t_31a34925c75334 9
+apps/cli/tests/session-backups.test.ts
+  s_a92d030421d3bf::t_e4b8f952185d87 566
+  s_a92d030421d3bf::t_53e878e60de943 20
+apps/cli/src/launcher/launch-harness.ts
+  s_a92d030421d3bf::t_18395b178bdd53 2-10,45,47,52,63,71,82,86,89,113,118,121,127,204,221,240,243,245-247,256,259
+  s_a92d030421d3bf::t_11f924d0ae5e5c 48
+  s_a92d030421d3bf::t_222533874b541e 257-258
+  s_a92d030421d3bf::t_bdcc5d50e872f7 21-22
+apps/backend/README.md
+  s_a92d030421d3bf::t_bd8dc86351362f 31
+apps/cli/src/harnesses/pi/setup/packages/sync.ts
+  s_a92d030421d3bf::t_0f4317c15b6bd7 3
+  s_a92d030421d3bf::t_2410ee54725764 99
+apps/cli/src/harnesses/pi/resources/extensions/terminal-permissions.ts
+  s_a92d030421d3bf::t_381f3d8e78fd80 17,23,237,296,588,653
+apps/cli/tests/spawn-harness-resize.test.ts
+  s_a92d030421d3bf::t_2e232b8045d7a1 14
+apps/cli/src/cli/client-config.ts
+  s_a92d030421d3bf::t_ac46a484681695 2-5
+  s_a92d030421d3bf::t_c0c9695f590d5c 140,242,244,247,250
+apps/cli/src/harnesses/pi/resources/extensions/axon.ts
+  s_92be98cac1b5a8::t_c300e52a155575 328
+  s_a92d030421d3bf::t_4645e6035b648b 147-149,383,414,457,515,542,724-725,736,744,751,765,807,811,824,831-832,837
+  s_a92d030421d3bf::t_e72f38f8753060 557-559
+  s_a92d030421d3bf::t_7297c065b559ee 30,32,144-145,173-174,181,361,369-370,385,389,393,506,512,516,535,543,565-566,569,586-587,595,626-628,667-669,683,714-715,731,749,773,776,783,785,841-843
+  s_a92d030421d3bf::t_f559e3f9afae93 794-804,806
+apps/cli/.env.example
+  s_a92d030421d3bf::t_b1371cc6dd91ea 142
+apps/cli/tests/pi-client-config.test.ts
+  s_a92d030421d3bf::t_aa0f787efc6367 139-140
+apps/cli/src/cli/commands/doctor.ts
+  s_a92d030421d3bf::t_bd4cf81733239a 3
+  s_a92d030421d3bf::t_6b87e17a2b5c94 175,257-258,277
+apps/cli/README.md
+  s_a92d030421d3bf::t_8f434a0c58c350 525
+apps/cli/tests/fixtures/launcher-preload.ts
+  s_a92d030421d3bf::t_fecd21b427657d 2,5-6,8-9
+apps/cli/src/harnesses/pi/adapter.ts
+  s_a92d030421d3bf::t_493c3effedb2e9 98,101,163-164,166,175-178,244,253
+  s_a92d030421d3bf::t_24500bad3b9928 1-2
+apps/backend/tests/test_terminal_permissions.py
+  s_a92d030421d3bf::t_531a83807ab9f8 10,38
+apps/cli/src/cli/dispatch.ts
+  s_a92d030421d3bf::t_8ea4a187ab03e2 51
+apps/cli/src/harnesses/pi/installation.ts
+  s_a92d030421d3bf::t_c0894d33023b0d 5
+  s_a92d030421d3bf::t_34e47d624e4070 283,290,312
+docs/investigations/paseo-support-layer.md
+  s_a92d030421d3bf::t_8259e020126840 283,289
+apps/cli/tests/axon-auth.test.ts
+  s_a92d030421d3bf::t_b4bf5da3b14e23 190-192,194,200,204
+  s_a92d030421d3bf::t_3aa1d2c3612228 176-187
+apps/cli/tests/pi-installation.test.ts
+  s_a92d030421d3bf::t_656d3e2bb0f04d 7,28,308-310
+  s_a92d030421d3bf::t_d256f306c90716 307,633
+  s_a92d030421d3bf::t_902455867e6b70 274,286,288,290,300-301,313,319,483-484,486,488,513,624
+apps/cli/src/harnesses/pi/version.ts
+  s_a92d030421d3bf::t_13bd1edc6368a6 5
+  s_a92d030421d3bf::t_ad925214ee6738 78,86
+apps/cli/src/harnesses/pi/restart.ts
+  s_a92d030421d3bf::t_92b8b693c97f2e 1,59
+apps/backend/tests/test_cli_config.py
+  s_a92d030421d3bf::t_82403aa362251b 14
+  s_a92d030421d3bf::t_59022e1acb8749 62-63,65,93,112,123
+apps/cli/docs/launcher-plan.md
+  s_a92d030421d3bf::t_8b7b685181d04e 398
+apps/cli/src/product/endpoints.ts
+  s_a92d030421d3bf::t_603612eaae24a0 48-49
+apps/cli/src/cli/launcher-program.ts
+  s_a92d030421d3bf::t_d1dffbe27d2c55 2,19
+  s_a92d030421d3bf::t_8892ab88c27cdf 63,69-71
+  s_a92d030421d3bf::t_dd2334e18becf7 58,60,67-68,73-74,77-79,85,92,97,105
+apps/cli/src/sessions/relay.ts
+  s_a92d030421d3bf::t_7b57b72287ff66 4
+apps/backend/app/core/axon_safehouse.py
+  h_dc688f708c4675 1,15,34,40,56-57,71,73,75-76
+apps/cli/src/axon-safehouse/configuration-relay.ts
+  h_dc688f708c4675 7-8,12,20,23,49,53-54,65,74,78,86,88,96-97,101,104-107
+apps/cli/src/axon-safehouse/contracts.ts
+  h_dc688f708c4675 11,50
+apps/cli/src/axon-safehouse/environment.ts
+  h_dc688f708c4675 37,83,115
+apps/cli/src/axon-safehouse/filesystem.ts
+  h_dc688f708c4675 8,33,35-36,94,116,134,140,144,153,177,181,189,197,216,222,233-235,237,249,254,265,272-273,281,301,307,311-313,315
+apps/cli/src/axon-safehouse/launch.ts
+  h_dc688f708c4675 10,25,98-99,101-102,104,114,124,141,147,151,154-157,159,189,197,202,216,286,289-290,295,299,308,314-315,335,339,348,378,385,396,401,533,536,540,543,546-548,631,707,721,727-728,730,756
+apps/cli/src/axon-safehouse/operations.ts
+  h_dc688f708c4675 6-7,41,47-48,59-62,67,81-82,91,109,123
+apps/cli/src/axon-safehouse/package-proxy.ts
+  h_dc688f708c4675 6,37,50,155
+apps/cli/src/axon-safehouse/packages.ts
+  h_dc688f708c4675 82-83,210
+apps/cli/src/axon-safehouse/policy.ts
+  h_dc688f708c4675 4,10,12-14,22,26,30,33,39-40,42,44-46,55-57,59-60,65,70,72,74
+apps/cli/src/axon-safehouse/rpc-configuration.ts
+  h_dc688f708c4675 8-9,11,13,44,79,82-84,128,155-157,175,182,202,241,243,247-248,253-256,259,267-268,278,286,331,334-337,341,348,358,363,498,501
+apps/cli/src/axon-safehouse/runtime.ts
+  h_dc688f708c4675 9,23,28,35,44,59,70,78,131
+apps/cli/src/axon-safehouse/session.ts
+  h_dc688f708c4675 6-8,13,15-18,61,63-71,82-83,90-91,93,98-99,112-113,120,139-140,145-146,149-151,158-160,166-180,182-185,188-191,217,245,264,266,354,356,390,393-397,400,403,405,407-408,410,412
+apps/cli/src/cli/commands/axon-safehouse.ts
+  h_dc688f708c4675 10-15,18,75-77,114,117,122,139,152,331,337
+apps/cli/src/harnesses/pi/resources/extensions/pi-org-telemetry.mjs
+  h_dc688f708c4675 267
+apps/cli/src/harnesses/pi/resources/extensions/terminal-permissions.mjs
+  h_dc688f708c4675 2-7,11-12
+apps/cli/tests/axon-safehouse-filesystem.test.ts
+  h_dc688f708c4675 9-13,17,35,83,123,131,141,145-146
+apps/cli/tests/axon-safehouse-launch.test.ts
+  h_dc688f708c4675 5-9,14,16,45,77,87
+apps/cli/tests/fixtures/launcher-axon-safehouse.ts
+  h_dc688f708c4675 3-4,6-8,14,18-20,22,27-29,40,46,56,60,92,94-96,98,100,102,109-113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1959330e45ef73ac3e212a9e3d53ee4246a09b00",
+  "prompts": {},
+  "humans": {
+    "h_dc688f708c4675": {
+      "author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_92be98cac1b5a8": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "502554",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>"
+    },
+    "s_a92d030421d3bf": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "502482",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": null
+    }
+  }
+}
