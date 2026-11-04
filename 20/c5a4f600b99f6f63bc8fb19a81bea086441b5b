@@ -1,0 +1,209 @@
+apps/cli/src/harnesses/pi/telemetry/docs/limitations.md
+  s_6c678fcdabbf44::t_f9b64f17d427ba 15
+apps/backend/tests/test_otel_proxy.py
+  s_6c678fcdabbf44::t_f9b64f17d427ba 23,26,39-40,194,202-220,274,281-283,295
+apps/cli/src/harnesses/pi/telemetry/tests/config.test.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 23-28
+apps/cli/tests/client-config.test.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 312-313,315
+apps/cli/src/harnesses/pi/settings-defaults.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 41-49
+apps/cli/src/cli/commands/setup-paseo.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 1-52
+apps/backend/app/services/model_recommendation/model_catalog.json
+  s_6c678fcdabbf44::t_f9b64f17d427ba 8,10-12
+apps/cli/src/harnesses/pi/adapter.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 28,75-78,82
+apps/cli/src/cli/auth/relay-error-details.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 1-189
+apps/cli/src/harnesses/pi/telemetry/README.md
+  s_6c678fcdabbf44::t_f9b64f17d427ba 77-106,118-122
+apps/cli/tests/litellm-client-provider.test.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 43,191-239
+  s_6c678fcdabbf44::t_876dc05c257782 240-244
+apps/cli/tests/npm-registry.test.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 1-266
+apps/cli/src/sandbox/git-ai-binary.ts
+  s_6c678fcdabbf44::t_b596fb0af067da 1-39
+apps/cli/src/harnesses/pi/telemetry/docs/telemetry-schema.md
+  s_6c678fcdabbf44::t_f9b64f17d427ba 3,159
+apps/cli/tests/paseo-setup.test.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 1-573
+apps/cli/tests/relay-error-details.test.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 1-247
+.github/workflows/ci.yml
+  s_6c678fcdabbf44::t_f9b64f17d427ba 80
+apps/cli/tests/pi-client-config.test.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 224
+apps/cli/src/sandbox/launch.ts
+  s_6c678fcdabbf44::t_5c658fba67c439 21
+apps/cli/src/harnesses/pi/telemetry/src/otel/managed-exporter.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 72-73,101,124,142-143,151-155
+  s_6c678fcdabbf44::t_8eb09092101d9c 156
+apps/cli/src/harnesses/pi/telemetry/tests/managed-exporter.test.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 2,87-106,162-221,246
+docs/user-guide.md
+  s_6c678fcdabbf44::t_f9b64f17d427ba 138,157-159
+apps/cli/package.json
+  s_6c678fcdabbf44::t_f9b64f17d427ba 3,30,36-37,41,45-46,63,65
+apps/cli/src/harnesses/pi/telemetry/docs/deployment.md
+  s_6c678fcdabbf44::t_f9b64f17d427ba 49
+apps/cli/src/harnesses/pi/telemetry/src/tracker.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 128
+apps/cli/tests/relay-http-errors.test.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 1-54
+apps/backend/README.md
+  s_6c678fcdabbf44::t_f9b64f17d427ba 24-29
+apps/cli/src/harnesses/pi/telemetry-environment.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 47-48,53
+apps/cli/src/launcher/contracts.ts
+  s_6c678fcdabbf44::t_d3fcde80dd3bc8 57
+apps/cli/src/cli/commands/setup.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 18,20,30-45,55
+  s_6c678fcdabbf44::t_e0ea7f312c6e3b 5
+apps/cli/tests/startup-tips.test.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 1-36
+apps/cli/src/cli/auth/request-relay.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 17,108-111,150-152,164,171-172,193-197,237,264,292,319-331,333,366,372-384,394,397-398,400,403-404,409-426,431-434,445-452,454,497-498,533,552,555-556
+  s_6c678fcdabbf44::t_435d6a37acce4e 481-482,511-514,516-518,534-540,542
+  s_6c678fcdabbf44::t_845c251eb1971a 506-510,520-532,541,543-545
+.github/workflows/release.yml
+  s_6c678fcdabbf44::t_f9b64f17d427ba 135
+apps/cli/src/cli/auth/verification.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 7,16,19-25,29,44-45,78,88-91,103,140-143
+apps/backend/app/proxies/otel.py
+  s_6c678fcdabbf44::t_f9b64f17d427ba 261-283,296-297
+apps/cli/src/harnesses/pi/resources/extensions/pi-org-telemetry.mjs
+  s_6c678fcdabbf44::t_b1c94b638819bd 231,235,238,249,251-252,264,267-268
+apps/cli/src/harnesses/pi/telemetry/src/config.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 23
+apps/cli/pi-version.json
+  s_6c678fcdabbf44::t_f9b64f17d427ba 2
+apps/cli/tests/terminal-preferences.test.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 1-116
+apps/cli/tests/axon-changelog.test.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 1-394
+apps/cli/src/product/manifest.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 5-7,70-75,125,139,156,187-189
+  s_6c678fcdabbf44::t_7abe6cfa618ec4 190
+apps/cli/src/cli/launcher-program.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 179-185,230-231,235-238
+apps/cli/src/harnesses/pi/resources/extensions/terminal-permissions.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 11-16,22,30,315,317,371-378,412,539-540,543-544,546-554,593-594,598-599,602-605,619-620,625,630-646,648,652-655,673,677-678
+apps/cli/src/cli/auth/relay-diagnostics.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 6,10-11,14-16,24-28,32-34,40,120-121,125-127,131-137,141-143,146-152,160-199,201-222,226,230-234,236-260,265-279,292,298-303,312-325,329-333,340,347
+apps/cli/src/cli/client-config.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 65
+apps/cli/src/harnesses/pi/installation.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 22,446,451-454
+  s_6c678fcdabbf44::t_37dde59d0a3d6c 330-331,333-334,339
+apps/cli/src/harnesses/pi/resources/extensions/axon.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 98-101,167-168,251,266,322-332
+apps/cli/tests/pi-settings-defaults.test.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 6-10,33-65
+apps/backend/app/core/terminal_permissions.py
+  s_6c678fcdabbf44::t_f9b64f17d427ba 96
+docs/relay-diagnostics.md
+  s_6c678fcdabbf44::t_f9b64f17d427ba 1-99
+apps/cli/README.md
+  s_6c678fcdabbf44::t_f9b64f17d427ba 23,45,94,102-155,166,220,226-255,312,360-369,417,451-452,457,501-502,510-513,515-523,574,580
+  s_6c678fcdabbf44::t_44fe846610944e 581
+apps/cli/tests/relay-diagnostics.test.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 41,49,61-69,72-75,107,119-124,128,139-229
+  s_6c678fcdabbf44::t_e406e33ff826f7 230
+apps/cli/src/integrations/paseo.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 1-312
+apps/cli/src/harnesses/pi/telemetry/grafana.json
+  s_6c678fcdabbf44::t_f9b64f17d427ba 151,196,241,286,331,377,422,467,512,557,673,678,764-771,773,782-784,787-798,801-805,808,834,842,850,858,866,874,882,1073,1120,1167,1255,1305,1352,1357,1362,1367,1417,1424,1431,1438,1485,1493,1501,1509,1517,1525,1737,1784,1831,1878,1928,2066,2113,2160,2207,2212,2257,2262,2307,2312,2347-2349,2357-2363,2368-2372,2379-2384,2387,2390,2394,2397-2399,2401-2402,2407-2417,2421-2440,2444-2445,2448,2451-2453,2461-2464,2468,2472-2477,2480,2483-2488,2491-2493,2495,2498-2504,2506,2515-2516,2542-2560,2566,2568-2581,2585-2587,2595-2596,2600-2601,2605-2611,2616-2620,2627-2632,2641,2645-2646,2654-2655,2659-2660,2664-2670,2675-2679,2686-2691,2694,2701-3200,3205-3889,3895,3899-3901,3909-3912,3915-3926,3929-3933,3939,3941,3943,3946-3948,3956-3959,3962-3973,3976-3980,3986-3988,3990,3993-3995,4003-4006,4009-4020,4023-4027,4033-4035,4037,4041-4042,4050-4051,4055-4056,4061-4065,4072-4077,4080,4083-4085,4087,4090-4092,4100-4103,4106-4117,4120-4124,4130-4132,4134,4137-4139,4147-4150,4153-4164,4167-4171,4177-4179,4181,4185,4194,4205,4207,4210,4214,4220,4224-4226,4234-4237,4240-4251,4254-4258,4266,4268,4271-4273,4281-4284,4287-4298,4301-4305,4313,4315,4319-4320,4328-4329,4333-4334,4339-4343,4350-4355,4358,4361,4363,4365,4368-4370,4378-4381,4385,4388-4397,4400-4405,4408-4410,4412-4413,4416-4417,4425-4431,4436-4440,4447-4452,4455,4458-4460,4462,4465-4467,4475-4478,4481-4492,4495-4499,4506-4507,4509,4512-4514,4522-4525,4528-4539,4542-4546,4550-4570,4572-4574,4578,4580,4582,4585
+apps/cli/tests/launcher.test.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 342-343,369-371
+apps/cli/src/launcher/spawn-harness.ts
+  s_6c678fcdabbf44::t_d3fcde80dd3bc8 41
+apps/cli/src/harnesses/pi/setup/packages/sync.ts
+  s_6c678fcdabbf44::t_92a85dad71117b 106,125-127
+  s_6c678fcdabbf44::t_f9b64f17d427ba 2,12,78-99
+apps/cli/tests/request-relay.test.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 107-108,110-111,118-334,354-356,482,490-498,1252-1253,1264
+apps/cli/src/product/tips.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 1-13
+apps/cli/src/harnesses/pi/resources/extensions/terminal-permissions.mjs
+  s_6c678fcdabbf44::t_b1c94b638819bd 2-7,11-12
+  s_6c678fcdabbf44::t_f9b64f17d427ba 9
+apps/cli/src/harnesses/pi/resources/extensions/session-backup.mjs
+  s_6c678fcdabbf44::t_b1c94b638819bd 2,6,17-18,20,23,28-30,50,52-53,56,58
+apps/backend/app/main.py
+  s_6c678fcdabbf44::t_f9b64f17d427ba 22
+apps/cli/src/harnesses/pi/resources/extensions/axon-changelog.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 1-244
+apps/cli/src/harnesses/pi/telemetry/tests/grafana-counters.promql.json
+  s_6c678fcdabbf44::t_f9b64f17d427ba 1-136
+apps/cli/tests/axon-header.test.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 20,239-309,316,320-321,329-350,362-364,370,502-503,509-510
+apps/cli/tests/compiled-pi-resources.test.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 10,134,180,184
+apps/cli/src/harnesses/pi/telemetry/tests/grafana.test.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 4-6,23,136,206,215-342
+apps/cli/tests/git-ai.test.ts
+  s_6c678fcdabbf44::t_5c658fba67c439 12,177-191,193-203
+apps/cli/src/harnesses/pi/npm-registry.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 1-162
+apps/cli/src/harnesses/pi/environment.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 6,89-90
+docs/session-backup-and-restore.md
+  s_6c678fcdabbf44::t_f9b64f17d427ba 12
+apps/cli/src/sandbox/environment.ts
+  s_6c678fcdabbf44::t_1804d1fbbf52a8 31
+apps/backend/pyproject.toml
+  s_6c678fcdabbf44::t_f9b64f17d427ba 3,9-12,17-18,26-27
+apps/cli/tests/pi-installation.test.ts
+  s_6c678fcdabbf44::t_c0ab29ea2eafd3 510-518
+  s_6c678fcdabbf44::t_f9b64f17d427ba 2,12,19-23,402-480,519-532
+  s_6c678fcdabbf44::t_6c4d5a668974cc 481-509
+  s_6c678fcdabbf44::t_f1a7f7458f7dda 533
+apps/cli/src/harnesses/pi/telemetry/tests/tracker.test.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 297-298,305,307-312
+apps/cli/tests/exit-status.test.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 1-45
+apps/cli/src/harnesses/pi/telemetry/grafana-metrics-only.json
+  s_6c678fcdabbf44::t_f9b64f17d427ba 143,188,233,278,323,369,414,459,504,549,665,670,756-763,765,774-776,779-790,793-797,800,826,834,842,850,858,866,874,1065,1112,1159,1219,1269,1316,1321,1326,1331,1381,1388,1395,1402,1449,1457,1465,1473,1481,1489,1701,1748,1795,1842,1892,2030,2077,2124,2171,2176,2221,2226,2271,2276,2311-2313,2321-2327,2332-2336,2343-2348,2351,2354,2358,2361-2363,2371-2374,2378-2381,2384-2395,2399-2402,2406-2430,2432,2436-2441,2444,2447-2452,2455-2457,2459,2462-2468,2470,2479-2480,2506-2511,2513-2516,2518-2519,2523-2525,2533-2534,2538-2539,2543-2549,2554-2558,2565-2570,2579,2583-2584,2592-2593,2597-2598,2602-2608,2613-2617,2624-2629,2632,2639,2642-2647,2649,2651-3705,3716,3718-3719,3722-3723,3731-3737,3756,3758-3759,3763,3771-3772,3777,3791,3793-3809,3811-3813,3821-3845,3847-3865,3867-3871,3874-3885,3888-3892,3896-3920,3922-3930,3933-3942,3945-3947,3949,3953-3954,3962-3968,3973-3977,3984-3989,3992,3995,3997,3999,4002-4004,4012-4015,4018-4029,4032-4036,4040-4064,4066-4074,4077-4086,4089-4091,4093,4096,4100,4106,4110-4112,4120-4123,4126-4137,4140-4144,4152,4154,4157-4159,4167-4170,4173-4184,4187-4191,4199,4201,4205-4206,4214-4215,4219-4220,4225-4229,4236-4241,4244,4247,4249,4251,4254-4256,4264-4267,4271,4274-4283,4286-4291,4294-4296,4298-4299,4302-4303,4311-4317,4322-4326,4333-4338,4341,4344-4346,4348,4351-4353,4361-4364,4367-4378,4381-4385,4392-4393,4395,4398-4400,4408-4411,4414-4425,4428-4432,4439-4440,4442,4445
+apps/cli/tests/pi-model-cache.test.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 31,104-105
+apps/cli/src/harnesses/pi/terminal-permissions/preferences.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 1-65
+apps/cli/tests/pi-package-setup.test.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 5,135-173,200-209,236,238,828-920,1016
+  s_6c678fcdabbf44::t_4782dbd1e23499 174-199
+  s_6c678fcdabbf44::t_1f92dfb3997b65 2
+apps/cli/tests/terminal-permissions.test.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 2,19-22,35-37,45,49-52,55-59,99,284,311,316,321,323,325-328,331,335,338-343,346-410,445-446,602-616,618
+  s_6c678fcdabbf44::t_eb115e90ab3911 617,619
+apps/cli/src/launcher/exit-status.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 1-2,16,19-30,32
+apps/cli/src/cli/auth/relay-http-errors.ts
+  s_6c678fcdabbf44::t_f9b64f17d427ba 1-23
+apps/backend/uv.lock
+  s_6c678fcdabbf44::t_38068344de291a 64,91-94,102-103,108-109,115,122,124,129,136,138,788,797,799
+bun.lock
+  s_6c678fcdabbf44::t_6bf778dc9ba7e2 13,18-19,23,27-28,45,47,117,119,121,123,125,127,129-131,139-140,213,281,291,373,389,431,451
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "20c5a4f600b99f6f63bc8fb19a81bea086441b5b",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_6c678fcdabbf44": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "51a484b9-1d08-4e04-b700-0b102f1d92e1",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
