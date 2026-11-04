@@ -294,6 +294,11 @@ export async function createAxonSafehouseLaunchSpec(
   const brokeredSession =
     purpose === "session" && specification.environment["PI_AXON_SAFEHOUSE_OPERATIONS"] === "1";
   const catalogOnly = options.catalogOnly === true && purpose === "session";
+  // Package setup and catalog probes retain their narrower network capabilities.
+  const outboundNetwork =
+    policy.network === "outbound" &&
+    !catalogOnly &&
+    (purpose === "session" || purpose === "operation");
   const catalogDirectory = catalogOnly ? options.resources?.temporary : undefined;
   if (catalogOnly && !catalogDirectory)
     throw axonSafehouseFailure("RPC catalog requires Axon Safehouse");
@@ -411,6 +416,14 @@ export async function createAxonSafehouseLaunchSpec(
       "(deny system-socket)",
       "(deny lsopen)",
     ];
+    if (outboundNetwork) {
+      // Allow external APIs and local TCP/UDP services, without granting listeners
+      // or arbitrary Unix sockets. Native hostname resolution needs mDNSResponder.
+      rules.push(
+        "(allow network-outbound (remote ip))",
+        '(allow network-outbound (literal "/private/var/run/mDNSResponder"))',
+      );
+    }
     if (relay)
       rules.push(`(allow network-outbound (remote tcp ${quoted(`localhost:${relay.port}`)}))`);
     if (purpose !== "probe")
@@ -731,7 +744,11 @@ export async function createAxonSafehouseLaunchSpec(
         specification.environment,
         home,
         temporary,
-        provisioning ? proxy.authenticatedProvisioningUrl : proxy.authenticatedUrl,
+        outboundNetwork
+          ? undefined
+          : provisioning
+            ? proxy.authenticatedProvisioningUrl
+            : proxy.authenticatedUrl,
       ),
       ...resources.certificateEnvironment,
     };

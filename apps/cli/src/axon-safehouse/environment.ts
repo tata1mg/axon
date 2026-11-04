@@ -84,7 +84,7 @@ export function axonSafehouseEnvironment(
   source: NodeJS.ProcessEnv,
   home: string,
   temporary: string,
-  proxyUrl: string,
+  proxyUrl: string | undefined,
 ): NodeJS.ProcessEnv {
   const environment: NodeJS.ProcessEnv = {};
   for (const name of PASSTHROUGH) {
@@ -103,12 +103,16 @@ export function axonSafehouseEnvironment(
   environment["npm_config_cache"] = `${temporary}/npm-cache`;
   environment["PIP_CACHE_DIR"] = `${temporary}/pip-cache`;
   environment["BUN_INSTALL_CACHE_DIR"] = `${temporary}/bun-cache`;
-  environment["HTTP_PROXY"] = proxyUrl;
-  environment["HTTPS_PROXY"] = proxyUrl;
-  environment["http_proxy"] = proxyUrl;
-  environment["https_proxy"] = proxyUrl;
-  environment["NO_PROXY"] = "127.0.0.1";
-  environment["no_proxy"] = "127.0.0.1";
+  // Direct outbound sessions must not be routed through the package-only proxy.
+  // Ambient proxy settings remain excluded by the environment allowlist above.
+  if (proxyUrl) {
+    environment["HTTP_PROXY"] = proxyUrl;
+    environment["HTTPS_PROXY"] = proxyUrl;
+    environment["http_proxy"] = proxyUrl;
+    environment["https_proxy"] = proxyUrl;
+    environment["NO_PROXY"] = "127.0.0.1";
+    environment["no_proxy"] = "127.0.0.1";
+  }
   environment["GIT_CONFIG_NOSYSTEM"] = "1";
   environment["GIT_CONFIG_GLOBAL"] = "/dev/null";
   environment["GIT_TERMINAL_PROMPT"] = "0";

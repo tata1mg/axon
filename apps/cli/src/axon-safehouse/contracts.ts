@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// Deliberately not arbitrary hosts: a general HTTPS tunnel could also carry Git.
+// These hosts scope the restricted package proxy, not direct outbound network access.
 export const PACKAGE_REGISTRY_HOSTS = [
   "registry.npmjs.org",
   "registry.yarnpkg.com",
@@ -14,9 +14,9 @@ export const axonSafehousePolicySchema = z.strictObject({
   engine: z.literal("safehouse"),
   policyId: z.string().regex(/^[a-zA-Z0-9._-]{1,128}$/),
   maxSessionSeconds: z.number().int().min(60).max(86_400),
-  network: z.literal("relay-and-package-proxy"),
+  network: z.enum(["outbound", "relay-and-package-proxy"]),
   remoteGit: z.boolean(),
-  // Missing host permissions grant no SSH access, even when remoteGit is enabled.
+  // Missing host permissions grant no managed SSH tunnels or agent access.
   remoteGitHosts: z
     .array(z.enum(["github.com", "bitbucket.org"]))
     .max(2)
@@ -25,7 +25,7 @@ export const axonSafehousePolicySchema = z.strictObject({
   allowAdditionalReadPaths: z.boolean(),
   allowAdditionalWritePaths: z.boolean(),
   packageRegistryHosts: z.array(z.enum(PACKAGE_REGISTRY_HOSTS)).max(4),
-  // HTTPS Git package access is separate from session/SSH access and fails closed when absent.
+  // Extra HTTPS Git hosts are available only through the provisioning proxy capability.
   packageGitHosts: z
     .array(z.enum(["github.com", "bitbucket.org"]))
     .max(2)

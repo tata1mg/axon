@@ -121,6 +121,7 @@
   "AXON_SAFEHOUSE": {
     "POLICY_ID": "safehouse-v1",
     "MAX_SESSION_SECONDS": 14400,
+    "NETWORK": "outbound",
     "LOCAL_GIT": "read-only",
     "REMOTE_GIT": false,
     "REMOTE_GIT_HOSTS": [],
