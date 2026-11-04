@@ -15,6 +15,7 @@ interface StartupUpdateOptions {
   readonly environment?: NodeJS.ProcessEnv;
   readonly invocation?: PiInvocationEnvironment;
   readonly restart?: (context: UpdateContext, argumentsVector: readonly string[]) => Promise<void>;
+  readonly info?: (message: string) => void;
   readonly warn?: (message: string) => void;
   readonly progress?: UpdateProgressView;
 }
@@ -38,6 +39,7 @@ export async function runStartupUpdate(
   }
 
   const context = options.context ?? updateContext();
+  const info = options.info ?? console.log;
   const warn = options.warn ?? console.error;
   try {
     // Metadata must fail quickly on an unavailable service. Downloads retain their
@@ -52,7 +54,7 @@ export async function runStartupUpdate(
       options.progress ?? updateProgressView(),
     );
     if (!installed) return;
-    warn(`axon: updated to ${installed}; continuing with the new version.`);
+    info(`axon: updated to ${installed}; continuing with the new version.`);
   } catch {
     warn(
       "axon: could not check for or install updates; continuing with the current version. Retry with axon update.",

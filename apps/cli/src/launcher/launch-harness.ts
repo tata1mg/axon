@@ -9,7 +9,7 @@ import {
 import { loadHarnessAdapter } from "../harnesses/registry.ts";
 import { resolveAxonPaths } from "../product/paths.ts";
 import { validateSandboxResumeSession } from "../sandbox/configuration-relay.ts";
-import { canonicalPath } from "../sandbox/filesystem.ts";
+import { canonicalPath, isBlockedProjectDirectory } from "../sandbox/filesystem.ts";
 import {
   assertSandboxSupported,
   authorizeSandboxBootstrap,
@@ -88,6 +88,25 @@ async function launchSandboxedHarness(
   options: { readonly authenticationDeferred?: boolean },
 ): Promise<never> {
   const { cwd, environment: inheritedEnvironment, paths } = sandboxedContext;
+  // Pi dispatches package subcommands only from the first argument.
+  const packageAdministration = ["install", "remove", "uninstall", "update"].includes(
+    userArguments[0] ?? "",
+  );
+  // Fail before installing or allocating anything: local package state needs a project.
+  if (
+    packageAdministration &&
+    userArguments.slice(1).some((argument) => argument === "-l" || argument === "--local") &&
+    (await isBlockedProjectDirectory(paths, cwd))
+  ) {
+    throw new LauncherError(
+      "Local Pi package commands need a project directory",
+      LAUNCHER_EXIT_STATUS.usage,
+      {
+        remediation:
+          "Run this from your project directory, or drop -l/--local to manage global packages.",
+      },
+    );
+  }
   const adapter = await loadHarnessAdapter(registration.id);
   const executable =
     adapter.resolveExecutable === undefined
@@ -192,10 +211,7 @@ async function launchSandboxedHarness(
       },
       {
         runtimeReadPaths,
-        // Pi dispatches package subcommands only from the first argument.
-        packageAdministration: ["install", "remove", "uninstall", "update"].includes(
-          userArguments[0] ?? "",
-        ),
+        packageAdministration,
       },
     );
   try {

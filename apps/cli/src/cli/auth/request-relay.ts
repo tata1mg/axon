@@ -6,6 +6,7 @@ import type { SandboxResumeSession } from "../../launcher/contracts.ts";
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../../product/endpoints.ts";
 import type { AxonPaths } from "../../product/paths.ts";
 import { createSandboxConfigurationRelay } from "../../sandbox/configuration-relay.ts";
+import type { SandboxPolicy } from "../../sandbox/policy.ts";
 import { createBackupRelay } from "../../sessions/relay.ts";
 import { emitProductEvent } from "../../telemetry/product-events.ts";
 import { fetchClientConfig } from "../client-config.ts";
@@ -466,6 +467,8 @@ export function startAuthenticatedRequestRelay(
     readonly allowPiConfigRefresh?: boolean;
     readonly allowTelemetry?: boolean;
     readonly allowSandboxConfiguration?: boolean;
+    /** Required for /sandbox saves: validates against the invocation's compiled policy. */
+    readonly sandboxConfigurationPolicy?: () => Promise<SandboxPolicy>;
     readonly prepareSandboxRestart?: (session: SandboxResumeSession) => () => void;
     readonly sandboxOperation?: (request: Request) => Promise<Response>;
     readonly cwd?: string;
@@ -481,13 +484,16 @@ export function startAuthenticatedRequestRelay(
   diagnostics.protectSecret(capability);
   const session = createRelaySession(paths, diagnostics.protectSecret);
   const backupRelay = createBackupRelay(paths, options.cwd ?? process.cwd());
-  const sandboxConfiguration = options.allowSandboxConfiguration
-    ? createSandboxConfigurationRelay(
-        paths,
-        options.cwd ?? process.cwd(),
-        options.prepareSandboxRestart,
-      )
-    : undefined;
+  // Without the invocation's policy check the editor fails closed instead of using a fresh policy.
+  const sandboxConfiguration =
+    options.allowSandboxConfiguration && options.sandboxConfigurationPolicy
+      ? createSandboxConfigurationRelay(
+          paths,
+          options.cwd ?? process.cwd(),
+          options.sandboxConfigurationPolicy,
+          options.prepareSandboxRestart,
+        )
+      : undefined;
   const server = Bun.serve({
     hostname: "127.0.0.1",
     port: 0,

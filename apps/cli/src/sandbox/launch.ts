@@ -10,6 +10,7 @@ import { privateDirectory } from "../sessions/files.ts";
 import { sandboxEnvironment } from "./environment.ts";
 import {
   canonicalPath,
+  isBlockedProjectDirectory,
   isWithin,
   PI_STATE_DIRECTORIES,
   PI_STATE_FILES,
@@ -20,7 +21,7 @@ import {
 } from "./filesystem.ts";
 import { resolveGitAiBinary } from "./git-ai-binary.ts";
 import { type PackageProxy, startPackageProxy } from "./package-proxy.ts";
-import { installedPackagePaths, PACKAGE_WRITE_FILTERS } from "./packages.ts";
+import { installedPackagePaths, PACKAGE_WRITE_FILTERS, type PackageScanCache } from "./packages.ts";
 import { type SandboxAuthorization, sandboxFailure } from "./policy.ts";
 import { restrictFilesystemGrants, restrictSafehouseBaseline } from "./profile.ts";
 import { ensureSafehouseRuntime, generateSafehousePolicy } from "./runtime.ts";
@@ -130,6 +131,8 @@ export interface SandboxResources {
     readonly agent?: string;
   };
   readonly certificateEnvironment: NodeJS.ProcessEnv;
+  /** Package-root scans shared by this invocation's profiles; cleared on settings changes. */
+  readonly packageScans: PackageScanCache;
   dispose(): void;
 }
 
@@ -261,6 +264,7 @@ export async function createSandboxResources(
       proxy: activeProxy,
       ...(ssh ? { ssh } : {}),
       certificateEnvironment,
+      packageScans: new Map(),
       dispose() {
         if (disposed) return;
         disposed = true;
@@ -290,13 +294,23 @@ export async function createSandboxLaunchSpec(
   const catalogDirectory = catalogOnly ? options.resources?.temporary : undefined;
   if (catalogOnly && !catalogDirectory)
     throw sandboxFailure("RPC catalog requires an owned sandbox");
+  // Global package commands (install/remove/update) need no project. Run them from home or
+  // another non-project directory in a private empty directory, without project access.
+  const globalAdministration =
+    purpose === "administration" &&
+    (await isBlockedProjectDirectory(paths, options.project ?? specification.cwd));
+  const isolatedDirectory =
+    catalogDirectory ?? (globalAdministration ? options.resources?.temporary : undefined);
+  if (globalAdministration && !isolatedDirectory)
+    throw sandboxFailure("Package administration outside a project requires an owned sandbox");
   const projectAccess =
     !catalogOnly &&
+    !globalAdministration &&
     (purpose === "operation" || purpose === "administration" || purpose === "session");
   const provisioning = purpose === "provision" || purpose === "administration";
   if (Date.now() >= expiresAt) throw sandboxFailure("Sandbox authorization expired during startup");
-  const project = catalogDirectory
-    ? await canonicalPath(catalogDirectory)
+  const project = isolatedDirectory
+    ? await canonicalPath(isolatedDirectory)
     : purpose === "session" || purpose === "operation" || purpose === "administration"
       ? await validateFilesystemProject(paths, options.project ?? specification.cwd)
       : await canonicalPath(specification.cwd);
@@ -329,8 +343,15 @@ export async function createSandboxLaunchSpec(
   ) {
     throw sandboxFailure("Invalid parent-owned relay address");
   }
-  const writePaths = await Promise.all(
+  const requestedWritePaths = await Promise.all(
     (options.writePaths ?? []).map((path) => canonicalPath(path)),
+  );
+  // Without a project there is no local .pi to provision; keep only the managed targets.
+  const blockedLocalRoot = globalAdministration
+    ? await canonicalPath(join(specification.cwd, ".pi"))
+    : undefined;
+  const writePaths = requestedWritePaths.filter(
+    (path) => !blockedLocalRoot || !isWithin(blockedLocalRoot, path),
   );
   const piRoot = await canonicalPath(paths.pi);
   const runtimeRoot = await canonicalPath(paths.piRuntime);
@@ -340,7 +361,7 @@ export async function createSandboxLaunchSpec(
     join(piRoot, "settings.json"),
     join(piRoot, "settings.json.lock"),
   ]);
-  if (purpose === "administration") {
+  if (purpose === "administration" && !globalAdministration) {
     for (const entry of ["npm", "git", "settings.json", "settings.json.lock"])
       provisionTargets.add(await canonicalPath(join(project, ".pi", entry)));
   }
@@ -520,9 +541,15 @@ export async function createSandboxLaunchSpec(
       ...new Set(
         (
           await Promise.all(
-            repositories.map(async (path) =>
-              (await lstat(path)).isDirectory() ? gitMetadata(path) : [],
-            ),
+            repositories.map(async (path) => {
+              try {
+                return (await lstat(path)).isDirectory() ? await gitMetadata(path) : [];
+              } catch (error) {
+                // A granted path removed since approval has no metadata to expose.
+                if (error instanceof Error && "code" in error && error.code === "ENOENT") return [];
+                throw error;
+              }
+            }),
           )
         ).flat(),
       ),
@@ -560,7 +587,11 @@ export async function createSandboxLaunchSpec(
     }
     const dependencyPaths = [
       ...runtimePackagePaths,
-      ...(await installedPackagePaths(home, [...repositories, ...userWritePaths])),
+      ...(await installedPackagePaths(
+        home,
+        [...repositories, ...userWritePaths],
+        resources.packageScans,
+      )),
     ];
     for (const path of dependencyPaths) rules.push(...(await readGrant(path)));
     // Match existing trees by canonical path and future trees by path component.
@@ -597,7 +628,7 @@ export async function createSandboxLaunchSpec(
       ...ancestorRules(path),
       pathRule("allow file-read* file-write*", path),
     ]);
-    if (purpose === "administration") {
+    if (purpose === "administration" && !globalAdministration) {
       // Local installs may create .pi itself, not arbitrary siblings or project files.
       const localRoot = await canonicalPath(join(project, ".pi"));
       provisioningRules.push(
@@ -717,7 +748,7 @@ export async function createSandboxLaunchSpec(
     let disposed = false;
     return Object.freeze({
       ...specification,
-      cwd: catalogOnly ? project : specification.cwd,
+      cwd: catalogOnly || globalAdministration ? project : specification.cwd,
       executable: "/usr/bin/sandbox-exec",
       arguments: ["-f", profile, specification.executable, ...specification.arguments],
       environment,

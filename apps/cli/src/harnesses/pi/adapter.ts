@@ -160,9 +160,10 @@ export function createPiAdapter(): HarnessAdapter {
             }
           }
         }
-        if (!context.sandbox) throw sandboxFailure("An Axon-owned sandbox is required");
+        const sandbox = context.sandbox;
+        if (!sandbox) throw sandboxFailure("An Axon-owned sandbox is required");
         relay = startAuthenticatedRequestRelay(context.paths, {
-          sandboxOperation: createSandboxOperations(context.sandbox, {
+          sandboxOperation: createSandboxOperations(sandbox, {
             executable: context.executable,
             arguments: [],
             environment: context.environment,
@@ -172,6 +173,7 @@ export function createPiAdapter(): HarnessAdapter {
           ...(context.authenticationDeferred ? { signedOut: { session: encryptedSession } } : {}),
           allowTelemetry: config?.telemetry?.enabled === true,
           allowSandboxConfiguration: setup.invocationKind === "interactive",
+          sandboxConfigurationPolicy: () => sandbox.configurationPolicy(),
           ...(context.prepareSandboxRestart
             ? { prepareSandboxRestart: context.prepareSandboxRestart }
             : {}),
