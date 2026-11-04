@@ -38,7 +38,7 @@ async function runHarness(
   rpc?: SandboxRpcTransport,
 ): Promise<{
   readonly exitCode: number | null;
-  readonly signalCode: NodeJS.Signals | null;
+  readonly signalCode: NodeJS.Signals | number | null;
   readonly restart: boolean;
 }> {
   let subprocess: Bun.Subprocess<"inherit" | "pipe", "inherit" | "pipe", "inherit">;

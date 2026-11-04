@@ -221,9 +221,7 @@ describe("real Pi adapter client config integration", () => {
     expect(requests.filter((path) => path === "/api/v1/cli/config")).toHaveLength(1);
     expect(authorization).toBe("Bearer initial-token");
     expect(JSON.parse(environment["PI_TERMINAL_MANAGED_CONFIG"] ?? "null")).toEqual(terminalPolicy);
-    expect(environment["OTEL_EXPORTER_OTLP_ENDPOINT"]).toBe(
-      `${environment["PI_AXON_AUTH_RELAY_URL"]}/api/v1/otel`,
-    );
+    expect(environment["OTEL_EXPORTER_OTLP_ENDPOINT"]).toBeUndefined();
     expect(environment["OTEL_EXPORTER_OTLP_PROTOCOL"]).toBe("http/protobuf");
     expect(environment["PI_ORG_OTEL_MANAGED_ENDPOINT"]).toBe(
       `${environment["PI_AXON_AUTH_RELAY_URL"]}/api/v1/otel`,

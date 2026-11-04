@@ -9,6 +9,7 @@ import {
   resolveGitAiBinary,
   runGitAiCommand,
 } from "../src/harnesses/pi/resources/extensions/git-ai.ts";
+import { resolveGitAiBinary as resolveSandboxGitAiBinary } from "../src/sandbox/git-ai-binary.ts";
 
 let root: string;
 beforeEach(async () => {
@@ -173,31 +174,33 @@ describe("optional git-ai availability", () => {
     expect(f.payloads()).toHaveLength(0);
   });
 
-  test("discovers official install before PATH, including symlinks", async () => {
-    const official = await executable(join(root, ".git-ai", "bin", "git-ai"));
-    const other = await executable(join(root, "other-bin", "git-ai"));
-    expect(await resolveGitAiBinary({ PATH: join(root, "other-bin") }, root)).toBe(official);
-    await rm(official);
-    await symlink(other, official);
-    expect(await resolveGitAiBinary({}, root)).toBe(official);
-    await rm(official);
-    expect(await resolveGitAiBinary({ PATH: join(root, "other-bin") }, root)).toBe(other);
-  });
+  // The sandbox launcher keeps its own copy because the extension ships as a file asset.
+  for (const [label, resolve] of [
+    ["extension", resolveGitAiBinary],
+    ["sandbox", resolveSandboxGitAiBinary],
+  ] as const) {
+    test(`${label}: discovers official install before PATH, including symlinks`, async () => {
+      const official = await executable(join(root, ".git-ai", "bin", "git-ai"));
+      const other = await executable(join(root, "other-bin", "git-ai"));
+      expect(await resolve({ PATH: join(root, "other-bin") }, root)).toBe(official);
+      await rm(official);
+      await symlink(other, official);
+      expect(await resolve({}, root)).toBe(official);
+      await rm(official);
+      expect(await resolve({ PATH: join(root, "other-bin") }, root)).toBe(other);
+    });
 
-  test("explicit overrides are authoritative; non-executable and relative paths are ignored", async () => {
-    await executable(join(root, ".git-ai", "bin", "git-ai"));
-    const override = await executable(join(root, "custom binary"));
-    expect(await resolveGitAiBinary({ PI_AXON_GIT_AI_BIN: override }, root)).toBe(override);
-    await chmod(override, 0o644);
-    expect(await resolveGitAiBinary({ PI_AXON_GIT_AI_BIN: override }, root)).toBeUndefined();
-    expect(await resolveGitAiBinary({ PI_AXON_GIT_AI_BIN: "git-ai" }, root)).toBeUndefined();
-    expect(
-      await resolveGitAiBinary({ PI_AXON_GIT_AI_BIN: join(root, "missing") }, root),
-    ).toBeUndefined();
-    expect(
-      await resolveGitAiBinary({ PATH: ".:relative:" }, join(root, "no-install")),
-    ).toBeUndefined();
-  });
+    test(`${label}: explicit overrides are authoritative; non-executable and relative paths are ignored`, async () => {
+      await executable(join(root, ".git-ai", "bin", "git-ai"));
+      const override = await executable(join(root, "custom binary"));
+      expect(await resolve({ PI_AXON_GIT_AI_BIN: override }, root)).toBe(override);
+      await chmod(override, 0o644);
+      expect(await resolve({ PI_AXON_GIT_AI_BIN: override }, root)).toBeUndefined();
+      expect(await resolve({ PI_AXON_GIT_AI_BIN: "git-ai" }, root)).toBeUndefined();
+      expect(await resolve({ PI_AXON_GIT_AI_BIN: join(root, "missing") }, root)).toBeUndefined();
+      expect(await resolve({ PATH: ".:relative:" }, join(root, "no-install"))).toBeUndefined();
+    });
+  }
 });
 
 describe("Pi checkpoint protocol", () => {

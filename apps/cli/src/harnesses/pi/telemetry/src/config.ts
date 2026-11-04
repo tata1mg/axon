@@ -20,6 +20,7 @@ function isFalse(value: string | undefined): boolean {
 }
 
 function endpointConfigured(env: NodeJS.ProcessEnv): boolean {
+  if (env["PI_ORG_OTEL_MANAGED_ENDPOINT"]?.trim()) return true;
   if (env["OTEL_EXPORTER_OTLP_ENDPOINT"]?.trim()) return true;
   return [
     "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",

@@ -44,11 +44,13 @@ export function createTelemetryOverrides(
   );
   // Remove all inherited destination/credential/TLS overrides. Managed exporters
   // read the safely stored session for each batch; no session is put in OTEL headers.
+  // The standard endpoint stays unset: Pi's child processes inherit this environment,
+  // and any stock OTel SDK among them would otherwise post unauthenticated to the proxy.
   const overrides: Record<string, string | undefined> = {
     PI_ORG_OTEL_ENABLED: "true",
     PI_ORG_OTEL_MANAGED_ENDPOINT: endpoint,
     PI_ORG_OTEL_MANAGED_HOME: managed.home,
-    OTEL_EXPORTER_OTLP_ENDPOINT: endpoint,
+    OTEL_EXPORTER_OTLP_ENDPOINT: undefined,
     OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf",
     OTEL_TRACES_SAMPLER: "parentbased_traceidratio",
     OTEL_TRACES_SAMPLER_ARG: String(telemetry.traceSampleRatio),

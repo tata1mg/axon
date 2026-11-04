@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, mock, test } from "bun:test";
-import { mkdir, mkdtemp, readlink, rm, symlink, utimes } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readlink, rm, symlink, utimes } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { NPM_MIRROR_REGISTRY, NPM_PUBLIC_REGISTRY } from "../src/harnesses/pi/npm-registry.ts";
 import { inspectPiPackages } from "../src/harnesses/pi/setup/packages/doctor.ts";
 import {
   classifyPiInvocation,
@@ -131,6 +132,81 @@ async function settingsPackages(context: HarnessLaunchContext): Promise<readonly
   return (await readPiSettings(join(context.paths.pi, "settings.json"))).packages;
 }
 
+async function registryFallbackContext(name: string, primary: string) {
+  const base = createContext(name);
+  const bin = join(base.paths.home, "bin");
+  const executable = join(bin, "pi");
+  const record = join(base.paths.home, "attempts.jsonl");
+  await mkdir(bin, { recursive: true });
+  await Bun.write(
+    join(bin, "npm"),
+    `#!${process.execPath}
+console.log(process.argv.at(-1) === "registry" ? process.env.npm_config_registry : (process.env.FAKE_SCOPE_REGISTRY ?? "undefined"));
+`,
+  );
+  await Bun.write(
+    executable,
+    `#!${process.execPath}
+import { appendFile, mkdir } from "node:fs/promises";
+const [action, source] = process.argv.slice(2);
+const registry = process.env.npm_config_registry;
+await appendFile(process.env.FAKE_RECORD, JSON.stringify({ action, source, registry }) + "\\n");
+if (registry === process.env.FAKE_PRIMARY || process.env.FAKE_ALWAYS_FAIL === "1") {
+  console.error("npm error code " + (process.env.FAKE_ERROR_CODE ?? "ECONNRESET"));
+  process.exit(1);
+}
+const name = source.replace(/^npm:/, "").replace(/@[^@]+$/, "");
+const path = process.env.PI_CODING_AGENT_DIR + "/npm/node_modules/" + name;
+await mkdir(path, { recursive: true });
+await Bun.write(path + "/package.json", JSON.stringify({ name, version: "1.0.0" }));
+`,
+  );
+  await Promise.all([chmod(executable, 0o755), chmod(join(bin, "npm"), 0o755)]);
+  const context: HarnessLaunchContext = {
+    ...base,
+    executable,
+    environment: {
+      ...base.environment,
+      PATH: `${bin}:${base.environment["PATH"]}`,
+      npm_config_registry: primary,
+      FAKE_PRIMARY: primary,
+      FAKE_RECORD: record,
+    },
+    // Package actions require an Axon sandbox; this fixture runs the fake Pi directly.
+    sandbox: {
+      async configurationPolicy() {
+        throw new Error("Unexpected sandbox configuration in a registry fixture");
+      },
+      clientConfig: () => undefined,
+      async wrap() {
+        throw new Error("Unexpected interactive launch in a registry fixture");
+      },
+      async run(specification) {
+        const child = Bun.spawn([specification.executable, ...specification.arguments], {
+          cwd: specification.cwd,
+          env: specification.environment,
+          stdin: "ignore",
+          stdout: "pipe",
+          stderr: "pipe",
+        });
+        const [exitCode, stdout, stderr] = await Promise.all([
+          child.exited,
+          new Response(child.stdout).text(),
+          new Response(child.stderr).text(),
+        ]);
+        return { exitCode, signalCode: child.signalCode, stdout, stderr };
+      },
+      dispose() {},
+    },
+  };
+  const attempts = async () =>
+    (await Bun.file(record).text())
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+  return { context, attempts };
+}
+
 const interactive: PiInvocationEnvironment = {
   ci: false,
   stdinIsTty: true,
@@ -157,9 +233,9 @@ describe("Pi package manifest", () => {
       },
       {
         id: "pi-provider-litellm",
-        installTarget: "npm:pi-provider-litellm@4.5.0",
+        installTarget: "npm:pi-provider-litellm@4.7.2",
         updateOwner: "axon",
-        versionPolicy: { kind: "exact", version: "4.5.0" },
+        versionPolicy: { kind: "exact", version: "4.7.2" },
       },
       {
         id: "pi-review",
@@ -749,6 +825,99 @@ describe("Pi package synchronization", () => {
     expect(installCalls).toBe(1);
   });
 
+  for (const [primary, fallback] of [
+    [NPM_PUBLIC_REGISTRY, NPM_MIRROR_REGISTRY],
+    [NPM_MIRROR_REGISTRY, NPM_PUBLIC_REGISTRY],
+  ] as const) {
+    test(`retries the required npm extension with ${fallback} after ${primary} fails`, async () => {
+      const { context, attempts } = await registryFallbackContext(
+        `fallback-${primary === NPM_MIRROR_REGISTRY}`,
+        primary,
+      );
+      const packageManifest = manifest([exactPackage("1.0.0")]);
+      const result = await synchronizePiPackages({
+        allowInstall: true,
+        context,
+        manifest: packageManifest,
+      });
+      expect((await attempts()).map((attempt) => attempt.registry)).toEqual([primary, fallback]);
+      expect(
+        (await attempts()).every((attempt) => attempt.source === "npm:@example/pi-tools@1.0.0"),
+      ).toBe(true);
+      expect(result.packages[0]?.installedVersion).toBe("1.0.0");
+      expect(await settingsPackages(context)).toEqual(["npm:@example/pi-tools@1.0.0"]);
+      expect(context.environment["npm_config_registry"]).toBe(primary);
+
+      // A verified warm launch performs no install or registry probes.
+      await synchronizePiPackages({ allowInstall: false, context, manifest: packageManifest });
+      expect(await attempts()).toHaveLength(2);
+    });
+  }
+
+  test("leaves an unavailable npm extension unverified after both registries fail", async () => {
+    const { context, attempts } = await registryFallbackContext(
+      "both-registry-failure",
+      NPM_PUBLIC_REGISTRY,
+    );
+    context.environment["FAKE_ALWAYS_FAIL"] = "1";
+    await expect(
+      synchronizePiPackages({
+        allowInstall: true,
+        context,
+        manifest: manifest([exactPackage("1.0.0")]),
+      }),
+    ).rejects.toMatchObject({ exitStatus: 123 });
+    expect(await attempts()).toHaveLength(2);
+    expect(await Bun.file(context.paths.piPackageState).exists()).toBe(false);
+    expect(await settingsPackages(context)).toEqual([]);
+  });
+
+  test("does not retry npm permission failures, private scopes, or custom package-manager commands", async () => {
+    for (const mode of ["permission", "private-scope", "custom-command"]) {
+      const { context, attempts } = await registryFallbackContext(mode, NPM_PUBLIC_REGISTRY);
+      if (mode === "permission") context.environment["FAKE_ERROR_CODE"] = "EACCES";
+      if (mode === "private-scope")
+        context.environment["FAKE_SCOPE_REGISTRY"] = "https://private.example/";
+      if (mode === "custom-command") {
+        await Bun.write(
+          join(context.paths.pi, "settings.json"),
+          JSON.stringify({ npmCommand: ["custom-npm"] }),
+        );
+      }
+      await expect(
+        synchronizePiPackages({
+          allowInstall: true,
+          context,
+          manifest: manifest([exactPackage("1.0.0")]),
+        }),
+      ).rejects.toMatchObject({ exitStatus: 123 });
+      expect(await attempts()).toHaveLength(1);
+    }
+  });
+
+  test("does not retry a failed Git package against an npm registry", async () => {
+    const { context, attempts } = await registryFallbackContext(
+      "git-no-registry-retry",
+      NPM_PUBLIC_REGISTRY,
+    );
+    await expect(
+      synchronizePiPackages({
+        allowInstall: true,
+        context,
+        manifest: manifest([
+          {
+            id: "git-tools",
+            source: "git:github.com/example/tools",
+            required: true,
+            versionPolicy: { kind: "exact", commit: "1111111111111111111111111111111111111111" },
+            install: { action: "pi.install" },
+          },
+        ]),
+      }),
+    ).rejects.toMatchObject({ exitStatus: 123 });
+    expect(await attempts()).toHaveLength(1);
+  });
+
   test("routes Pi package actions through the sandbox with isolated environment and strict argv", async () => {
     const contextBase = createContext("sandbox-subprocess");
     const fakePi = join(contextBase.paths.home, "fake-pi");
@@ -844,6 +1013,7 @@ describe("package and resource locks", () => {
     expect(materializedPaths.map((path) => path.split("/").at(-1))).toEqual([
       "managed-config.ts",
       "axon.ts",
+      "axon-changelog.ts",
       "axon-auth.ts",
       "pi-org-telemetry.mjs",
       "model-recommender.ts",

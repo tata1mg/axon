@@ -38,6 +38,15 @@ export async function applyPiProviderDefaults(paths: AxonPaths): Promise<void> {
   });
 }
 
+/** Suppress Pi's upstream startup notes; Axon tracks its own releases separately. */
+export async function applyPiChangelogDefaults(paths: AxonPaths, piVersion: string): Promise<void> {
+  await withFileLock(paths.piPackageLock, async () => {
+    const settings = await readPiSettings(piSettingsPath(paths.pi));
+    if (settings.config["lastChangelogVersion"] === piVersion) return;
+    await writePiSettings(settings, { ...settings.config, lastChangelogVersion: piVersion });
+  });
+}
+
 /** Apply managed defaults; project settings and Pi CLI flags can still override them. */
 export async function applyPiDefaults(
   paths: AxonPaths,

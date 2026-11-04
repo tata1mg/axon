@@ -40,7 +40,7 @@ const { toNativeModels } = (await import(
 
 // Exercise the exact installed provider, not a reimplementation of its fallback rules.
 test("pinned LiteLLM fallback respects authoritative metadata and does not promise to rewrite arbitrary cached windows", async () => {
-  expect(providerPackage.version).toBe("4.5.0");
+  expect(providerPackage.version).toBe("4.7.2");
   let modelInfoAvailable = true;
   const server = Bun.serve({
     hostname: "127.0.0.1",
@@ -183,6 +183,60 @@ test("prompt cache lifetimes require Claude backend evidence and a compatible tr
       models.find((model) => model.id === "axon-claude-responses")?.promptCache,
     ).toBeUndefined();
     expect(models.find((model) => model.id === "claude-sonnet-4-5")?.promptCache).toBeUndefined();
+  } finally {
+    server.stop(true);
+  }
+});
+
+test("GPT cache lifetimes require modern backend evidence, Responses, and OpenAI or Azure routing", async () => {
+  const row = (model_name: string, model: string, info: Record<string, unknown> = {}) => ({
+    model_name,
+    litellm_params: { model },
+    model_info: { mode: "responses", supported_endpoints: ["/v1/responses"], ...info },
+  });
+  const server = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    fetch(request) {
+      expect(request.headers.get("authorization")).toBe("Bearer test-key");
+      if (new URL(request.url).pathname !== "/model/info")
+        return new Response(null, { status: 404 });
+      return Response.json({
+        data: [
+          row("axon-sol", "openai/gpt-6.1-sol"),
+          row("axon-azure", "azure/team-deployment", { base_model: "azure/gpt-5.6-luna" }),
+          row("axon-azure-ai", "azure_ai/gpt-6-astra"),
+          row("axon-chat", "openai/gpt-6.1-sol", {
+            mode: "chat",
+            supported_endpoints: ["/v1/chat/completions"],
+          }),
+          row("axon-earlier", "openai/gpt-5.5"),
+          row("axon-openrouter", "openrouter/openai/gpt-6.1-sol"),
+          row("axon-copilot", "github_copilot/gpt-6.1-sol"),
+          row("axon-undeclared-provider", "gpt-6.1-sol"),
+          row("axon-mixed", "openai/gpt-6.1-sol", { id: "new" }),
+          row("axon-mixed", "openai/gpt-5.5", { id: "old" }),
+          { model_name: "gpt-6.1-sol", model_info: { mode: "responses" } },
+        ],
+      });
+    },
+  });
+  try {
+    const { models } = await discoverModels(server.url.origin, "test-key", {
+      modelsDev: false,
+      timeoutMs: 1000,
+    });
+    expect(models).toHaveLength(10);
+    const eligible = new Set(["axon-sol", "axon-azure", "axon-azure-ai"]);
+    for (const model of models) {
+      if (eligible.has(model.id)) {
+        expect(model.promptCache).toEqual({ short: 1800 });
+        const [native] = toNativeModels("litellm", server.url.origin, [model]);
+        expect(native?.promptCache).toEqual({ short: 1800 });
+      } else {
+        expect(model.promptCache).toBeUndefined();
+      }
+    }
   } finally {
     server.stop(true);
   }

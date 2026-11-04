@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
-import { mkdtemp, realpath, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type {
@@ -16,6 +16,10 @@ import type {
 import terminalPermissions, {
   TERMINAL_HEADER_CHANNEL,
 } from "../src/harnesses/pi/resources/extensions/terminal-permissions.ts";
+import {
+  readYoloPreference,
+  terminalPreferencesPath,
+} from "../src/harnesses/pi/terminal-permissions/preferences.ts";
 
 type ToolHandler = (
   event: ToolCallEvent,
@@ -28,6 +32,9 @@ type UserBashHandler = (
 type SessionHandler = (event: unknown, context: ExtensionContext) => void;
 type Command = Parameters<ExtensionAPI["registerCommand"]>[1];
 let savedEnvironment: Record<string, string | undefined>;
+let savedAgentDirectory: string | undefined;
+let agentDirectory: string;
+let sessionCleanups: (() => void)[];
 
 function clearTerminalEnvironment(): void {
   for (const name of Object.keys(process.env)) {
@@ -35,13 +42,21 @@ function clearTerminalEnvironment(): void {
   }
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   savedEnvironment = Object.fromEntries(
     Object.entries(process.env).filter(([name]) => name.startsWith("PI_TERMINAL_")),
   );
+  savedAgentDirectory = process.env["PI_CODING_AGENT_DIR"];
+  agentDirectory = await mkdtemp(join(tmpdir(), "axon-terminal-user-"));
+  process.env["PI_CODING_AGENT_DIR"] = agentDirectory;
+  sessionCleanups = [];
   clearTerminalEnvironment();
 });
-afterEach(() => {
+afterEach(async () => {
+  for (const cleanup of sessionCleanups) cleanup();
+  await rm(agentDirectory, { recursive: true, force: true });
+  if (savedAgentDirectory === undefined) delete process.env["PI_CODING_AGENT_DIR"];
+  else process.env["PI_CODING_AGENT_DIR"] = savedAgentDirectory;
   clearTerminalEnvironment();
   for (const [name, value] of Object.entries(savedEnvironment)) {
     if (value !== undefined) process.env[name] = value;
@@ -81,6 +96,7 @@ function setup(hasUI = true) {
   } as unknown as ExtensionAPI);
   const toolHandler = handlers.get("tool_call") as ToolHandler;
   const userHandler = handlers.get("user_bash") as UserBashHandler;
+  sessionCleanups.push(() => (handlers.get("session_shutdown") as SessionHandler)({}, context));
   function callInput(input: Record<string, unknown>, toolName = "bash", parentToolCallId?: string) {
     return toolHandler(
       {
@@ -265,7 +281,7 @@ describe("Standard mode defaults", () => {
   });
 });
 
-describe("backend eligibility and session-local /yolo toggle", () => {
+describe("backend eligibility and user-level /yolo toggle", () => {
   test.each([true, false, undefined])(
     "never activates from backend or environment: %j",
     async (eligibility) => {
@@ -292,33 +308,106 @@ describe("backend eligibility and session-local /yolo toggle", () => {
     },
   );
 
-  test("toggles without a confirmation dialog and resets on session replacement", async () => {
+  test("toggles without confirmation and persists across replacement, shutdown, and reload", async () => {
     managedPolicy({ yoloMode: true });
     const harness = setup();
     harness.start();
     await harness.command();
-    expect(harness.notify.mock.calls.at(-1)?.[0]).toContain("YOLO on for this session");
+    expect(harness.notify.mock.calls.at(-1)?.[0]).toContain("YOLO on for all local sessions");
     expect(await harness.call("pwd", "bash", undefined, true)).toBeUndefined();
     await harness.command();
     expect(harness.notify.mock.calls.at(-1)?.[0]).toContain("Standard mode restored");
     await harness.command();
+    harness.shutdown();
     harness.start();
-    expect(harness.headerStates()).toEqual(["standard", "yolo", "standard", "yolo", "standard"]);
+    expect(harness.headerStates()).toEqual(["standard", "yolo", "standard", "yolo", "yolo"]);
     expect(harness.confirm).not.toHaveBeenCalled();
-    harness.context.hasUI = false;
-    expect(await harness.call("pwd", "bash", undefined, true)).toMatchObject({ block: true });
+    const reloaded = setup(false);
+    reloaded.start();
+    expect(reloaded.headerStates()).toEqual(["yolo"]);
+    expect(await reloaded.call("pwd", "bash", undefined, true)).toBeUndefined();
   });
 
-  test("activation is independent for each extension instance and cleared on shutdown", async () => {
+  test("shares activation and deactivation with existing and future sessions, including headless", async () => {
     managedPolicy({ yoloMode: true });
     const first = setup();
     const second = setup(false);
+    second.start();
     await first.command();
     expect(await first.call("pwd", "bash", undefined, true)).toBeUndefined();
-    expect(await second.call("pwd", "bash", undefined, true)).toMatchObject({ block: true });
-    first.shutdown();
+    expect(await second.call("pwd", "bash", undefined, true)).toBeUndefined();
+    expect(second.headerStates()).toEqual(["standard", "yolo"]);
+    const third = setup();
+    third.start();
+    expect(third.headerStates()).toEqual(["yolo"]);
+    await third.command();
     first.context.hasUI = false;
     expect(await first.call("pwd", "bash", undefined, true)).toMatchObject({ block: true });
+    expect(await second.call("pwd", "bash", undefined, true)).toMatchObject({ block: true });
+    expect(readYoloPreference(terminalPreferencesPath())).toBe(false);
+  });
+
+  test("updates idle session headers when another session changes the preference", async () => {
+    managedPolicy({ yoloMode: true });
+    const first = setup();
+    const second = setup();
+    first.start();
+    second.start();
+    for (const state of ["yolo", "standard"]) {
+      await first.command();
+      const deadline = Date.now() + 3_000;
+      while (second.headerStates().at(-1) !== state && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      expect(second.headerStates().at(-1)).toBe(state);
+    }
+  });
+
+  test("saved consent never overrides disabled, missing, or invalid backend policy", async () => {
+    managedPolicy({ yoloMode: true });
+    await setup().command();
+    for (const policy of [false, undefined, "invalid"]) {
+      if (policy === undefined) delete process.env["PI_TERMINAL_MANAGED_CONFIG"];
+      else managedPolicy({ yoloMode: policy });
+      const harness = setup(false);
+      harness.start();
+      expect(harness.headerStates()).toEqual([policy === "invalid" ? "blocked" : "standard"]);
+      expect(await harness.call("pwd", "bash", undefined, true)).toMatchObject({ block: true });
+    }
+    // A disabled policy does not erase the user's preference, and still permits turning it off.
+    managedPolicy();
+    await setup().command();
+    expect(readYoloPreference(terminalPreferencesPath())).toBe(false);
+  });
+
+  test.each(["deleted", "corrupt", "unreadable"])(
+    "returns to Standard instead of retaining cached YOLO when consent becomes %s",
+    async (state) => {
+      managedPolicy({ yoloMode: true });
+      const harness = setup(false);
+      await setup().command();
+      expect(await harness.call("pwd", "bash", undefined, true)).toBeUndefined();
+      const path = terminalPreferencesPath();
+      if (state === "corrupt") await writeFile(path, '{"yoloEnabled":"true"}');
+      else {
+        await rm(path);
+        if (state === "unreadable") await mkdir(path);
+      }
+      expect(await harness.call("pwd", "bash", undefined, true)).toMatchObject({ block: true });
+      expect(harness.headerStates().at(-1)).toBe("standard");
+    },
+  );
+
+  test("does not activate or report success when saving fails", async () => {
+    managedPolicy({ yoloMode: true });
+    await mkdir(terminalPreferencesPath());
+    const harness = setup(false);
+    harness.context.hasUI = true;
+    await harness.command();
+    expect(harness.notify.mock.calls.at(-1)?.[0]).toContain("Could not save YOLO preference");
+    harness.context.hasUI = false;
+    expect(await harness.call("pwd", "bash", undefined, true)).toMatchObject({ block: true });
+    expect(harness.confirm).not.toHaveBeenCalled();
   });
 
   test("does not activate headlessly or accept on/off arguments", async () => {
@@ -353,6 +442,8 @@ describe("backend eligibility and session-local /yolo toggle", () => {
     const status = harness.notify.mock.calls.at(-1)?.[0];
     expect(status).toContain("Mode: Standard");
     expect(status).toContain("YOLO available: yes");
+    expect(status).toContain("Saved YOLO preference (local user): off");
+    expect(status).toContain(terminalPreferencesPath());
     expect(status).toContain("Require approval (Standard only): git push");
     expect(status).toContain("Approval timeout: 10s");
     expect(harness.headerStates()).toEqual([]);
@@ -505,6 +596,24 @@ describe("terminal approval cancellation and concurrency", () => {
     resolveFirst(true);
     expect(await first).toBeUndefined();
     expect(await second).toMatchObject({ block: true, reason: "Terminal execution cancelled" });
+    expect(harness.confirm).toHaveBeenCalledTimes(1);
+  });
+
+  test("changing the shared preference does not approve a dialog already waiting", async () => {
+    managedPolicy({ yoloMode: true });
+    const harness = setup();
+    let resolveApproval: (value: boolean) => void = () => {};
+    harness.confirm.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveApproval = resolve;
+        }),
+    );
+    const pending = harness.call("git push", "bash", undefined, true);
+    await setup().command();
+    expect(await harness.call("pwd", "bash", undefined, true)).toBeUndefined();
+    resolveApproval(false);
+    expect(await pending).toMatchObject({ block: true });
     expect(harness.confirm).toHaveBeenCalledTimes(1);
   });
 

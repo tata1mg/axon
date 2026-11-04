@@ -20,7 +20,7 @@ This is a clean-install rename: previous product installations are not automatic
 - Standalone web search through the existing authenticated LiteLLM relay, with grounding, session attribution, and tool usage/cost reporting
 - Pi-only setup checks, including append-only organization MCP defaults at `~/.config/mcp/mcp.json`, requested only for interactive online launches and throttled locally
 - Pi agent/session isolation under `${AXON_HOME}/pi`, with Pi version checks disabled and every Pi-documented provider API key removed from Pi only (LiteLLM variables are kept)
-- Exact Pi 1.4.0 pin: Axon uses only its isolated executable under `${AXON_HOME}/pi-runtime`, installed from Pi's release API with `npm ci`; the user's PATH Pi is never used or changed
+- Exact Pi 1.5.0 pin: Axon uses only its isolated executable under `${AXON_HOME}/pi-runtime`, installed from Pi's release API with `npm ci`; the user's PATH Pi is never used or changed
 - Content-addressed, checksum-verified Axon Pi resources injected through explicit Pi flags that reference the immutable runtime directory
 - Embedded required-package policy with exact, minimum, and Pi/user-managed floating versions
 - Locked package reconciliation, last-known-good exact fallback, and local-only warm checks
@@ -42,7 +42,7 @@ This is a clean-install rename: previous product installations are not automatic
 
 ## Installation
 
-Releases support macOS on Apple Silicon (`darwin-arm64`) and Intel (`darwin-x64`). The installer picks the build that runs natively, including from a Rosetta terminal on Apple Silicon, and each binary updates only to the same target. The launcher does not bundle Pi. The installer checks for Node.js 22.19 or newer and npm before installing `axon`; if either is unavailable, it offers to install or upgrade Node.js with Homebrew in an interactive terminal. Non-interactive installations require Node.js and npm to be installed first. `axon pi` installs and uses its own exact Pi 1.4.0 release on first use, independently of any user-installed Pi.
+Releases support macOS on Apple Silicon (`darwin-arm64`) and Intel (`darwin-x64`). The installer picks the build that runs natively, including from a Rosetta terminal on Apple Silicon, and each binary updates only to the same target. The launcher does not bundle Pi. The installer checks for Node.js 22.19 or newer and npm before installing `axon`; if either is unavailable, it offers to install or upgrade Node.js with Homebrew in an interactive terminal. Non-interactive installations require Node.js and npm to be installed first. `axon pi` installs and uses its own exact Pi 1.5.0 release on first use, independently of any user-installed Pi.
 
 Once the backend serves the public `/install.sh` endpoint (rendered from this repository's [`install.sh`](install.sh) using its configured release URL), install with:
 
@@ -91,12 +91,67 @@ axon harnesses
 axon paths
 axon doctor [pi]
 axon setup pi --sync-packages   # installs Pi if needed, required packages, resources, and MCP defaults
+axon setup paseo                # configure Axon and integration settings in Paseo
 axon uninstall [--remove-runtimes]
 ```
 
 `uninstall` only mutates an installation when the running executable is the managed binary at `~/.axon/bin/axon`. It preserves Pi settings, provider authentication, and sessions under `${AXON_HOME}/pi`, as well as the shared DeputyDev authentication file; `--remove-runtimes` removes only cached runtimes. Files created by earlier releases for other harnesses are not deleted automatically.
 
 Set `AXON_DEBUG=1` for a redacted launch preview on stderr. `AXON_PI_BIN` is rejected. A different `AXON_PI_VERSION` is allowed only when running the CLI from source, not in any compiled CLI.
+
+### Paseo integration
+
+If you use [Paseo](https://paseo.sh), register Axon as a provider with:
+
+```bash
+axon setup paseo
+axon setup paseo --config /custom/paseo/config.json  # non-default Paseo home
+axon setup paseo --yes                              # accept integration updates in scripts
+```
+
+This local-only command does not require sign-in or install Paseo. It edits
+`~/.paseo/config.json` by default, adding `agents.providers.axon` as a provider extending `pi`.
+The provider runs `${AXON_HOME:-$HOME/.axon}/bin/axon pi` and sets `PI_CODING_AGENT_DIR`,
+`PI_CODING_AGENT_SESSION_DIR`, and `PI_MODEL_RECOMMENDER_RPC=1` using your Axon paths.
+If the config does not exist, setup creates it only when it finds `paseo` on `PATH` or the
+macOS app in `/Applications` or `~/Applications`. An existing config also allows setup
+when Paseo is installed elsewhere.
+
+Setup enables the Axon provider and applies these integration settings:
+
+- `features.dictation.enabled` and `features.voiceMode.enabled`: `true`
+- `pluginsEnabled`: `true`
+- `daemon.relay.enabled`: `true` (opts into relay connectivity; setup does not pair devices)
+- `daemon.mcp.injectIntoAgents`: `true`
+- `daemon.browserTools.enabled`: `true`
+- `daemon.enableTerminalAgentHooks`: `true`
+- `agents.providers.<id>.enabled`: `false` for `pi`, `opencode`, `copilot`, `codex`,
+  `claude`, `muse`, and `antigravity`
+
+Setup also adds or updates this entry in `daemon.terminalProfiles`, matching by its stable ID
+so reruns do not append duplicates:
+
+```json
+{
+  "id": "profile_mvt5ic5u_nj5mgc6ucq",
+  "name": "Axon",
+  "command": "axon",
+  "args": ["pi", "{{{prompt}}}"]
+}
+```
+
+Custom providers, agent profiles, other terminal profiles, and unrelated settings are preserved,
+including voice configuration, extra terminal-profile fields, and extra fields on disabled
+providers. Setup is a no-op only
+when the Axon provider and all managed settings already match. Updating an existing Axon
+setup requires confirmation (default **No**), or `--yes` in non-interactive runs. Extra Axon
+provider fields and environment variables are preserved; only managed fields are updated.
+Invalid JSON, malformed parent sections, and symlink/non-regular configs are never overwritten.
+Writes are atomic, preserve existing config permissions, and save the previous contents to a
+private sibling `config.json.axon-backup.<timestamp>.<id>` file before changing an existing file.
+
+Restart Paseo after setup and select **Axon** when starting a new chat. Setup does not choose
+a model or create an agent profile, and it never restarts Paseo or interrupts running agents.
 
 ### First-run login and client configuration
 
@@ -108,7 +163,7 @@ Login and refresh write that shared token while preserving other JSON keys. Requ
 
 RPC launches (`axon pi --mode rpc`, as used by Paseo) are the exception for a missing or unusable login: Pi starts signed out instead of failing. The relay rejects every managed model request at once with a "not signed in" error (nothing waits, so RPC client timeouts cannot fire), and the `axon-auth` extension offers a **Login from browser / Not now** card at startup and again after each rejected message; `/axon-login` also works. A login from another terminal ends the signed-out state too. Launch-time backend preferences such as terminal policy were not fetched, so the chat asks the user to restart the agent after signing in. Offline RPC launches and auth-service outages still fail startup. Over RPC, dialogs cannot be retracted, so cards stay open until answered; under Paseo, which discards open cards when a run fails or is interrupted, a fresh card replaces the discarded one.
 
-Launcher-owned `setup`, `doctor`, `paths`, and `harnesses` retain a local saved-session preflight: if absent, interactive online invocations offer browser login, while scripted runs fail with login guidance. Launcher help/version, auth, update, and uninstall remain exempt from that preflight. API routes still validate saved sessions server-side.
+Launcher-owned `setup pi --sync-packages`, `doctor`, `paths`, and `harnesses` retain a local saved-session preflight: if absent, interactive online invocations offer browser login, while scripted runs fail with login guidance. Launcher help/version, auth, update, uninstall, and local `setup paseo` remain exempt from that preflight. API routes still validate saved sessions server-side.
 
 Online non-administrative Pi launches (including scripted modes) fetch `/api/v1/cli/config` using that session, capped at 700 ms and 16 KiB, even when telemetry/search are locally disabled. Accepted backend telemetry/search and partial compaction/recommender/provider preferences override inherited environment values. Managed telemetry has no supported local opt-out; unavailable or absent policies retain documented environment fallback, never changing authenticated search routing. Offline and administrative launches skip the request. There is no config disk cache and no public bootstrap/config endpoint. See [client configuration](docs/plans/cli-client-config.md) and [backend configuration](../backend/README.md#cli-client-configuration).
 
@@ -162,11 +217,41 @@ all settings. `PI_WEB_SEARCH_MODE` and `PI_WEB_SEARCH_SEARCH_TOOL` are obsolete.
 
 ### Pi installation bootstrap
 
-`axon pi` uses **only** the Axon-managed executable at `${AXON_HOME}/pi-runtime/1.4.0/node_modules/.bin/pi`. It verifies the installed package and reported executable version, installs that exact version on demand if missing, and never reads or modifies `pi` on `PATH`, regardless of its version. This also applies to forwarded Pi administration (`install`, `auth`, `mcp`, etc.). `axon pi update` (including `--extensions`) is blocked before launching Pi; use `pi update` directly for a separate global installation. Axon's own required-package reconciliation still works through its pinned executable.
+`axon pi` uses **only** the Axon-managed executable at `${AXON_HOME}/pi-runtime/1.5.0/node_modules/.bin/pi`. It verifies the installed package and reported executable version, installs that exact version on demand if missing, and never reads or modifies `pi` on `PATH`, regardless of its version. This also applies to forwarded Pi administration (`install`, `auth`, `mcp`, etc.). `axon pi update` (including `--extensions`) is blocked before launching Pi; use `pi update` directly for a separate global installation. Axon's own required-package reconciliation still works through its pinned executable.
 
 The official `https://pi.dev/install.sh` cannot pin a version, requires an interactive terminal, and may edit shell profiles, so Axon does not run it. Instead it follows the same steps as Pi's own managed `pi update`: it downloads `package.json` and `package-lock.json` for the exact version from `https://pi.dev/api/installer/releases/<version>/`, plus the release metadata from `https://pi.dev/api/installer/releases/<version>`, validates that all three describe `@earendil-works/pi-coding-agent@<version>`, merges the first-party tarball SHA-512 hashes from the metadata into the lockfile (the published lockfile omits them) so that every resolved tarball is integrity-checked, runs `npm ci --ignore-scripts --omit=dev --include=optional` in a staging directory under a same-user lock, verifies the installed package version and launcher, and atomically renames the tree into place. Shell profiles and `PATH` are never modified.
 
 Installation requires Node.js 22.19.0 or newer and npm on `PATH`; otherwise the launch fails with a remediation that names Homebrew and the official installer. Offline launches (`--offline` or `PI_OFFLINE=1`) and `axon doctor` never install. The built CLI's exact pin comes from [`pi-version.json`](pi-version.json) and is embedded when compiling. `AXON_PI_BIN` fails with a clear error. A different `AXON_PI_VERSION` is accepted only in source development runs; compiled local and release binaries reject it. `pi --version` results are cached per executable path, size, and mtime in `${AXON_HOME}/pi-executable.json`, so warm launches do not spawn Pi twice. `axon uninstall --remove-runtimes` also removes `pi-runtime`.
+
+### Axon release notes in Pi
+
+`/changelog` displays only Axon's release notes, as does the startup **What's New in Axon** section.
+The managed `axon-changelog.ts` extension wraps Pi's public editor submit callback; it does not patch
+Pi's runtime, replace raw keyboard input, or send release notes to the model. `/axon-changelog` is also
+available as a normal extension command for clients without the terminal editor.
+
+On each ordinary launch, Axon sets `lastChangelogVersion` in its isolated Pi settings to the selected
+Pi version, suppressing upstream Pi startup notes. Axon separately stores `lastSeenAxonVersion` in
+`${AXON_HOME}/pi/axon-changelog.json`. The first new conversation establishes a baseline silently;
+subsequent upgrades show only newly published Axon entries. Resuming an existing conversation or
+using print/JSON/RPC mode does not advance this marker, and downgrades do not move it backwards.
+
+Release notes are maintained in `AXON_RELEASES` (newest first) in
+`src/harnesses/pi/resources/extensions/axon-changelog.ts` and embedded with the CLI for offline use.
+Add an entry matching the Axon release version when preparing a release. Global Pi installations
+and Pi's own packaged `CHANGELOG.md` are never changed.
+
+### Managed npm registry fallback
+
+Pi runtime installation and Axon's required **npm** extension installs try the configured npm registry first (`npm_config_registry` / `NPM_CONFIG_REGISTRY` or npm's `.npmrc` configuration, including a package's scope). If the active registry is `https://registry.npmjs.org/` or `https://registry.yarnpkg.com/` and a registry/network request fails, Axon retries the same installation **once** with the other registry. This includes missing packages/versions (404 / `ETARGET`) and temporary network/server errors. The retry is announced on stderr. For example, to prefer the Yarn registry and fall back to npmjs:
+
+```bash
+npm_config_registry=https://registry.yarnpkg.com/ axon setup pi --sync-packages
+```
+
+Fallback only changes the subprocess environment and public tarball URLs in Axon's managed lockfiles; package versions and integrity hashes stay unchanged. It never changes global npm configuration or `.npmrc`. Custom/private registries, authentication/permission failures, integrity failures, dependency conflicts, lifecycle-script failures, and cancelled processes do not trigger fallback. A custom Pi `npmCommand` owns its own retry policy. Healthy installed packages remain local-only, and offline/diagnostic commands never install.
+
+This policy covers Axon's bootstrap and required-package synchronization, not user-forwarded `axon pi install` commands. Git packages and explicit non-public tarball URLs are unchanged. Pi release metadata and lockfiles still require access to `https://pi.dev/api/installer/releases/`; changing npm registries cannot bypass a failure there.
 
 ### Corporate TLS certificates (Zscaler)
 
@@ -224,7 +309,7 @@ A `litellm.providers.litellm.displayName` value in Pi settings takes precedence 
 
 Before an authenticated online Pi launch, Axon removes cached `litellm` models whose base URLs point to an obsolete Axon loopback relay. Otherwise Pi can restore the previous launch's random-port URLs over fresh discovery, causing “No models available.” Cleanup uses Pi's native model-store lock and an atomic write; other providers, unrelated LiteLLM endpoints, and current-relay models are preserved. Offline, administrative, and discovery-disabled launches leave the cache untouched. A busy or unsafe cache never blocks launch; use `/litellm-refresh` if models remain unavailable.
 
-The pinned `pi-provider-litellm@4.5.0` restores vendor-specific compatibility for models served through generic OpenAI-compatible adapters and falls back to `/v1/models` when `/model/info` is empty. Its four-hour startup catalog reuse requires the same proxy URL and discovery version. Axon creates a new random-port relay on each launch, so ordinary managed launches still discover models; the stale-relay cleanup above remains necessary. Stored models from an older discovery version are rediscovered online; upgrading from 4.3.1 changes the discovery version from 7 to 9.
+The pinned `pi-provider-litellm@4.7.2` restores vendor-specific compatibility for models served through generic OpenAI-compatible adapters and falls back to `/v1/models` when `/model/info` is empty. Its four-hour startup catalog reuse requires the same proxy URL and discovery version. Axon creates a new random-port relay on each launch, so ordinary managed launches still discover models; the stale-relay cleanup above remains necessary. Stored models from an older discovery version are rediscovered online; upgrading from 4.6.0 changes the discovery version from 10 to 11.
 
 The local authenticated relay accepts request bodies up to **50 MiB** (52,428,800 bytes), matching the
 Nginx `50m` limit. This covers the full serialized payload, including conversation history, tool results,
@@ -272,7 +357,16 @@ Claude-backed Messages or Chat routes with Anthropic cache markers now declare f
 `promptCache` lifetimes. This enables Pi's existing cache warming when eligible; it is not a new
 Axon default or a guarantee of savings. Pi defaults to warming during active runs
 (`cacheWarming: "streaming"`); idle warming is opt-in and `cacheWarming: "off"` disables it in the global settings.
-Refresh requests are billable. Responses routes and routes identified only by name are not eligible.
+Refresh requests are billable. GPT-5.6+ Responses routes now declare a 30-minute `short` lifetime
+when every deployment is identified by backend metadata and routes through LiteLLM's `openai`,
+`azure`, or `azure_ai` provider; Pi can refresh at about minute 27 when eligible. No `long`
+lifetime is declared. GPT Chat routes, earlier/mixed GPT deployments, relay providers such as
+OpenRouter or GitHub Copilot, and routes identified only by name are not eligible automatically.
+
+Budget refusals now report `out of budget` without retrying; when interactive budget polling can
+read the affected level, the error includes spend, limit, and local reset time. If the proxy refuses
+MCP initialization because a budget is exhausted, its LiteLLM MCP server is registered disabled
+for the session with one notice. After the budget resets, enable it in `/mcp` or restart Pi.
 
 Axon continues to forward `LITELLM_*` variables. The provider now recognizes `LITELLM_PROVIDERS`, `LITELLM_PROVIDERS_JSON`, and `LITELLM_PROVIDER_<NAME>_*` as additional-provider configuration, so inherit them only when those extra proxy destinations are intended. Provider configuration in Pi's agent-directory `models.json` also participates in the extension's configuration precedence. For managed Axon requests, avoid overriding the default `litellm` provider's relay URL or credential through settings, `models.json`, or `/login litellm`; use `axon auth login` for Axon authentication.
 
@@ -320,7 +414,7 @@ a sensible combination.
 Recommender countdowns must be positive; backend recommendation eligibility/204 still takes priority.
 Provider discovery timeout zero disables discovery (and affected integrations such as MCP). Context
 window fallback only fills missing metadata; known per-model context/output limits are preserved.
-With `pi-provider-litellm@4.5.0`, offline cache enrichment recognizes its built-in/current fallback
+With `pi-provider-litellm@4.7.2`, offline cache enrichment recognizes its built-in/current fallback
 sentinels, but cannot reliably rewrite an older custom fallback without online discovery. Prefer
 correct `/model/info` metadata over a global fallback.
 
@@ -354,11 +448,13 @@ client terminal that supports OSC 52. Pi still attempts the local clipboard writ
 
 Axon-owned extensions, skills, prompts, and themes are embedded in the CLI, materialized under `${AXON_HOME}/runtime/<version>-<hash>/pi`, and checksum-verified. Ordinary Pi sessions receive explicit resource arguments that reference that immutable directory, so a concurrently running launcher of another Axon version can never swap resources underneath a session. The `runtime/current` symlink is maintained for inspection only. The core extension provides `/axon-status`. In interactive sessions it also replaces Pi's startup header with an Axon connected-node logo, TATA 1mg branding, the launcher version, and a “Powered by Pi” attribution. Live backup status is right-aligned beside the wordmark without adding header lines, with theme-aware activity, success, and warning colors. Shortcut hints follow the active keybindings and wrap as complete groups instead of being clipped; the tool-expansion shortcut (normally Ctrl+O) expands the help, and `/hotkeys` lists all shortcuts. Narrow terminals use a compact text header, and long version labels yield space to backup status without hiding the Axon wordmark. Pi's `quietStartup: true` still hides the header, and RPC/JSON/print modes are unchanged. Resource source has an independent Pi extension typecheck.
 
+A `[Tips]` section below the startup shortcuts shows one randomly selected tip per launch. Edit `src/product/tips.ts` to add or change tips; keep each tip to one or two lines at the standard header width. The selected tip stays the same during resizing, shortcut expansion, and live status updates. Tips are part of the startup header, so quiet startup hides them and RPC/JSON/print output is unchanged. Rebuild the CLI to include catalog changes.
+
 Every non-administrative `axon pi` session also loads the embedded `pi-org-telemetry` extension. Its OpenTelemetry dependencies are bundled into one standalone ESM resource at Axon build time, so `--extension <immutable-path>` does **not** run `npm install`, execute dependency lifecycle scripts, contact a package registry, or download dependencies. A new Axon release materializes a new content-addressed bundle once; healthy launches verify and reuse it.
 
 The telemetry extension stays inert without managed OTLP configuration. To export traces, metrics, and structured logs, configure the backend's `CLI_CLIENT_CONFIG.TELEMETRY` or provide `OTEL_EXPORTER_OTLP_ENDPOINT` (or all three per-signal endpoint variables) as a fallback in the environment used to start `axon`. A fetched policy uses only the pinned backend OTEL proxy with Axon session auth, clears inherited exporter authorization/TLS overrides, and cannot select an external destination for the session. The extension reads the session for each batch and safely persists rotations. Managed mode supports HTTP/protobuf; environment fallback supports HTTP/protobuf and gRPC with normal env headers/API keys. Export failures are passive and bounded. Accepted backend enablement wins over local `PI_ORG_OTEL_ENABLED`, samplers, and exporter preferences for both Pi and launcher product events, through shutdown; there is no managed local opt-out. Explicit offline disables export, and local disablement still applies without an accepted policy. This is separate from upstream Pi's `PI_TELEMETRY`. Backend `BATCH_SCHEDULE_DELAY_MS`, `MAX_EXPORT_BATCH_SIZE`, and `MAX_QUEUE_SIZE` control both Pi and launcher log/trace batching, overriding local batch tuning; `METRIC_EXPORT_INTERVAL_MS` controls metric cadence. Full batches and shutdown can export earlier than the configured delay. The extension never exports prompt/completion text, system prompts, file contents, tool results, provider payloads, authorization headers, environment values, full session paths, raw Git remotes, or stack traces. Managed mode exports backend-verified user ID/email, and optional name after server-side identity replacement; environment fallback exports raw effective Git email when available or an installation UUID. Both export the normalized private repository slug; collector access and retention must be restricted accordingly. See [`src/harnesses/pi/telemetry/README.md`](src/harnesses/pi/telemetry/README.md), its [data policy](src/harnesses/pi/telemetry/docs/data-policy.md), and its [schema](src/harnesses/pi/telemetry/docs/telemetry-schema.md).
 
-The embedded manifest in `src/product/manifest.ts` declares required community packages. Pi 1.0 provides MCP support natively, so Axon no longer installs `pi-mcp-adapter`; upgrading to a CLI with this manifest removes the adapter on the next package synchronization when its ownership state and settings entry are unchanged. If it was adopted or modified, remove it manually with `axon pi remove npm:pi-mcp-adapter@2.34.0`. The manifest locks `pi-provider-litellm` to `4.5.0`, `@juicesharp/rpiv-ask-user-question` to `2.15.0`, and `git:github.com/earendil-works/pi-review` to commit `f1de050504936046c0f85b21fec0e0a93ef394eb`. The review package adds `/review` and `/end-review` for reviewing uncommitted changes, branches, commits, pull requests, or files/folders. Git must be installed to provision and verify Git packages; pull-request reviews also require the GitHub CLI (`gh`). Package entries support:
+The embedded manifest in `src/product/manifest.ts` declares required community packages. Pi 1.0 provides MCP support natively, so Axon no longer installs `pi-mcp-adapter`; upgrading to a CLI with this manifest removes the adapter on the next package synchronization when its ownership state and settings entry are unchanged. If it was adopted or modified, remove it manually with `axon pi remove npm:pi-mcp-adapter@2.34.0`. The manifest locks `pi-provider-litellm` to `4.7.2`, `@juicesharp/rpiv-ask-user-question` to `2.15.0`, and `git:github.com/earendil-works/pi-review` to commit `f1de050504936046c0f85b21fec0e0a93ef394eb`. The review package adds `/review` and `/end-review` for reviewing uncommitted changes, branches, commits, pull requests, or files/folders. Git must be installed to provision and verify Git packages; pull-request reviews also require the GitHub CLI (`gh`). Package entries support:
 
 - `exact`: only the declared npm version or Git commit is accepted; a failed migration may use a verified, non-revoked last-known-good exact version
 - `minimum`: the declared version is a hard floor; newer installed versions are accepted and never downgraded
@@ -402,7 +498,8 @@ The built-in Bash checkpoint path is always enabled when tracking is available. 
 
 ### Terminal modes
 
-Terminal execution starts in **Standard** mode. Supported commands run automatically when
+Terminal execution defaults to **Standard** mode until the user saves a YOLO preference.
+Supported commands run automatically when
 the model sets `requires_approval: false`, including routine edits, builds, and tests.
 Model-requested review, required-approval prefixes, custom shells, wrappers, and complex
 shell syntax still require confirmation. Commands needing confirmation are refused when
@@ -410,13 +507,20 @@ no UI is available. `/terminal-permissions` shows the active mode and restrictio
 
 **YOLO** is fully autonomous terminal execution. The backend's
 `TERMINAL_PERMISSIONS.YOLO_MODE: true` (public `yoloMode`) only permits users to enable it;
-it never activates it. Run **`/yolo`** with no arguments to toggle it on/off for the current
-session, without an additional confirmation dialog. The header shows `YOLO` while active.
+it never activates it by itself. Run **`/yolo`** with no arguments to toggle and save the
+local user's preference, without an additional confirmation dialog. It applies to existing
+and future sessions sharing the same user configuration directory, including headless
+sessions. The header shows `YOLO` while active.
 YOLO ignores model approval requests and required-approval lists, and allows wrappers,
-custom shells, PowerShell, and complex syntax without prompts. It resets to Standard on
-session creation/replacement, shutdown, or extension reload and is never persisted.
-Backend `false`, missing policy, or a failed policy fetch prevents enabling YOLO. Environment
-variables cannot grant eligibility or activate it; `PI_TERMINAL_YOLO_MODE` is no longer used.
+custom shells, PowerShell, and complex syntax without prompts. The preference survives
+session creation/replacement, shutdown, extension reload, and process restart. It is stored
+in `$PI_CODING_AGENT_DIR/terminal-preferences.json` (normally `~/.axon/pi/terminal-preferences.json`),
+not in project settings or conversation history. Missing, unreadable, or corrupt preferences
+default to Standard. Every terminal authorization reads the latest preference; interactive
+headers refresh within about half a second. Concurrent toggles are serialized across processes.
+Backend `false`, missing policy, or a failed policy fetch prevents YOLO execution even with
+a saved preference. These do not erase the preference. Environment variables cannot grant
+eligibility; `PI_TERMINAL_YOLO_MODE` is no longer used. The tool prompt/schema stays static.
 
 Literal-prefix blocklists remain **best-effort in both modes**, not an OS sandbox. Recognized
 blocked commands are denied without prompting. In YOLO, scripts, wrappers, or syntax the
@@ -467,11 +571,13 @@ Bun must be available in your shell. The repository pins Bun `1.4.1`. Dependenci
 bun install --frozen-lockfile   # at the repository root
 cd apps/cli
 bun run check                   # generated extension bundle checks and typecheck
-bun test
+bun run test                    # test files in four isolated workers
 bun run dev -- --version
 bun run build
 ./dist/axon --version
 ```
+
+`bun run test` (or `bun run test:cli` from the repository root) runs test files in four isolated worker processes, keeping tests within each file sequential to avoid races in environment variables and mocks. CI and release checks use the same command. For serial debugging, run `bun test`; to choose another worker count, run `bun test --parallel=2`.
 
 Terminal permissions ship as a generated standalone `.mjs` asset so the launcher can import the TypeScript command validator without colliding with Bun's file loader. After editing `src/harnesses/pi/resources/extensions/terminal-permissions.ts`, run `bun run terminal:build` and commit the generated bundle. Development/release builds and `bun run check` reject stale bundles with `terminal:check`.
 

@@ -1,7 +1,9 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { SPAN_INTERACTION, SPAN_SESSION } from "../src/attributes.ts";
+import { PRODUCT_STAGES } from "../../../../telemetry/product-events.ts";
+import { COUNTER_UNITS, SPAN_INTERACTION, SPAN_SESSION } from "../src/attributes.ts";
+import { resolveConfig } from "../src/config.ts";
 import { SESSION_HISTOGRAMS } from "../src/otel/instruments.ts";
 import { PRODUCT_HISTOGRAMS } from "../src/otel/product-instruments.ts";
 
@@ -18,6 +20,7 @@ interface Panel {
   title: string;
   datasource: { type: string };
   targets: Target[];
+  interval?: string;
   panels?: Panel[];
 }
 
@@ -130,7 +133,7 @@ test("session, terminal and reasoning panels use exported metric names and label
 
 test("every Grafana trace query uses email selection and bounded TraceQL search", () => {
   const traces = dashboard.panels.filter((panel) => panel.datasource.type === "tempo");
-  assert.equal(traces.length, 3);
+  assert.equal(traces.length, 5);
   for (const panel of traces) {
     assert.ok(panel.targets.length > 0, panel.title);
     for (const target of panel.targets) {
@@ -200,6 +203,7 @@ test("product metrics separate CLI funnel counts from backend requests and avoid
     for (const target of panel.targets) {
       assert.ok(target.expr, panel.title);
       assert.doesNotMatch(target.expr, /pi_repo_slug|recommendation_id|session_id/, panel.title);
+      if (!target.expr.includes("axon_")) continue;
       if (panel.title === "Model recommender request p95") {
         assert.ok(target.expr.includes("by (le, component)"));
       } else {
@@ -207,4 +211,132 @@ test("product metrics separate CLI funnel counts from backend requests and avoid
       }
     }
   }
+});
+
+test("every product category has a dashboard panel", () => {
+  const queries = dashboard.panels.flatMap((panel) =>
+    panel.targets.map((target) => target.expr ?? ""),
+  );
+  for (const category of Object.keys(PRODUCT_STAGES))
+    assert.ok(
+      queries.some((query) => query.includes(`axon_${category}_`)),
+      category,
+    );
+});
+
+test("product windows keep each process's first sample", () => {
+  // Launcher processes usually export one cumulative sample, which bare increase/rate ignore.
+  for (const panel of dashboard.panels) {
+    for (const target of panel.targets) {
+      const expr = target.expr ?? "";
+      for (const [, fn, name, selector, window] of expr.matchAll(
+        /(increase|rate)\((axon_\w+)\{([^}]*)\}\[([^\]]+)\]\)/g,
+      )) {
+        assert.equal(fn, "increase", panel.title);
+        assert.ok(expr.includes(`and (${name}{${selector}} offset ${window})`), panel.title);
+        assert.ok(
+          expr.includes(
+            `or (max_over_time(${name}{${selector}}[${window}]) unless (${name}{${selector}} offset ${window}))`,
+          ),
+          panel.title,
+        );
+      }
+    }
+  }
+});
+
+test("counter fallbacks only count series first seen in the window", () => {
+  // Unguarded, a series with one in-window sample would fall back to its lifetime total.
+  for (const panel of dashboard.panels) {
+    for (const target of panel.targets) {
+      assert.doesNotMatch(target.expr ?? "", /\bor max_over_time\(/, panel.title);
+    }
+  }
+});
+
+test("whole-range totals are instant queries", () => {
+  for (const panel of dashboard.panels) {
+    for (const target of panel.targets as Array<Target & { instant?: boolean }>) {
+      if (target.expr?.includes("$__range")) assert.equal(target.instant, true, panel.title);
+    }
+  }
+});
+
+test("agent-loop counter windows cover four exports even at the maximum configured cadence", () => {
+  const panel = dashboard.panels.find((panel) => panel.title === "Runs, turns and inputs");
+  assert.ok(panel);
+  assert.equal(panel.interval, "20m");
+  const config = resolveConfig({
+    OTEL_EXPORTER_OTLP_ENDPOINT: "https://collector.test",
+    OTEL_METRIC_EXPORT_INTERVAL: String(Number.MAX_SAFE_INTEGER),
+  });
+  assert.ok(config);
+  assert.ok(20 * 60_000 >= 4 * config.metricExportIntervalMs);
+  const names = [
+    "pi_agent_run_count_total",
+    "pi_turn_count_total",
+    "pi_agent_run_repeated_total",
+    "pi_user_input_count_total",
+  ];
+  assert.equal(panel.targets.length, names.length);
+  for (const [index, name] of names.entries()) {
+    const metric = `${name}{user_email=~"$user",pi_repo_slug=~"$repo"}`;
+    assert.equal(
+      panel.targets[index]?.expr,
+      `sum ((increase(${metric}[$__interval]) and (${metric} offset $__interval)) or (max_over_time(${metric}[$__interval]) unless (${metric} offset $__interval)))`,
+      name,
+    );
+  }
+});
+
+test("PromQL counter regression fixtures evaluate the dashboard expression", () => {
+  const panel = dashboard.panels.find((panel) => panel.title === "Runs, turns and inputs");
+  const turns = panel?.targets.find((target) => target.legendFormat === "Turns");
+  assert.ok(turns?.expr);
+  const expr = turns.expr
+    .replaceAll("$__interval", "20m")
+    .replaceAll("$user", "test@example.com")
+    .replaceAll("$repo", "test/repo");
+  const fixture = JSON.parse(
+    readFileSync(new URL("./grafana-counters.promql.json", import.meta.url), "utf8"),
+  ) as { tests: Array<{ name: string; promql_expr_test: Array<{ expr: string }> }> };
+  assert.equal(fixture.tests.length, 6);
+  for (const scenario of fixture.tests) {
+    assert.equal(scenario.promql_expr_test.length, 1, scenario.name);
+    assert.equal(scenario.promql_expr_test[0]?.expr, expr, scenario.name);
+  }
+});
+
+test("counter queries use exported counter names", () => {
+  const counters = new Set(
+    Object.entries(COUNTER_UNITS).map(
+      ([name, unit]) => `${name.replaceAll(".", "_")}${unit === "USD" ? "_USD" : ""}_total`,
+    ),
+  );
+  for (const panel of dashboard.panels) {
+    for (const target of panel.targets) {
+      for (const name of target.expr?.match(/\bpi_\w+_total\b/g) ?? [])
+        assert.ok(counters.has(name), `${panel.title}: ${name}`);
+    }
+  }
+});
+
+test("metrics-only dashboard is the full dashboard without Tempo panels", () => {
+  const metricsOnly = JSON.parse(
+    readFileSync(new URL("../grafana-metrics-only.json", import.meta.url), "utf8"),
+  ) as Dashboard & Record<string, unknown>;
+  const full = raw as Dashboard & Record<string, unknown> & { __inputs: { pluginId: string }[] };
+  const withoutTempo = (panels: Panel[]): Panel[] =>
+    panels
+      .filter((panel) => panel.datasource?.type !== "tempo")
+      .map((panel) => (panel.panels ? { ...panel, panels: withoutTempo(panel.panels) } : panel));
+  assert.deepEqual(metricsOnly, {
+    ...full,
+    __inputs: full.__inputs.filter((input) => input.pluginId !== "tempo"),
+    title: `${full["title"]} (Metrics Only)`,
+    uid: `${full["uid"]}-metrics`,
+    description: metricsOnly["description"],
+    panels: withoutTempo(full.panels),
+  });
+  assert.match(String(metricsOnly["description"]), /Tempo trace panels omitted/);
 });

@@ -104,12 +104,232 @@ test("upstream connection failures produce a normal gateway error and private co
     assert.ok(payload.error.message.includes(requestId));
     assert.ok(!JSON.stringify(payload).includes("secret"));
     const log = await Bun.file(relay.diagnosticsLogFile).text();
-    assert.ok(!log.includes("secret"));
+    assert.ok(!log.includes("initial-session"));
+    assert.ok(!log.includes(relay.capability));
     const record = JSON.parse(log.trim());
+    assert.ok(record.error.message.includes("private-secret"));
+    assert.ok(record.error.stack.includes("TypeError"));
     assert.equal(record.requestId, requestId);
     assert.equal(record.stage, "upstream_fetch");
     assert.equal(record.errorCode, "ECONNRESET");
   `);
+});
+
+test("rotated credentials are redacted from HTTP bodies while user context remains", async () => {
+  await runRelayScript(`
+    const rotated = "opaque/rotated+credential";
+    const body = JSON.stringify({ error: "alice@example.com initial-session " + rotated });
+    upstream = async () => new Response(body, {
+      status: 429,
+      headers: { "content-type": "application/json", "x-session-refresh-token": rotated },
+    });
+    const response = await send("/litellm/v1/chat/completions");
+    assert.equal(response.status, 429);
+    assert.equal(await response.text(), body);
+    const log = await Bun.file(relay.diagnosticsLogFile).text();
+    assert.ok(!log.includes("initial-session"));
+    assert.ok(!log.includes(rotated));
+    assert.ok(!log.includes(relay.capability));
+    assert.ok(log.includes("alice@example.com"));
+    const records = log.trim().split("\\n").map(line => JSON.parse(line));
+    assert.equal(records[0].stage, "upstream_response");
+    assert.equal(records[1].stage, "upstream_response_body");
+    assert.equal(await sessions.loadEncryptedSession(paths), rotated);
+  `);
+});
+
+test.each(["denial", "challenge"])(
+  "Cloudflare %s pages become correlated API errors without reads, login or retries",
+  async (kind) => {
+    await runRelayScript(`
+    let calls = 0;
+    let cancelled = false;
+    let requestId;
+    const kind = ${JSON.stringify(kind)};
+    upstream = async request => {
+      calls++;
+      assert.equal(request.method, "GET");
+      assert.equal(new URL(request.url).pathname, "/litellm/mcp");
+      requestId = request.headers.get("x-request-id");
+      const body = new ReadableStream({
+        pull() { throw new Error("Must not read a denied body: initial-session"); },
+        cancel() {
+          cancelled = true;
+          if (kind === "challenge") throw new Error("initial-session cancel failure");
+        },
+      }, { highWaterMark: 0 });
+      return new Response(body, {
+        status: kind === "challenge" ? 429 : 403,
+        headers: {
+          "content-type": "text/html; charset=UTF-8",
+          server: "cloudflare",
+          "cf-ray": "a51cd4c2cc301849-BOM",
+          "retry-after": "120",
+          "set-cookie": "private-cookie=initial-session",
+          ...(kind === "challenge" ? { "cf-mitigated": "challenge" } : {}),
+        },
+      });
+    };
+    const response = await bounded(actualFetch(relay.origin + "/litellm/mcp?key=query-secret", {
+      headers: { authorization: "Bearer " + relay.capability },
+    }));
+    assert.equal(response.status, kind === "challenge" ? 429 : 403);
+    assert.ok(response.headers.get("content-type").startsWith("application/json"));
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.equal(response.headers.get("retry-after"), "120");
+    assert.equal(response.headers.get("set-cookie"), null);
+    assert.equal(response.headers.get("cf-ray"), null);
+    const payload = await response.json();
+    assert.equal(payload.error.type, "gateway_error");
+    assert.match(payload.error.message, /Cloudflare/);
+    assert.match(payload.error.message, /administrator/);
+    assert.ok(payload.error.message.includes(relay.diagnosticsLogLabel));
+    assert.ok(payload.error.message.includes(requestId));
+    assert.ok(!payload.error.message.includes(paths.home));
+    assert.ok(!JSON.stringify(payload).includes("initial-session"));
+    assert.equal(calls, 1);
+    assert.equal(cancelled, true);
+    assert.equal(await sessions.loadEncryptedSession(paths), "initial-session");
+    const log = await Bun.file(relay.diagnosticsLogFile).text();
+    const record = JSON.parse(log.trim());
+    assert.equal(record.requestId, requestId);
+    assert.equal(record.stage, "upstream_response");
+    assert.equal(record.errorType, "CloudflareError");
+    assert.equal(record.errorCode, kind === "challenge" ? "CLOUDFLARE_CHALLENGE" : "CLOUDFLARE_HTML_DENIAL");
+    assert.equal(record.cfRay, "a51cd4c2cc301849-BOM");
+    assert.equal(record.upstreamServer, "cloudflare");
+    assert.equal(record.retryAfter, "120");
+    assert.equal(record.responseBody, undefined);
+    assert.ok(!log.includes("query-secret"));
+    assert.ok(!log.includes("initial-session"));
+    assert.ok(!log.includes(relay.capability));
+  `);
+  },
+);
+
+test.each(["application/json", "text/html"])(
+  "ordinary %s HTTP 403 responses remain byte-exact API responses",
+  async (contentType) => {
+    await runRelayScript(`
+    let calls = 0;
+    const contentType = ${JSON.stringify(contentType)};
+    const body = contentType === "application/json" ? '{"detail":"MCP permission denied"}' : '<html>Origin permission denied</html>';
+    upstream = async () => {
+      calls++;
+      return new Response(body, {
+        status: 403,
+        headers: {
+          "content-type": contentType,
+          "retry-after": "60",
+          ...(contentType === "application/json" ? { server: "cloudflare", "cf-ray": "origin-ray-BOM" } : {}),
+        },
+      });
+    };
+    const response = await send("/litellm/mcp");
+    assert.equal(response.status, 403);
+    assert.equal(await response.text(), body);
+    assert.equal(response.headers.get("retry-after"), "60");
+    assert.equal(calls, 1);
+    const records = (await Bun.file(relay.diagnosticsLogFile).text()).trim().split("\\n").map(line => JSON.parse(line));
+    assert.equal(records.length, 2);
+    for (const record of records) {
+      assert.equal(record.errorType, "HTTPError");
+      assert.equal(record.errorCode, "HTTP_403");
+    }
+    assert.equal(records[1].responseBody, body);
+  `);
+  },
+);
+
+test("verification retains sanitized original causes and upstream error codes", async () => {
+  await runRelayScript(`
+    upstream = async request => {
+      if (new URL(request.url).pathname.includes("verify-auth-token")) {
+        throw Object.assign(new TypeError("initial-session DNS failure"), { code: "CUSTOM_DNS_CODE" });
+      }
+      return new Response(null, { status: 401 });
+    };
+    const response = await send("/litellm/v1/chat/completions");
+    assert.equal(response.status, 503);
+    const log = await Bun.file(relay.diagnosticsLogFile).text();
+    assert.ok(!log.includes("initial-session"));
+    const records = log.trim().split("\\n").map(line => JSON.parse(line));
+    const record = records.find(record => record.stage === "session_verify");
+    assert.equal(record.error.name, "LauncherError");
+    assert.equal(record.error.cause.name, "TypeError");
+    assert.equal(record.errorCode, "CUSTOM_DNS_CODE");
+    assert.ok(record.error.cause.stack.includes("DNS failure"));
+    // The same wrapper is used outside the relay, where AXON_DEBUG prints causes.
+    const { verifyEncryptedSession } = await import("./src/cli/auth/verification.ts");
+    const error = await verifyEncryptedSession("initial-session").catch(error => error);
+    const { inspect } = await import("node:util");
+    assert.ok(!inspect(error, { depth: null }).includes("initial-session"));
+    assert.ok(error.cause.stack.includes("DNS failure"));
+  `);
+});
+
+test("verification rotation persistence errors redact both old and newly issued credentials", async () => {
+  await runRelayScript(
+    `
+    upstream = async request => {
+      if (new URL(request.url).pathname.includes("verify-auth-token")) {
+        return Response.json({ status: "VERIFIED" }, { headers: { "x-session-refresh-token": "verify/rotated+credential" } });
+      }
+      return new Response(null, { status: 401 });
+    };
+    assert.equal((await send("/litellm/v1/chat/completions")).status, 503);
+    const log = await Bun.file(relay.diagnosticsLogFile).text();
+    assert.ok(!log.includes("initial-session"));
+    assert.ok(!log.includes("verify/rotated+credential"));
+    const record = log.trim().split("\\n").map(line => JSON.parse(line)).find(record => record.stage === "session_verify");
+    assert.equal(record.errorCode, "EACCES");
+    assert.ok(record.error.cause.message.includes("verification-save-context"));
+  `,
+    `
+    mock.module("./src/cli/auth/session.ts", () => ({
+      ...sessions,
+      refreshEncryptedSession: async (...args) => {
+        throw Object.assign(new Error(args[1] + " " + args[2] + " verification-save-context"), { code: "EACCES" });
+      },
+    }));
+  `,
+  );
+});
+
+test("unexpected handler failures are logged without changing generic client errors", async () => {
+  await runRelayScript(`
+    upstream = async () => {
+      const response = new Response(null);
+      Object.defineProperty(response, "status", { get() { throw new Error("initial-session unexpected-handler-context"); } });
+      return response;
+    };
+    const response = await send("/litellm/v1/chat/completions");
+    assert.equal(response.status, 503);
+    assert.ok(!(await response.text()).includes("unexpected-handler-context"));
+    const log = await Bun.file(relay.diagnosticsLogFile).text();
+    const record = JSON.parse(log.trim());
+    assert.equal(record.stage, "relay_handler");
+    assert.ok(record.error.message.includes("unexpected-handler-context"));
+    assert.ok(!log.includes("initial-session"));
+  `);
+});
+
+test("Pi defaults transport failures retain original diagnostics without exposing credentials", async () => {
+  await runRelayScript(
+    `
+    upstream = async () => { throw Object.assign(new Error("initial-session defaults-network-context"), { code: "ECONNRESET" }); };
+    const response = await send("/_axon/pi-defaults/refresh");
+    assert.equal(response.status, 503);
+    const log = await Bun.file(relay.diagnosticsLogFile).text();
+    const record = JSON.parse(log.trim());
+    assert.equal(record.stage, "pi_defaults_refresh");
+    assert.equal(record.errorCode, "ECONNRESET");
+    assert.ok(record.error.message.includes("defaults-network-context"));
+    assert.ok(!log.includes("initial-session"));
+  `,
+    "",
+    true,
+  );
 });
 
 test("GET failures log the actual endpoint pathname without query strings", async () => {
@@ -131,7 +351,9 @@ test("GET failures log the actual endpoint pathname without query strings", asyn
     assert.equal(record.method, "GET");
     assert.equal(record.stage, "upstream_fetch");
     assert.equal(record.errorCode, "ECONNRESET");
-    assert.ok(!log.includes("secret"));
+    assert.equal(record.error.message, "error-secret");
+    assert.ok(!log.includes("query-secret"));
+    assert.ok(!log.includes("initial-session"));
     assert.ok(!log.includes(relay.capability));
   `);
 });
@@ -257,7 +479,7 @@ test("observed successful responses remain byte-exact streams, not buffered bodi
   `);
 });
 
-test("upstream HTTP failures log status without inspecting or changing the error body", async () => {
+test("upstream HTTP failures log status and complete small error bodies without changing them", async () => {
   await runRelayScript(`
     const body = '{"error":{"message":"upstream-private-secret"}}';
     upstream = async () => new Response(body, { status: 503, headers: { "content-type": "application/json" } });
@@ -265,10 +487,15 @@ test("upstream HTTP failures log status without inspecting or changing the error
     assert.equal(response.status, 503);
     assert.equal(await response.text(), body);
     const log = await Bun.file(relay.diagnosticsLogFile).text();
-    const record = JSON.parse(log.trim());
-    assert.equal(record.stage, "upstream_response");
-    assert.equal(record.status, 503);
-    assert.ok(!log.includes("private-secret"));
+    const records = log.trim().split("\\n").map(line => JSON.parse(line));
+    assert.equal(records[0].stage, "upstream_response");
+    assert.equal(records[0].status, 503);
+    assert.equal(records[0].errorType, "HTTPError");
+    assert.equal(records[0].errorCode, "HTTP_503");
+    assert.equal(records[1].stage, "upstream_response_body");
+    assert.equal(records[1].errorType, "HTTPError");
+    assert.equal(records[1].errorCode, "HTTP_503");
+    assert.equal(records[1].responseBody, body);
   `);
 });
 
@@ -1022,7 +1249,8 @@ test("failed persistence fails its request without poisoning subsequent requests
       const record = JSON.parse(log.trim());
       assert.equal(record.stage, "session_refresh");
       assert.equal(record.errorCode, "EACCES");
-      assert.ok(!log.includes("private-session"));
+      assert.ok(!log.includes("initial-session"));
+      assert.ok(!log.includes("new-session"));
       assert.equal(await sessions.loadEncryptedSession(paths), "initial-session");
       assert.equal((await bounded(send("/litellm/second"))).status, 200);
       assert.equal(await sessions.loadEncryptedSession(paths), "new-session");
@@ -1033,7 +1261,7 @@ test("failed persistence fails its request without poisoning subsequent requests
       mock.module("./src/cli/auth/session.ts", () => ({
         ...sessions,
         refreshEncryptedSession: async (...args) => {
-          if (attempts++ === 0) throw Object.assign(new Error("private-session"), { code: "EACCES" });
+          if (attempts++ === 0) throw Object.assign(new Error(args[1] + " " + args[2]), { code: "EACCES" });
           return originalRefresh(...args);
         },
       }));

@@ -3,7 +3,6 @@ import { lstat, mkdtemp, realpath, symlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, parse } from "node:path";
 
-import { resolveGitAiBinary } from "../harnesses/pi/resources/extensions/git-ai.ts";
 import { readCertificates } from "../launcher/certificates.ts";
 import type { LaunchSpec } from "../launcher/contracts.ts";
 import type { AxonPaths } from "../product/paths.ts";
@@ -19,6 +18,7 @@ import {
   validateFilesystemPreferences,
   validateFilesystemProject,
 } from "./filesystem.ts";
+import { resolveGitAiBinary } from "./git-ai-binary.ts";
 import { type PackageProxy, startPackageProxy } from "./package-proxy.ts";
 import { installedPackagePaths, PACKAGE_WRITE_FILTERS } from "./packages.ts";
 import { type SandboxAuthorization, sandboxFailure } from "./policy.ts";

@@ -2,6 +2,9 @@ import axonExtensionAsset from "../harnesses/pi/resources/extensions/axon.ts" wi
 import axonAuthExtensionAsset from "../harnesses/pi/resources/extensions/axon-auth.ts" with {
   type: "file",
 };
+import axonChangelogExtensionAsset from "../harnesses/pi/resources/extensions/axon-changelog.ts" with {
+  type: "file",
+};
 import compactionExtensionAsset from "../harnesses/pi/resources/extensions/compaction.ts" with {
   type: "file",
 };
@@ -64,6 +67,12 @@ const AXON_CORE_RESOURCE = Object.freeze({
   destination: "pi/extensions/axon.ts",
 }) satisfies PiResourceManifestEntry;
 
+const AXON_CHANGELOG_RESOURCE = Object.freeze({
+  id: "axon-changelog",
+  type: "extension",
+  destination: "pi/extensions/axon-changelog.ts",
+}) satisfies PiResourceManifestEntry;
+
 const AXON_AUTH_RESOURCE = Object.freeze({
   id: "axon-auth",
   type: "extension",
@@ -113,7 +122,7 @@ const AXON_LIGHT_THEME_RESOURCE = Object.freeze({
 
 export const AXON_MANIFEST = parseAxonManifest({
   schemaVersion: 1,
-  revision: "20",
+  revision: "23",
   pi: {
     packages: [
       {
@@ -127,7 +136,7 @@ export const AXON_MANIFEST = parseAxonManifest({
         id: "pi-provider-litellm",
         source: "npm:pi-provider-litellm",
         required: true,
-        versionPolicy: { kind: "exact", version: "4.5.0" },
+        versionPolicy: { kind: "exact", version: "4.7.2" },
         install: { action: "pi.install" },
       },
       {
@@ -144,6 +153,7 @@ export const AXON_MANIFEST = parseAxonManifest({
     resources: [
       MANAGED_CONFIG_RESOURCE,
       AXON_CORE_RESOURCE,
+      AXON_CHANGELOG_RESOURCE,
       AXON_AUTH_RESOURCE,
       MODEL_RECOMMENDER_RESOURCE,
       SESSION_BACKUP_RESOURCE,
@@ -173,6 +183,10 @@ export const EMBEDDED_PI_RESOURCES = Object.freeze([
     ...AXON_CORE_RESOURCE,
     // TypeScript resolves the source module while Bun's `file` loader returns its asset path.
     sourcePath: axonExtensionAsset as unknown as string,
+  }),
+  Object.freeze({
+    ...AXON_CHANGELOG_RESOURCE,
+    sourcePath: axonChangelogExtensionAsset as unknown as string,
   }),
   Object.freeze({
     ...AXON_AUTH_RESOURCE,

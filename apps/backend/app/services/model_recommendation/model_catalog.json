@@ -5,11 +5,11 @@
   "models": [
     {
       "provider": "litellm",
-      "id": "openai/gpt-6-luna",
+      "id": "openai/gpt-6.1-terra",
       "enabled": true,
-      "quality": 0.5,
-      "reasoning": 0.5,
-      "speed": 1.0,
+      "quality": 0.8,
+      "reasoning": 0.85,
+      "speed": 0.8,
       "input": ["text", "image"]
     },
     {

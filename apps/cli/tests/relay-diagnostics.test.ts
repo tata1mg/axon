@@ -38,7 +38,7 @@ async function records(logFile: string) {
     .map((line) => JSON.parse(line));
 }
 
-test("logs transport metadata, never full URLs, headers, payloads, messages or stacks", async () => {
+test("logs error messages and stacks with transport/build context, not request bodies or credentials", async () => {
   const { logFile, cliSessionId, diagnostic } = setup();
   const error = Object.assign(new TypeError("https://private.test?key=error-secret"), {
     code: "ECONNRESET",
@@ -46,7 +46,7 @@ test("logs transport metadata, never full URLs, headers, payloads, messages or s
   });
   await diagnostic.failure("upstream_stream", error, 200, 123);
   const [record] = await records(logFile);
-  expect(record).toEqual({
+  expect(record).toMatchObject({
     timestamp: expect.any(String),
     cliSessionId,
     requestId: diagnostic.requestId,
@@ -58,9 +58,21 @@ test("logs transport metadata, never full URLs, headers, payloads, messages or s
     bytesReceived: 123,
     errorType: "TypeError",
     errorCode: "ECONNRESET",
+    schemaVersion: 2,
+    cliVersion: expect.any(String),
+    runtime: expect.stringContaining("bun/"),
+    pid: process.pid,
+    error: {
+      name: "TypeError",
+      message: "https://private.test?key=error-secret",
+      stack: "stack-secret",
+    },
   });
   expect(record.requestId).toMatch(/^[a-f0-9-]{36}$/);
-  expect(await readFile(logFile, "utf8")).not.toContain("secret");
+  const log = await readFile(logFile, "utf8");
+  for (const credential of ["session-secret", "caller-secret", "prompt-secret", "query-secret"]) {
+    expect(log).not.toContain(credential);
+  }
   expect((await stat(logFile)).mode & 0o777).toBe(0o600);
   expect((await stat(join(home, "logs"))).mode & 0o777).toBe(0o700);
 });
@@ -92,7 +104,7 @@ test.each([
   "/litellm/files/file_xyz789",
   "/litellm/v1/models/",
 ])(
-  "logs pathname %s, but not query strings, fragments or untrusted exception names/codes",
+  "logs pathname %s and custom exception names/codes without request queries or fragments",
   async (path) => {
     const { logFile, diagnostic } = setup(`${path}?key=query-secret#fragment-secret`);
     await diagnostic.failure(
@@ -104,13 +116,16 @@ test.each([
     );
     const [record] = await records(logFile);
     expect(record.endpoint).toBe(path);
-    expect(record.errorType).toBe("unknown");
-    expect(record.errorCode).toBe("unknown");
-    expect(await readFile(logFile, "utf8")).not.toContain("secret");
+    expect(record.errorType).toBe("name-secret");
+    expect(record.errorCode).toBe("code-secret");
+    expect(record.error.message).toBe("secret");
+    const log = await readFile(logFile, "utf8");
+    expect(log).not.toContain("query-secret");
+    expect(log).not.toContain("fragment-secret");
   },
 );
 
-test("extracts an allowlisted connection code from a wrapped fetch error", async () => {
+test("extracts a connection code and preserves the cause of a wrapped fetch error", async () => {
   const { logFile, diagnostic } = setup();
   await diagnostic.failure(
     "upstream_fetch",
@@ -119,6 +134,98 @@ test("extracts an allowlisted connection code from a wrapped fetch error", async
     }),
   );
   expect((await records(logFile))[0].errorCode).toBe("UND_ERR_SOCKET");
+});
+
+test.each([401, 403, 429, 503])(
+  "HTTP %s failures have explicit types/codes without exceptions",
+  async (status) => {
+    const { logFile, diagnostic } = setup();
+    diagnostic.attempt(1);
+    await diagnostic.failure("upstream_response", undefined, status);
+    const [record] = await records(logFile);
+    expect(record).toMatchObject({ status, errorType: "HTTPError", errorCode: `HTTP_${status}` });
+    expect(record.error).toBeUndefined();
+  },
+);
+
+test("records edge correlation headers and consistent HTTP classifications in both failure stages", async () => {
+  const { logFile, diagnostic } = setup();
+  const response = new Response("challenge page", {
+    status: 403,
+    headers: {
+      "content-type": "text/html",
+      server: "cloudflare",
+      "cf-ray": "a51cd4c2cc301849-BOM",
+      "cf-mitigated": "challenge",
+      "retry-after": "120",
+    },
+  });
+  diagnostic.attempt(1);
+  diagnostic.response(response);
+  await diagnostic.failure("upstream_response", undefined, response.status);
+  expect(
+    await new Response(observeRelayResponse(response.body, diagnostic, 403, "text/html")).text(),
+  ).toBe("challenge page");
+  const entries = await records(logFile);
+  expect(entries.map((entry) => entry.stage)).toEqual([
+    "upstream_response",
+    "upstream_response_body",
+  ]);
+  for (const record of entries) {
+    expect(record).toMatchObject({
+      requestId: diagnostic.requestId,
+      status: 403,
+      errorType: "CloudflareError",
+      errorCode: "CLOUDFLARE_CHALLENGE",
+      upstreamServer: "cloudflare",
+      cfRay: "a51cd4c2cc301849-BOM",
+      cfMitigated: "challenge",
+      retryAfter: "120",
+    });
+  }
+});
+
+test("clears response headers and HTTP classification between attempts", async () => {
+  const { logFile, diagnostic } = setup();
+  diagnostic.attempt(1);
+  diagnostic.response(
+    new Response(null, {
+      status: 403,
+      headers: { "cf-mitigated": "challenge", "cf-ray": "first-ray", "retry-after": "90" },
+    }),
+  );
+  await diagnostic.failure("upstream_response", undefined, 403);
+  diagnostic.attempt(2);
+  await diagnostic.failure("upstream_response", undefined, 503);
+  const [, record] = await records(logFile);
+  expect(record).toMatchObject({ attempt: 2, errorType: "HTTPError", errorCode: "HTTP_503" });
+  expect(record.cfRay).toBeUndefined();
+  expect(record.cfMitigated).toBeUndefined();
+  expect(record.retryAfter).toBeUndefined();
+  expect(record.headersMs).toBeNull();
+});
+
+test("a failed HTTP error-body read retains the actual network exception", async () => {
+  const { logFile, diagnostic } = setup();
+  diagnostic.response(
+    new Response(null, { status: 403, headers: { "cf-mitigated": "challenge" } }),
+  );
+  const source = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.error(Object.assign(new TypeError("socket reset"), { code: "ECONNRESET" }));
+    },
+  });
+  await expect(
+    new Response(observeRelayResponse(source, diagnostic, 403, "text/html")).text(),
+  ).rejects.toThrow("Axon upstream stream interrupted");
+  const [record] = await records(logFile);
+  expect(record).toMatchObject({
+    stage: "upstream_stream",
+    status: 403,
+    errorType: "TypeError",
+    errorCode: "ECONNRESET",
+  });
+  expect(record.responseBody).toBeUndefined();
 });
 
 test("rotates at 1 MiB and retains only one backup", async () => {

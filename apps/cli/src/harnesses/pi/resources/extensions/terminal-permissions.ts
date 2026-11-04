@@ -8,12 +8,18 @@ import {
 } from "@earendil-works/pi-coding-agent";
 
 import { type CommandWords, parseCommands } from "../../terminal-permissions/command-parser.ts";
+import {
+  readYoloPreference,
+  terminalPreferencesPath,
+  toggleYoloPreference,
+  watchYoloPreference,
+} from "../../terminal-permissions/preferences.ts";
 import { createSandboxShellOperations } from "./axon.ts";
 
 /**
  * Standard auto-runs supported commands unless the model or policy requests review.
  * YOLO skips review, including for wrappers and complex shell syntax. Backend
- * yoloMode only grants eligibility; /yolo explicitly toggles it for this session.
+ * yoloMode only grants eligibility; /yolo toggles a saved preference shared by local sessions.
  * Literal-prefix blocklists are best-effort, not an OS sandbox: scripts, wrappers,
  * and other extensions can perform arbitrary work.
  *
@@ -21,7 +27,7 @@ import { createSandboxShellOperations } from "./axon.ts";
  * PI_TERMINAL_BLOCKED_COMMANDS='["git reset --hard"]'
  * PI_TERMINAL_APPROVAL_TIMEOUT_MS=60000
  * PI_TERMINAL_MANAGED_CONFIG is reserved for the Axon launcher's backend policy.
- * Environment variables cannot grant eligibility or activate YOLO.
+ * Environment variables cannot grant eligibility; activation requires the saved user preference.
  */
 // Keep this bus contract in sync with axon.ts; both extensions ship standalone.
 export const TERMINAL_HEADER_CHANNEL = "axon:terminal-status";
@@ -306,7 +312,9 @@ function registerShellTools(pi: ExtensionAPI): void {
 
 export default function terminalPermissions(pi: ExtensionAPI): void {
   registerShellTools(pi);
+  const preferencePath = terminalPreferencesPath();
   let yoloEnabled = false;
+  let stopWatchingPreference: (() => void) | undefined;
   let autoSelectedDecisionSampleIndex = 0;
   // Bound retained requests and serialize confirmation dialogs for concurrent codemode calls.
   const approvalQueue: (() => Promise<void>)[] = [];
@@ -360,6 +368,14 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
   const updateStatus = (): void => {
     publishStatus(yoloEnabled ? "yolo" : "standard");
   };
+  const refreshMode = (config: TerminalConfig): boolean => {
+    const enabled = config.yoloAvailable && readYoloPreference(preferencePath);
+    if (enabled !== yoloEnabled) {
+      yoloEnabled = enabled;
+      updateStatus();
+    }
+    return enabled;
+  };
   const authorize = async (
     command: unknown,
     shell: TerminalShell,
@@ -393,7 +409,7 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
       shell === "bash" &&
       !!settings.shellPath &&
       !["/bin/bash", "/bin/sh"].includes(settings.shellPath);
-    const yoloMode = config.yoloAvailable && yoloEnabled;
+    const yoloMode = refreshMode(config);
     const decision = decide(
       effectiveCommand,
       shell,
@@ -520,12 +536,22 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
   };
 
   pi.on("session_start", (_event, ctx) => {
-    yoloEnabled = false;
+    stopWatchingPreference?.();
+    stopWatchingPreference = undefined;
     autoSelectedDecisionSampleIndex = 0;
     try {
-      getConfig();
+      const config = getConfig();
+      yoloEnabled = config.yoloAvailable && readYoloPreference(preferencePath);
       updateStatus();
-      emit("policy", "success", { yoloMode: false });
+      // Only the header needs polling; authorization always reads the file itself.
+      if (ctx.hasUI) {
+        try {
+          stopWatchingPreference = watchYoloPreference(preferencePath, () => refreshMode(config));
+        } catch {
+          // Header polling is optional; authorization still refreshes the preference on every call.
+        }
+      }
+      emit("policy", "success", { yoloMode: yoloEnabled });
     } catch {
       publishStatus("blocked");
       emit("policy", "failed", { reason: "invalid_config" });
@@ -564,14 +590,19 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
   });
 
   pi.on("session_shutdown", () => {
-    yoloEnabled = false;
+    stopWatchingPreference?.();
+    stopWatchingPreference = undefined;
   });
 
   pi.registerCommand("yolo", {
-    description: "Toggle fully autonomous terminal execution for this session (if backend permits)",
+    description:
+      "Toggle saved autonomous terminal execution for all local sessions (if backend permits)",
     handler: async (args, ctx) => {
       if (args.trim()) {
-        ctx.ui.notify("Usage: /yolo (toggles on/off for this session)", "warning");
+        ctx.ui.notify(
+          "Usage: /yolo (toggles saved on/off preference for all local sessions)",
+          "warning",
+        );
         return;
       }
       let config: TerminalConfig;
@@ -585,27 +616,43 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
         );
         return;
       }
-      if (!yoloEnabled && !config.yoloAvailable) {
+      const savedPreference = readYoloPreference(preferencePath);
+      if (!savedPreference && !config.yoloAvailable) {
         emit("yolo", "blocked", { reason: "policy_disabled", yoloMode: false });
         ctx.ui.notify("YOLO is unavailable: backend policy does not permit it.", "warning");
         return;
       }
-      if (!yoloEnabled && !ctx.hasUI) {
+      if (!savedPreference && !ctx.hasUI) {
         emit("yolo", "blocked", { reason: "approval_unavailable", yoloMode: false });
         return;
       }
       if (ctx.signal?.aborted) return;
-      yoloEnabled = !yoloEnabled;
+      let savedEnabled: boolean;
+      try {
+        savedEnabled = await toggleYoloPreference(preferencePath, {
+          allowEnable: config.yoloAvailable && ctx.hasUI,
+          ...(ctx.signal === undefined ? {} : { signal: ctx.signal }),
+        });
+      } catch {
+        refreshMode(config);
+        if (!ctx.signal?.aborted) {
+          ctx.ui.notify(
+            "Could not save YOLO preference. Check your user configuration directory.",
+            "error",
+          );
+        }
+        return;
+      }
+      refreshMode(config);
       emit("yolo", "success", {
-        reason: yoloEnabled ? "yolo_enabled" : "yolo_disabled",
+        reason: savedEnabled ? "yolo_enabled" : "yolo_disabled",
         yoloMode: yoloEnabled,
       });
-      updateStatus();
       ctx.ui.notify(
-        yoloEnabled
-          ? "YOLO on for this session: terminal commands run without approval. Blocklists are best-effort, not a sandbox. Run /yolo to turn off."
-          : "YOLO off: Standard mode restored.",
-        yoloEnabled ? "warning" : "info",
+        savedEnabled
+          ? "YOLO on for all local sessions, including future sessions: terminal commands run without approval where policy permits. Blocklists are best-effort, not a sandbox. Run /yolo to turn off."
+          : "YOLO off for all local sessions: Standard mode restored for subsequent commands.",
+        savedEnabled ? "warning" : "info",
       );
     },
   });
@@ -623,9 +670,12 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
         );
         return;
       }
+      refreshMode(config);
       ctx.ui.notify(
         [
           `Mode: ${yoloEnabled ? "YOLO" : "Standard"}`,
+          `Saved YOLO preference (local user): ${readYoloPreference(preferencePath) ? "on" : "off"}`,
+          `Preference file: ${preferencePath}`,
           `YOLO available: ${config.yoloAvailable ? "yes — toggle with /yolo" : "no (backend policy)"}`,
           `Require approval (Standard only): ${config.requireApprovalCommands.map((rule) => rule.text).join(", ") || "none"}`,
           `Blocked (best-effort): ${config.blockedCommands.map((rule) => rule.text).join(", ") || "none"}`,

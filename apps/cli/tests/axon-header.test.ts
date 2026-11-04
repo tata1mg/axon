@@ -17,6 +17,7 @@ type HeaderFactory = NonNullable<Parameters<ExtensionContext["ui"]["setHeader"]>
 type Header = ReturnType<HeaderFactory> & { setExpanded(value: boolean): void };
 const environmentKeys = [
   "PI_AXON_CLI_VERSION",
+  "PI_AXON_STARTUP_TIP",
   "PI_AXON_AUTH_RELAY_URL",
   "PI_AXON_AUTH_RELAY_KEY",
   "PI_AXON_RELAY_LOG_FILE",
@@ -235,22 +236,116 @@ describe("Axon relay error placement", () => {
   });
 });
 
+describe("Axon startup tips", () => {
+  test("shows one themed Tips section below shortcuts, outside the branding card", () => {
+    process.env["PI_AXON_STARTUP_TIP"] =
+      "Use /yolo to toggle approval-free terminal commands.\nOnly when your policy allows it.";
+    const component = header(markedTheme());
+    const output = text(component);
+    expect(output.match(/\[Tips\]/g)).toHaveLength(1);
+    expect(output).toContain(
+      " [Tips]\n   Use /yolo to toggle approval-free terminal commands.\n   Only when your policy allows it.",
+    );
+    expect(output.indexOf("[Tips]")).toBeGreaterThan(output.indexOf("/hotkeys"));
+    expect(output.indexOf("[Tips]")).toBeGreaterThan(output.indexOf("──╯"));
+    expect(component.render(100).join("\n")).toContain(marked("accent", "[Tips]"));
+    expect(component.render(100).join("\n")).toContain(
+      marked("muted", "Use /yolo to toggle approval-free terminal commands."),
+    );
+  });
+
+  test("keeps the selected tip through redraws, status updates, expansion, and resizing", () => {
+    process.env["PI_AXON_STARTUP_TIP"] = "Use /yolo when your policy allows it.";
+    const { setHeader, emitBackup, emitTerminal } = setup();
+    const component = setHeader.mock.calls[0]?.[0]?.(
+      { requestRender() {} } as unknown as Parameters<HeaderFactory>[0],
+      plainTheme(),
+    ) as Header;
+    process.env["PI_AXON_STARTUP_TIP"] = "A different tip for a later launch.";
+    emitBackup("saved");
+    emitTerminal("standard");
+    for (const expanded of [false, true]) {
+      component.setExpanded(expanded);
+      component.invalidate();
+      for (const width of [40, 60, 100, 200]) {
+        const output = collapsed(text(component, width));
+        expect(output).toContain("Use /yolo when your policy allows it.");
+        expect(output).not.toContain("A different tip");
+        expect(output.match(/\[Tips\]/g)).toHaveLength(1);
+      }
+    }
+  });
+
+  test("wraps the full tip to fit narrow terminals without dropping words", () => {
+    const tip = "Use /yolo to toggle approval-free terminal commands for this session.";
+    process.env["PI_AXON_STARTUP_TIP"] = tip;
+    const component = header();
+    for (const width of WIDTHS) {
+      for (const line of component.render(width)) {
+        expect(visibleWidth(line)).toBeLessThanOrEqual(width);
+      }
+      if (width >= 24) expect(collapsed(text(component, width))).toContain(tip);
+    }
+    expect(component.render(0)).toEqual([]);
+  });
+
+  test("omits tips when no launcher tip is supplied", () => {
+    for (const tip of [undefined, "", "   \n   "]) {
+      if (tip === undefined) delete process.env["PI_AXON_STARTUP_TIP"];
+      else process.env["PI_AXON_STARTUP_TIP"] = tip;
+      expect(text(header())).not.toContain("[Tips]");
+    }
+  });
+
+  test("does not let tip text inject terminal controls", () => {
+    process.env["PI_AXON_STARTUP_TIP"] = "Use /yolo\u001b]0;owned\u0007\nSecond line\t.";
+    const output = header(plainTheme()).render(100).join("\n");
+    expect(output).not.toContain("\u001b");
+    expect(output).not.toContain("\u0007");
+    expect(output).not.toContain("\t");
+    expect(output).toContain("Second line?.");
+  });
+});
+
 describe("Axon startup header", () => {
   test("frames the neuron logo, launcher version, tagline, and Pi attribution in a card", () => {
     process.env["PI_AXON_CLI_VERSION"] = "0.1.0-dev";
     const lines = text(header()).split("\n");
     expect(lines[0]).toStartWith(" ╭─");
     expect(lines[0]).toEndWith("─╮");
-    expect(lines[1]).toContain("◉─╮    Axon v0.1.0-dev");
+    expect(lines[1]).toContain("◉─╮    Axon by DeputyDev v0.1.0-dev");
     expect(lines[2]).toContain("├─●  TATA 1mg · Your coding workspace");
     expect(lines[3]).toContain("╰─●");
     expect(lines[4]).toStartWith(" ╰─");
-    expect(lines[4]).toEndWith(` DeputyDev · Powered by Pi v${PI_INSTALL_VERSION} ──╯`);
+    expect(lines[4]).toEndWith(` Powered by Pi v${PI_INSTALL_VERSION} ──╯`);
+    expect(lines[4]).not.toContain("DeputyDev");
     const output = text(header());
     expect(output).toContain("escape interrupt");
     expect(output).toContain("ctrl+l models");
     expect(output).toContain("/ commands");
     expect(output).toContain("/hotkeys all shortcuts");
+  });
+
+  test("dims the DeputyDev credit beside Axon in both card and compact headers", () => {
+    process.env["PI_AXON_CLI_VERSION"] = "0.2.7";
+    const component = header(markedTheme());
+    for (const width of [40, 100]) {
+      const lines = component.render(width);
+      const title = lines[width === 100 ? 1 : 0] ?? "";
+      expect(title).toContain(marked("accent", "Axon"));
+      expect(title).toContain(marked("dim", " by DeputyDev v0.2.7"));
+      const output = lines.map(stripVTControlCharacters).join("\n");
+      expect(output).toContain(`Powered by Pi v${PI_INSTALL_VERSION}`);
+      expect(output.match(/DeputyDev/g)).toHaveLength(1);
+    }
+  });
+
+  test("keeps the full release title beside both status badges at the standard card width", () => {
+    process.env["PI_AXON_CLI_VERSION"] = "0.2.7";
+    const component = header(undefined, "ready", undefined, "standard");
+    const title = stripVTControlCharacters(component.render(100)[1] ?? "");
+    expect(title).toContain("Axon by DeputyDev v0.2.7");
+    expect(title).toEndWith("● Backup: on · ● Terminal: standard  │");
   });
 
   test("caps the card width on wide terminals and aligns hints to it", () => {
@@ -264,15 +359,15 @@ describe("Axon startup header", () => {
 
   test("omits the launcher version when loaded outside Axon", () => {
     const output = text(header());
-    expect(output).toContain("Axon");
-    expect(output).not.toContain("Axon v");
-    expect(output).toContain(`DeputyDev · Powered by Pi v${PI_INSTALL_VERSION}`);
+    expect(output).toContain("Axon by DeputyDev");
+    expect(output).not.toContain("DeputyDev v");
+    expect(output).toContain(`Powered by Pi v${PI_INSTALL_VERSION}`);
   });
 
   test("does not render terminal controls or multiline values from version metadata", () => {
     process.env["PI_AXON_CLI_VERSION"] = "1.0\n\u001b]0;untrusted\u0007";
     const output = text(header());
-    expect(output).not.toContain("Axon v");
+    expect(output).not.toContain("DeputyDev v");
     expect(output).not.toContain("untrusted");
   });
 
@@ -404,13 +499,15 @@ describe("Axon startup header", () => {
     const component = header(undefined, "saved");
     for (const width of [58, 60, 80, 86]) {
       const row = stripVTControlCharacters(component.render(width)[1] ?? "");
-      expect(row).toContain("Axon v0.1.0-dev");
+      expect(row).toContain("Axon by DeputyDev");
+      if (width >= 80) expect(row).toContain("Axon by DeputyDev v0.1.0-dev");
       expect(row).toEndWith("● Backup: saved  │");
       expect(visibleWidth(row)).toBe(width - 1);
     }
     for (const width of [40, 48]) {
       const row = stripVTControlCharacters(component.render(width)[0] ?? "");
-      expect(row).toContain("Axon v0.1.0-dev");
+      expect(row).toContain("Axon by DeputyDev");
+      if (width >= 48) expect(row).toContain("Axon by DeputyDev v0.1.0-dev");
       expect(row).toEndWith("● Backup: saved");
       expect(visibleWidth(row)).toBe(width - 1);
     }

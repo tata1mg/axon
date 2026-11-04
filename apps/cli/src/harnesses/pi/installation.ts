@@ -19,6 +19,7 @@ import { PRODUCT_IDENTITY } from "../../product/identity.ts";
 import type { AxonPaths } from "../../product/paths.ts";
 import { runSandboxCommand } from "../../sandbox/session.ts";
 import { createPiEnvironment } from "./environment.ts";
+import { NpmInstallFailure, withNpmRegistryFallback } from "./npm-registry.ts";
 import { isPiOffline } from "./setup/packages/invocation.ts";
 import { type PiVersionProber, probePiVersion, resolvePiVersion } from "./version.ts";
 
@@ -326,13 +327,16 @@ async function runNpmCi(request: PiNpmCiRequest): Promise<void> {
       cwd: request.cwd,
       environment: request.environment,
     },
-    { purpose: "provision", writePaths: [request.cwd], inheritOutput: true },
+    // Captured, not inherited, so the registry fallback can classify npm failures.
+    { purpose: "provision", writePaths: [request.cwd] },
   );
+  process.stdout.write(result.stdout);
+  process.stderr.write(result.stderr);
   if (result.signalCode !== null) {
     throw new Error(`npm ci terminated by signal ${result.signalCode}`);
   }
   if (result.exitCode !== 0) {
-    throw new Error(`npm ci exited with status ${result.exitCode}`);
+    throw new NpmInstallFailure(result.exitCode, result.stdout + result.stderr);
   }
 }
 
@@ -439,12 +443,15 @@ async function installManagedPi(
     await mkdir(stageDirectory, { recursive: true, mode: 0o700 });
     await Bun.write(join(stageDirectory, "package.json"), packageJson);
     await Bun.write(join(stageDirectory, "package-lock.json"), completedLock);
-    await (dependencies.runNpmCi ?? runNpmCi)({
+    const npmRequest: PiNpmCiRequest = {
       context,
       cwd: stageDirectory,
       environment: createHarnessEnvironment(context.environment),
       npmPath: toolchain.npmPath,
-    });
+    };
+    await withNpmRegistryFallback(npmRequest, (environment) =>
+      (dependencies.runNpmCi ?? runNpmCi)({ ...npmRequest, environment }),
+    );
 
     const launcher = join(stageDirectory, "node_modules", ".bin", "pi");
     try {

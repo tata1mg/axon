@@ -21,9 +21,12 @@ The backend loads `config.json` from this directory and validates it before serv
 
 ## Terminal execution policy
 
-`TERMINAL_PERMISSIONS.YOLO_MODE` grants eligibility for the CLI's session-local `/yolo`
-toggle. It never enables autonomous execution by default: every session starts in Standard
-mode. Set it to `false` to prohibit YOLO for all users; missing policy also prohibits it.
+`TERMINAL_PERMISSIONS.YOLO_MODE` grants eligibility for the CLI's user-level `/yolo`
+toggle. It does not itself enable autonomous execution: users must explicitly save their
+local preference with `/yolo`. That preference is shared by existing and future sessions
+using the same user configuration directory and survives restarts. Without saved consent,
+sessions default to Standard. Set the policy to `false` to prohibit YOLO for all users,
+regardless of saved preferences; missing policy also prohibits it.
 `REQUIRE_APPROVAL_COMMANDS` applies only in Standard, while `BLOCKED_COMMANDS` is a
 best-effort literal-prefix list in both modes, not a sandbox. YOLO allows wrappers and
 complex syntax even when the blocklist cannot verify their contents.

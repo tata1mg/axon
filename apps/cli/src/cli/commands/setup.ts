@@ -2,6 +2,7 @@ import { synchronizePiMcpConfig } from "../../harnesses/pi/setup/mcp-config.ts";
 import { synchronizePiPackages } from "../../harnesses/pi/setup/packages/sync.ts";
 import { materializePiResources } from "../../harnesses/pi/setup/resources.ts";
 import { loadHarnessAdapter, resolveHarnessRegistration } from "../../harnesses/registry.ts";
+import type { PaseoSetupOptions } from "../../integrations/paseo.ts";
 import type {
   HarnessLaunchContext,
   HarnessRegistration,
@@ -14,8 +15,9 @@ import { PRODUCT_IDENTITY } from "../../product/identity.ts";
 import { AXON_MANIFEST, EMBEDDED_PI_RESOURCES } from "../../product/manifest.ts";
 import { resolveAxonPaths } from "../../product/paths.ts";
 import { withSandboxSession } from "../../sandbox/session.ts";
+import { runPaseoSetup } from "./setup-paseo.ts";
 
-export interface SetupOptions {
+export interface SetupOptions extends PaseoSetupOptions {
   readonly syncPackages?: boolean;
 }
 
@@ -25,6 +27,22 @@ export async function runSetup(
   environment: NodeJS.ProcessEnv = process.env,
   cwd: string = process.cwd(),
 ): Promise<void> {
+  if (harnessToken === "paseo") {
+    if (options.syncPackages === true) {
+      throw new LauncherError(
+        "--sync-packages applies only to Pi setup",
+        LAUNCHER_EXIT_STATUS.usage,
+      );
+    }
+    await runPaseoSetup(options, environment, cwd);
+    return;
+  }
+  if (options.config !== undefined || options.yes === true) {
+    throw new LauncherError(
+      "--config and --yes apply only to Paseo setup",
+      LAUNCHER_EXIT_STATUS.usage,
+    );
+  }
   if (options.syncPackages !== true) {
     throw new LauncherError("setup requires an explicit operation", LAUNCHER_EXIT_STATUS.usage, {
       remediation: `Run ${PRODUCT_IDENTITY.command} setup pi --sync-packages.`,
@@ -34,7 +52,7 @@ export async function runSetup(
   const registration = resolveHarnessRegistration(harnessToken);
   if (registration?.id !== "pi") {
     throw new LauncherError(
-      `setup currently supports only pi, received: ${harnessToken}`,
+      `setup supports pi or paseo, received: ${harnessToken}`,
       LAUNCHER_EXIT_STATUS.usage,
       { remediation: `Run ${PRODUCT_IDENTITY.command} setup pi --sync-packages.` },
     );

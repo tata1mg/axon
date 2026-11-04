@@ -54,7 +54,7 @@ export interface SandboxCommandOptions {
 
 export interface SandboxCommandResult {
   readonly exitCode: number;
-  readonly signalCode: NodeJS.Signals | null;
+  readonly signalCode: NodeJS.Signals | number | null;
   readonly stdout: string;
   readonly stderr: string;
 }

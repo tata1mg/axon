@@ -74,15 +74,36 @@ narrows every panel to those people. Rows, top to bottom:
 - **Models & reasoning effort**: requests and cost by thinking level, effort mix over time,
   reasoning share of output, latency and context utilization by model.
 - **Sessions & terminals**: sessions by terminal, mode and repository; per-session cost,
-  duration and interaction distributions; interventions and recent interaction traces.
-- **Reliability**, then collapsed **Product** rows (recommender, backup/restore, CLI health).
+  duration, token and interaction distributions; session start/end reasons; inputs by source;
+  interventions and recent interaction traces.
+- **Agent loop**: runs, turns, repeated runs and inputs; LLM/tool calls per interaction; turn and
+  run duration; tool latency by tool; turn outcomes, run stop reasons, and time waiting on the user.
+- **Reliability**, then collapsed **Product** rows: recommender (funnel, decisions, routing signals,
+  candidates), backup/restore, CLI health, compaction (triggers, outcomes, cost, duration,
+  summarizer models, traces) and terminal permissions (decisions, approvals and wait time,
+  YOLO adoption, policy events, blocked commands and traces). Auto-allowed terminal decisions are
+  sampled (first per session, then 1 in 100); blocked and approval events are complete.
 
-Counter totals use `(increase(m[w]) and (m offset w)) or max_over_time(m[w])` instead of bare
-`increase`. Each process exports its own cumulative series and `increase` ignores a series' first
-sample, which would drop short-lived processes (for example, a process that starts one session
-first exports `pi_session_started_total=1`). Multi-counter sums use a `label_replace` union rather
-than `+`, so a model without cache-write tokens still appears. Active users count emails with any
-exported sample in the window.
+[`grafana-metrics-only.json`](grafana-metrics-only.json) is the same dashboard without the Tempo
+panels; keep the two in sync (a test enforces it).
+
+Counter totals use `(increase(m[w]) and (m offset w)) or (max_over_time(m[w]) unless (m offset w))`
+instead of bare `increase`. Each process exports its own cumulative series and `increase` ignores a
+series' first sample, which would drop short-lived processes (for example, a process that starts one
+session first exports `pi_session_started_total=1`). The `unless` guard limits that first-sample
+branch to newly observed series: an established series with too few samples for `increase` must not
+fall back to its cumulative lifetime count (a test enforces the guard on every panel). Multi-counter
+sums use a `label_replace` union rather than `+`, so a model without cache-write tokens still
+appears. Histogram panels apply the same pattern to `_bucket` series, and product rows use it too:
+launcher processes usually export a single sample. Whole-range totals are instant queries; time
+series use `$__interval`. Active users count emails with any exported sample in the window.
+
+**Runs, turns and inputs** uses a minimum 20-minute window, four times the maximum supported
+five-minute metric export interval. The Prometheus regression scenarios exercise its turns query and
+cover default/maximum export cadence, idle and sparse established series, and newly observed
+sessions. From `apps/cli`, run them with
+`promtool test rules src/harnesses/pi/telemetry/tests/grafana-counters.promql.json`; Bun tests
+ensure the fixture expression stays identical to the dashboard query.
 
 The **User email** selector, dependent repository options, panel filters, and per-user legends
 use `user_email` for metrics and `user.email` for traces. Managed exports receive verified email
@@ -94,9 +115,11 @@ or telemetry-health metrics.
 
 ## Product tracking
 
-Content-free recommender, backup/restore, startup, auth/config, update and release-version
-observations now use the same managed OTel path. The dashboard adds adoption, cost/cache,
-recommender funnel/decisions, transfer reliability and CLI operational panels. Feedback is not
+Content-free recommender, backup/restore, startup, auth/config, compaction, terminal-permission,
+update and release-version observations now use the same managed OTel path. The dashboard adds
+adoption, cost/cache, recommender funnel/decisions, transfer reliability, compaction,
+terminal-permission and CLI operational panels; every product category must have a panel (a test
+enforces it). Feedback is not
 collected. See [Product telemetry](docs/product-telemetry.md) for producer ownership, schema,
 backend configuration and best-effort monitoring limitations.
 

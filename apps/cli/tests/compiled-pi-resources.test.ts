@@ -7,6 +7,7 @@ import { PI_INSTALL_VERSION, PI_PACKAGE_NAME } from "../src/harnesses/pi/install
 import { normalizeManifestPackages } from "../src/harnesses/pi/setup/packages/manifest.ts";
 import { AXON_MANIFEST, EMBEDDED_PI_RESOURCES } from "../src/product/manifest.ts";
 import { resolveAxonPaths } from "../src/product/paths.ts";
+import { STARTUP_TIPS } from "../src/product/tips.ts";
 import { writePiPackageFixture } from "./fixtures/pi-packages.ts";
 
 async function output(child: Bun.Subprocess<"ignore", "pipe", "pipe">) {
@@ -130,6 +131,7 @@ if (process.argv[2] === "--version") {
 } else {
   console.log(JSON.stringify({
     arguments: process.argv.slice(2),
+    tip: process.env.PI_AXON_STARTUP_TIP,
     policy: JSON.parse(process.env.PI_TERMINAL_MANAGED_CONFIG ?? "null"),
     launchPreferences: Object.fromEntries(["PI_COMPACTION_ENABLED", "PI_COMPACTION_MODEL", "PI_COMPACTION_THRESHOLD_TOKENS", "PI_MODEL_RECOMMENDER_DISABLED", "PI_MODEL_RECOMMENDER_AUTO_SELECT_MS", "LITELLM_DISCOVERY_TIMEOUT_MS", "LITELLM_DEFAULT_CONTEXT_WINDOW", "PI_ORG_OTEL_ENABLED"].map(key => [key, process.env[key]])),
   }));
@@ -175,9 +177,11 @@ if (process.argv[2] === "--version") {
       });
       const launched = JSON.parse(launch.stdout) as {
         arguments: string[];
+        tip: string;
         policy: unknown;
         launchPreferences: unknown;
       };
+      expect(STARTUP_TIPS).toContain(launched.tip);
       expect(launched.policy).toEqual(policy);
       expect(launched.launchPreferences).toEqual({
         PI_COMPACTION_ENABLED: "true",
