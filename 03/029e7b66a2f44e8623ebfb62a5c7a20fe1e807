@@ -1,0 +1,95 @@
+apps/cli/src/types/assets.d.ts
+  s_932eb2f3d6f4b0::t_1b28c84e8d8ab4 6
+  s_932eb2f3d6f4b0::t_38622c123ebe23 1-5,7-10
+apps/cli/src/hub/mcp-store.ts
+  s_932eb2f3d6f4b0::t_7335aee8f8f6a7 1
+  s_932eb2f3d6f4b0::t_dc7fcdb15dbc9f 2-59,61-103,115-138,140-203,205-218,220-223,225-229,231-241,243-260,262-266,268-296,298-306,308-326,328-340,346-350,352-368,370-373,376-380,382-396
+  s_932eb2f3d6f4b0::t_d1696a9d1101e7 60,104-108,113-114,139,341,369,374-375,381
+  s_932eb2f3d6f4b0::t_ab5f092529543b 109-112,342-345
+  s_932eb2f3d6f4b0::t_4b9f42c8375eed 219
+  s_87c17f275bfdeb::t_1aa6a9ff2e7539 204,224,230,242,261,267,297,307,327,351
+README.md
+  s_932eb2f3d6f4b0::t_67081c7ec52831 16
+apps/cli/src/hub/assets/index.html
+  s_932eb2f3d6f4b0::t_a75cf69f7be5b3 1-42,44-51,53-57,59-64
+  s_932eb2f3d6f4b0::t_ccefaac04482bd 58
+  s_932eb2f3d6f4b0::t_bcd5379322912f 52
+  s_932eb2f3d6f4b0::t_764f53298c791f 43
+apps/cli/src/hub/browser-session.ts
+  s_932eb2f3d6f4b0::t_bbf681cd9236fb 1-39,44-68
+  s_87c17f275bfdeb::t_f667be5da2349f 40-43
+apps/cli/tests/hub-command.test.ts
+  s_932eb2f3d6f4b0::t_c5b475c8eac4d6 1,3-70,76-80,86-89,95-100,112,116
+  s_932eb2f3d6f4b0::t_1a49af5015b816 71-75,83-85,90-94,101-111,113-115
+  s_932eb2f3d6f4b0::t_76383b7e84f7ee 2,81-82
+docs/local-hub.md
+  s_932eb2f3d6f4b0::t_57b4412e8a5a8a 1-33,37-133
+  s_932eb2f3d6f4b0::t_f6be0ef1632028 34-36
+apps/cli/src/launcher/browser.ts
+  s_932eb2f3d6f4b0::t_6b699246d7c3a1 1-8,10-16
+  s_87c17f275bfdeb::t_caef877fc1be91 9
+apps/cli/src/hub/assets/hub.js
+  s_932eb2f3d6f4b0::t_ab5f092529543b 66-72
+  s_932eb2f3d6f4b0::t_7c329aded68400 43-45,182,203
+  s_932eb2f3d6f4b0::t_250347e9f765d9 1-29,36-42,46-62,80-132,134-145,147-150,152-181,183-187,189,191-197,200-202,204-210,212-215,217-233,235-259,261-298,300-304,307-329,333-351,353-359
+  s_932eb2f3d6f4b0::t_dcc94b2029438a 30-35,63-65,73-79,188,190,198,330-332
+  s_87c17f275bfdeb::t_549d0cd5237dc5 133,146,151,199,211,216,234,260,299,305-306,352
+apps/cli/src/cli/commands/hub.ts
+  s_932eb2f3d6f4b0::t_2a8dea8803b567 1-8,12-16,20-32
+  s_87c17f275bfdeb::t_f667be5da2349f 9-11,17-19
+apps/cli/tests/hub-mcp-store.test.ts
+  s_932eb2f3d6f4b0::t_c6d5080d4db43d 1,3,5-13,16-20,24-30,34-44,46,54-57,72-75,112-114,133-134,147,157-159,174,184,197-199,225-227,233-234,239,249,282-284,290-293,302-307,318-325,344-349,354-356,361-374,379-381,399-411,420-429,438-447
+  s_932eb2f3d6f4b0::t_67c735edc600ed 217-222
+  s_932eb2f3d6f4b0::t_12c4ebf21077fb 182,250-252,261-265,281
+  s_932eb2f3d6f4b0::t_7da5cdeef857f7 79-93,95-107
+  s_932eb2f3d6f4b0::t_35bfb791e5ff02 4,76-78,94,108-111
+  s_932eb2f3d6f4b0::t_ab5f092529543b 253-260,266-280
+  s_932eb2f3d6f4b0::t_b241f5edf4b687 2,21-23,31-33,45,47-53,58-71,115-121,123-132,135-146,148-156,160-173,175-179,181,183,185-192,194-196,200-211,213-216,223-224,228-232,235-238,240-248,285-289,294-301,308-317,326-343,350-353,357-360,375-378,382-398,412-419,430-437
+  s_932eb2f3d6f4b0::t_8967f5c2883d9a 14-15,122,180,193,212
+apps/cli/src/cli/launcher-program.ts
+  s_932eb2f3d6f4b0::t_6252506911ea4f 22,59-63
+  s_87c17f275bfdeb::t_d9129811c090ac 64
+apps/cli/src/hub/server.ts
+  s_932eb2f3d6f4b0::t_f50a1cbc50ac8d 1-73,75-91,93-99,102-115,118-126,129-155,157,160-172
+  s_932eb2f3d6f4b0::t_8c6c8005cf8e0e 92
+  s_87c17f275bfdeb::t_ed8c25106ead1f 74,100-101,116-117,127-128,156,158-159
+apps/cli/README.md
+  s_932eb2f3d6f4b0::t_ff554f9311c102 31,89,104-114
+  s_87c17f275bfdeb::t_541e03f6ad9232 115
+apps/cli/src/cli/commands/auth.ts
+  s_932eb2f3d6f4b0::t_399e9f011fa741 6
+apps/cli/tests/hub-server.test.ts
+  s_932eb2f3d6f4b0::t_f93730e05a3414 1-5,8-30,37-56,58-60,66-92,94-95,102-120,127-128,132-139,143,147-153,155,164,166,171,174-175,177-183,195-196,200-201,207-212,225-226,233-243
+  s_932eb2f3d6f4b0::t_b241f5edf4b687 7,31-36,61-64,96-101,121-126,129-131,140-142,144-146,156-163,167-170,184-194,197-199,202-206,213-224,227-232
+  s_932eb2f3d6f4b0::t_a9d68f2d96adbd 6,57,65,93,154,165,172-173,176
+apps/cli/src/hub/errors.ts
+  s_932eb2f3d6f4b0::t_0684bec1a63631 1-10
+apps/cli/src/hub/assets/hub.css
+  s_932eb2f3d6f4b0::t_7f460a61fb78b6 19-20
+  s_932eb2f3d6f4b0::t_6bd8b74d325d60 1-18,21-283,285-684
+  s_87c17f275bfdeb::t_f67c9c27c4b1a6 284
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "03029e7b66a2f44e8623ebfb62a5c7a20fe1e807",
+  "prompts": {},
+  "sessions": {
+    "s_87c17f275bfdeb": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a1acba-f557-761d-b915-5ed2e468f509",
+        "model": "claude-sonnet-5.5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_932eb2f3d6f4b0": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a1a807-8436-73c2-b383-120be5a96e2c",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
