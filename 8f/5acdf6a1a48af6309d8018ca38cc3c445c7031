@@ -1,0 +1,27 @@
+apps/backend/config_template.json
+  s_e70599d0fe39c0::t_6e44d7ce72fed4 124
+apps/cli/src/axon-safehouse/contracts.ts
+  s_e70599d0fe39c0::t_d6daf03dba6799 3,17,19,28
+apps/backend/app/core/axon_safehouse.py
+  s_e70599d0fe39c0::t_5abb755e6d8534 9,24,40-41,43,53,63,76
+apps/cli/src/axon-safehouse/environment.ts
+  s_e70599d0fe39c0::t_ddaa54cfd8cc00 87,106-115
+apps/cli/src/axon-safehouse/launch.ts
+  s_e70599d0fe39c0::t_6d3d62868937a8 297-301,419-426,747-751
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8f5acdf6a1a48af6309d8018ca38cc3c445c7031",
+  "prompts": {},
+  "sessions": {
+    "s_e70599d0fe39c0": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "502647",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  }
+}
