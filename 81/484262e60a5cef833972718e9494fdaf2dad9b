@@ -1,0 +1,30 @@
+apps/backend/tests/test_sentry.py
+  s_601660aa42e17e::t_97f87557cbcbf1 17-18,22,32,35,39-41,193-194,197-208,212-218,221,237,331-355,358,360-367,371-414,416-424,460-463,465,472-481,483-486,489-504,506-519,522-523,525-555,557-558
+  s_601660aa42e17e::t_628f3a21bb343a 19-21,267-305,425-442,482,487-488,505
+  s_601660aa42e17e::t_adb229f935a0f7 209-211,415,469-471
+  s_601660aa42e17e::t_27efdf6d1cd9b3 443-444
+apps/backend/app/observability/sentry.py
+  s_601660aa42e17e::t_3afbeee1e8436d 74
+  s_601660aa42e17e::t_8c85fe4d0d3bb5 6-8,12,61-69,83-85,89-91,94-97,121-124,175-190
+  s_601660aa42e17e::t_3160e60c6f1690 70-73,75-82,86-88
+apps/backend/README.md
+  s_601660aa42e17e::t_02068a3c3ebda7 722-724,727-732,742-744
+apps/backend/app/listeners/__init__.py
+  s_601660aa42e17e::t_878c766dd18e4a 13,21-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "81484262e60a5cef833972718e9494fdaf2dad9b",
+  "prompts": {},
+  "sessions": {
+    "s_601660aa42e17e": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a1bec3-82bd-7724-a95f-7c003db51981",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
