@@ -3,9 +3,13 @@
 import asyncio
 import logging
 import os
+import re
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager, suppress
 from typing import TYPE_CHECKING, Any
 
 import sentry_sdk
+from opentelemetry import trace
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
 from sentry_sdk.integrations.starlette import StarletteIntegration
@@ -54,8 +58,43 @@ def _safe_exceptions(event: "Event") -> None:
             _safe_stacktrace(thread["stacktrace"])
 
 
+def _hex_id(value: object, length: int) -> str | None:
+    if isinstance(value, str) and len(value) == length and re.fullmatch(r"[0-9a-fA-F]+", value) and int(value, 16):
+        return value.lower()
+    return None
+
+
+def _correlation_tags(hint: "Hint", exception: BaseException | None) -> dict[str, str]:
+    correlation = exception_correlation(exception)
+    record = hint.get("log_record")
+    # Keep all IDs from the same source. Even an untraced error/log snapshot must
+    # not acquire an unrelated trace active when it is reported later.
+    if correlation is not None:
+        identifier, trace_value, span_value = correlation
+    elif record is not None and any(hasattr(record, key) for key in ("request_id", "trace_id", "span_id")):
+        identifier = getattr(record, "request_id", None)
+        trace_value, span_value = getattr(record, "trace_id", None), getattr(record, "span_id", None)
+    else:
+        identifier = getattr(record, "request_id", None) or REQUEST_ID.get()
+        context = trace.get_current_span().get_span_context()
+        trace_value = format(context.trace_id, "032x") if context.is_valid else None
+        span_value = format(context.span_id, "016x") if context.is_valid else None
+
+    tags = {}
+    if isinstance(identifier, str) and (identifier := safe_identifier(identifier, "")):
+        tags["request_id"] = identifier
+    trace_id, span_id = _hex_id(trace_value, 32), _hex_id(span_value, 16)
+    if trace_id and span_id:
+        tags.update(otel_trace_id=trace_id, otel_span_id=span_id)
+    return tags
+
+
 def before_send(event: "Event", hint: "Hint") -> "Event | None":
     """Honor Vortex's opt-out flag and scrub sensitive automatically captured data."""
+    # Access diagnostics must not duplicate the corresponding exception issue.
+    # Filtering here, not via ignore_logger(), preserves their log breadcrumbs.
+    if event.get("logger") in {"app.access", "uvicorn.access"}:
+        return None
     exc_info = hint.get("exc_info")
     exception = exc_info[1] if exc_info else None
     if exception is not None and (
@@ -79,11 +118,10 @@ def before_send(event: "Event", hint: "Hint") -> "Event | None":
     _safe_exceptions(event)
 
     # Recover correlation even for uvicorn's logs after the request scope ended.
-    correlation = exception_correlation(exception)
-    record = hint.get("log_record")
-    identifier = REQUEST_ID.get() or (correlation[0] if correlation else getattr(record, "request_id", None))
-    if identifier and (identifier := safe_identifier(identifier, "")):
-        event.setdefault("tags", {})["request_id"] = identifier
+    tags = event.setdefault("tags", {})
+    tags.pop("otel_trace_id", None)
+    tags.pop("otel_span_id", None)
+    tags.update(_correlation_tags(hint, exception))
     return event
 
 
@@ -134,3 +172,19 @@ async def flush_sentry() -> None:
     """Flush after dependency shutdown, without blocking the event loop."""
     if sentry_sdk.is_initialized():
         await asyncio.to_thread(sentry_sdk.flush, timeout=2)
+
+
+@asynccontextmanager
+async def sentry_lifespan() -> AsyncIterator[None]:
+    """Capture escaping lifecycle failures before flushing, without masking them."""
+    try:
+        yield
+    except Exception as exc:
+        # Reporting failures must never replace the application's original error.
+        with suppress(Exception):
+            sentry_sdk.capture_exception(exc)
+        raise
+    finally:
+        # Telemetry transport failures must not break otherwise successful cleanup.
+        with suppress(Exception):
+            await flush_sentry()

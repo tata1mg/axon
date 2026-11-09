@@ -719,11 +719,17 @@ Configure the backend's private `config.json` and restart:
   Enabled settings are validated at startup without printing the DSN.
 - Unhandled API/streaming exceptions and ERROR-or-higher logs become issues.
   `CAPTURE_WARNING: true` also turns WARNING logs into issues; INFO logs remain
-  redacted breadcrumbs. Normal handled 4xx errors are not reported.
+  redacted breadcrumbs. `app.access` and `uvicorn.access` logs are always breadcrumb-only
+  so failed requests do not generate duplicate access-log issues. Normal handled 4xx
+  errors are not reported.
 - Events carry the configured `service_name` tag and environment (default `Local`).
   Release metadata comes from deployment `RELEASE_TAG`, falling back to `dev-local`.
-  Request errors carry a `request_id` tag when available. Endpoint names are used
-  for transaction grouping, not raw request paths.
+  Request errors carry a `request_id` tag when available. Validated OpenTelemetry IDs
+  are attached as `otel_trace_id` / `otel_span_id` tags to link issues to backend traces
+  without another tracing pipeline. Original exception/log snapshots take precedence
+  over the current span, including after request cleanup; untraced snapshots never
+  acquire an unrelated current trace. Endpoint names are used for transaction grouping,
+  not raw request paths.
 - Unlike Vortex's PII-enabled web setup, Axon disables automatic user, cookie, header,
   query, body, AI-input/output, SQL-data, local-variable, and source-context capture
   using the SDK's `data_collection` settings. The send hook also drops request details
@@ -733,8 +739,9 @@ Configure the backend's private `config.json` and restart:
 - Exceptions with `sentry_raise = False`, cancellations, and client disconnects are
   discarded. Sentry performance tracing, outbound trace propagation, automatic
   HTTP/DB/AI integrations, and its separate logs product are disabled; OpenTelemetry
-  continues to own backend tracing. Pending events are flushed with a two-second
-  timeout after dependency cleanup.
+  continues to own backend tracing. Escaping startup/shutdown failures are explicitly
+  captured after dependency cleanup and before the final two-second flush. Reporting
+  or flush failures never mask the original application error or break successful shutdown.
 
 These settings and the DSN stay backend-only and are never included in CLI configuration.
 

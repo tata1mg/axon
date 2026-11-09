@@ -10,7 +10,7 @@ from app.core.config import get_settings
 from app.listeners.database import close_database, initialize_database
 from app.listeners.litellm import close_litellm_proxy, initialize_litellm_proxy
 from app.listeners.storage import close_storage, initialize_storage
-from app.observability.sentry import flush_sentry
+from app.observability.sentry import sentry_lifespan
 from app.proxies.otel import close_otel_proxy, initialize_otel_proxy
 from app.telemetry import close_backend_telemetry, initialize_backend_telemetry
 
@@ -18,10 +18,9 @@ from app.telemetry import close_backend_telemetry, initialize_backend_telemetry
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Start dependencies in order and close initialized resources in reverse order."""
-    async with AsyncExitStack() as stack:
-        # Registered first so shutdown errors from all dependencies can be sent.
-        stack.push_async_callback(flush_sentry)
-
+    # The outer Sentry context captures failures after dependency cleanup, then
+    # flushes before Starlette/uvicorn can see and re-report the same exception.
+    async with sentry_lifespan(), AsyncExitStack() as stack:
         await initialize_backend_telemetry(app)
         stack.push_async_callback(close_backend_telemetry, app)
 
