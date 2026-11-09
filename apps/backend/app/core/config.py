@@ -10,6 +10,7 @@ from urllib.parse import urlsplit
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
+from sentry_sdk.utils import Dsn
 
 from app.core.cli_config import (
     CliCompactionConfig,
@@ -162,6 +163,16 @@ class CliReleaseSettings:
 
 
 @dataclass(frozen=True, slots=True)
+class SentrySettings:
+    """Backend-only error reporting; the config parser disables empty DSNs."""
+
+    dsn: str = field(repr=False)
+    environment: str = "Local"
+    service_name: str = "axon-backend"
+    capture_warning: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class Settings:
     """Settings used directly by the backend application and deployment scripts."""
 
@@ -183,6 +194,7 @@ class Settings:
     web_search: WebSearchSettings = field(default_factory=WebSearchSettings)
     model_recommender: ModelRecommenderSettings = field(default_factory=ModelRecommenderSettings)
     backend_telemetry: BackendTelemetrySettings | None = None
+    sentry: SentrySettings | None = None
     log_level: str = "INFO"
     log_format: str = "json"
     cli_pi: CliPiConfig | None = None
@@ -217,6 +229,25 @@ def _backend_telemetry_settings(raw_config: dict[str, Any]) -> BackendTelemetryS
         return parse_backend_telemetry(raw_config)
     except (ValueError, TypeError):
         raise ConfigurationError("config.OPEN_TELEMETRY contains invalid settings") from None
+
+
+def _sentry_settings(raw: dict[str, Any]) -> SentrySettings | None:
+    if "SENTRY" not in raw:
+        return None
+    section = _mapping(raw, "SENTRY", "config")
+    dsn = _optional_string(section, "DSN", "config.SENTRY")
+    if not dsn:
+        return None
+    try:
+        Dsn(dsn)
+    except ValueError:
+        raise ConfigurationError("config.SENTRY.DSN must be a valid Sentry HTTP(S) DSN") from None
+    return SentrySettings(
+        dsn=dsn,
+        environment=_string({"ENVIRONMENT": "Local", **section}, "ENVIRONMENT", "config.SENTRY"),
+        service_name=_string({"SERVICE_NAME": "axon-backend", **section}, "SERVICE_NAME", "config.SENTRY"),
+        capture_warning=_boolean(section, "CAPTURE_WARNING", "config.SENTRY", default=False),
+    )
 
 
 def _logging_settings(raw: dict[str, Any]) -> tuple[str, str]:
@@ -715,6 +746,7 @@ def get_settings() -> Settings:
         model_recommender=_model_recommender(raw_config),
         terminal_permissions=terminal_permissions,
         backend_telemetry=backend_telemetry,
+        sentry=_sentry_settings(raw_config),
         log_level=log_level,
         log_format=log_format,
     )

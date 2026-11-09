@@ -699,6 +699,52 @@ only one live backend application per worker owns the HTTPX/asyncpg wrappers. Re
 after configuration changes. Existing OTLP/HTTP configurations continue to work; set `PROTOCOL`
 explicitly when switching to the Vortex gRPC receiver.
 
+### Backend Sentry error reporting
+
+The backend uses `sentry-sdk==2.74.0` directly, following Vortex's FastAPI/Starlette
+and logging integration pattern. This is independent of OpenTelemetry and CLI telemetry.
+Configure the backend's private `config.json` and restart:
+
+```json
+"SENTRY": {
+  "DSN": "https://YOUR_PUBLIC_KEY@YOUR_SENTRY_HOST/PROJECT_ID",
+  "ENVIRONMENT": "production",
+  "SERVICE_NAME": "axon-backend",
+  "CAPTURE_WARNING": false
+}
+```
+
+- A missing section or empty `DSN` disables Sentry; the template is disabled.
+  `SENTRY_DSN` and `SENTRY_ENVIRONMENT` environment variables do not override JSON.
+  Enabled settings are validated at startup without printing the DSN.
+- Unhandled API/streaming exceptions and ERROR-or-higher logs become issues.
+  `CAPTURE_WARNING: true` also turns WARNING logs into issues; INFO logs remain
+  redacted breadcrumbs. `app.access` and `uvicorn.access` logs are always breadcrumb-only
+  so failed requests do not generate duplicate access-log issues. Normal handled 4xx
+  errors are not reported.
+- Events carry the configured `service_name` tag and environment (default `Local`).
+  Release metadata comes from deployment `RELEASE_TAG`, falling back to `dev-local`.
+  Request errors carry a `request_id` tag when available. Validated OpenTelemetry IDs
+  are attached as `otel_trace_id` / `otel_span_id` tags to link issues to backend traces
+  without another tracing pipeline. Original exception/log snapshots take precedence
+  over the current span, including after request cleanup; untraced snapshots never
+  acquire an unrelated current trace. Endpoint names are used for transaction grouping,
+  not raw request paths.
+- Unlike Vortex's PII-enabled web setup, Axon disables automatic user, cookie, header,
+  query, body, AI-input/output, SQL-data, local-variable, and source-context capture
+  using the SDK's `data_collection` settings. The send hook also drops request details
+  other than the HTTP method, user/log extras, log parameters, and source lines.
+  Log/exception messages use the same best-effort redaction as backend traces; do not
+  put arbitrary unlabeled secrets or request content into messages.
+- Exceptions with `sentry_raise = False`, cancellations, and client disconnects are
+  discarded. Sentry performance tracing, outbound trace propagation, automatic
+  HTTP/DB/AI integrations, and its separate logs product are disabled; OpenTelemetry
+  continues to own backend tracing. Escaping startup/shutdown failures are explicitly
+  captured after dependency cleanup and before the final two-second flush. Reporting
+  or flush failures never mask the original application error or break successful shutdown.
+
+These settings and the DSN stay backend-only and are never included in CLI configuration.
+
 ### Storage architecture and S3 settings
 
 `app/clients/s3.py` owns reusable SDK transport operations and connection cleanup;
@@ -755,7 +801,7 @@ The private bucket should permit origin reads only through CloudFront Origin Acc
 
 Checksums obtained from the same backend detect corruption and mismatch, not compromise of that backend. Stronger independent artifact authentication would require a separately signed update manifest.
 
-A missing asset under `/assets/` and an unknown path under `/api/` both return a plain-text 404 instead of `index.html`. FastAPI handles other HTTP exceptions with its normal status codes and response bodies; Vortex's legacy error envelope and status remapping are no longer installed. Vortex's request-context middleware, structured logging, Sentry, and OpenTelemetry integrations are not installed automatically; the optional backend-owned recommender telemetry above is separate.
+A missing asset under `/assets/` and an unknown path under `/api/` both return a plain-text 404 instead of `index.html`. FastAPI handles other HTTP exceptions with its normal status codes and response bodies; Vortex's legacy error envelope and status remapping are no longer installed. Vortex itself is not installed; Axon's backend-owned correlation, structured logging, optional Sentry, and OpenTelemetry integrations are described above.
 
 `FRONTEND_DIR` in `config.json` points at the build (default `static/`, relative to this directory). When it is absent the service starts normally and serves the API only — which is the usual local setup, where `vite dev` serves the console on port 8010 and proxies `/api` here.
 
