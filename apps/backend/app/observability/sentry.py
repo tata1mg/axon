@@ -95,6 +95,17 @@ def before_send(event: "Event", hint: "Hint") -> "Event | None":
     # Filtering here, not via ignore_logger(), preserves their log breadcrumbs.
     if event.get("logger") in {"app.access", "uvicorn.access"}:
         return None
+    # sentry_lifespan owns lifecycle failures. Uvicorn logs the same failure as
+    # plain text (without exc_info), which default exception dedupe cannot match.
+    # Filter by source, not message text, to retain unrelated uvicorn.error events
+    # and preserve the original server logs and their Sentry breadcrumbs.
+    record = hint.get("log_record")
+    if (
+        event.get("logger") == "uvicorn.error"
+        and record is not None
+        and record.pathname.replace("\\", "/").endswith("/uvicorn/lifespan/on.py")
+    ):
+        return None
     exc_info = hint.get("exc_info")
     exception = exc_info[1] if exc_info else None
     if exception is not None and (
@@ -109,6 +120,8 @@ def before_send(event: "Event", hint: "Hint") -> "Event | None":
         event["request"] = {"method": request["method"]}
     event.pop("user", None)
     event.pop("extra", None)
+    if isinstance(message := event.get("message"), str):
+        event["message"] = exception_message(message)
     if "logentry" in event:
         event["logentry"] = {
             key: exception_message(value)
@@ -126,7 +139,10 @@ def before_send(event: "Event", hint: "Hint") -> "Event | None":
 
 
 def setup_sentry(settings: "SentrySettings | None") -> None:
-    """Initialize before FastAPI constructs routes; blank/missing DSNs are a no-op."""
+    """Initialize parsed settings before FastAPI constructs routes.
+
+    _sentry_settings() maps missing or blank DSNs to None, a no-op here.
+    """
     if settings is None:
         return
     sentry_sdk.init(
@@ -142,6 +158,7 @@ def setup_sentry(settings: "SentrySettings | None") -> None:
             ),
         ],
         # OpenTelemetry owns HTTP/DB tracing; do not auto-enable AI/HTTP/DB capture.
+        # Default integrations, including exception dedupe, remain enabled.
         auto_enabling_integrations=False,
         traces_sample_rate=0.0,
         trace_propagation_targets=[],
@@ -176,7 +193,10 @@ async def flush_sentry() -> None:
 
 @asynccontextmanager
 async def sentry_lifespan() -> AsyncIterator[None]:
-    """Capture escaping lifecycle failures before flushing, without masking them."""
+    """Own lifecycle failure reporting, then flush and re-raise without masking.
+
+    before_send keeps Uvicorn's follow-up lifespan logs as breadcrumbs, not events.
+    """
     try:
         yield
     except Exception as exc:

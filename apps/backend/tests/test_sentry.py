@@ -3,8 +3,8 @@
 import asyncio
 import json
 import logging
-from collections.abc import Iterator
-from contextlib import contextmanager
+from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager, contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -24,6 +24,8 @@ from sentry_sdk.envelope import Envelope
 from sentry_sdk.transport import Transport
 from starlette.requests import ClientDisconnect
 from starlette.responses import StreamingResponse
+from uvicorn import Config
+from uvicorn.lifespan.on import LifespanOn
 
 from app import listeners
 from app.core import config
@@ -171,6 +173,19 @@ def memory_sentry(monkeypatch: pytest.MonkeyPatch, capture_warning: bool = False
             yield transport
         finally:
             client.close()
+
+
+@pytest.mark.parametrize("capture", ["message", "event"])
+def test_top_level_messages_are_redacted(monkeypatch: pytest.MonkeyPatch, capture: str) -> None:
+    with memory_sentry(monkeypatch) as transport:
+        message = "operation failed token=secret-value"
+        if capture == "message":
+            sentry_sdk.capture_message(message)
+        else:
+            sentry_sdk.capture_event({"message": message})
+    assert len(transport.events) == 1
+    assert transport.events[0]["message"] == "operation failed token=[REDACTED]"
+    assert "secret-value" not in json.dumps(transport.events)
 
 
 @pytest.mark.parametrize("capture_warning", [False, True])
@@ -368,6 +383,50 @@ def test_uvicorn_error_logs_recover_request_and_otel_correlation(monkeypatch: py
     assert "secret" not in json.dumps(transport.events)
 
 
+def test_captured_exceptions_are_not_reported_again_by_uvicorn(monkeypatch: pytest.MonkeyPatch) -> None:
+    logger = logging.getLogger("uvicorn.error")
+    monkeypatch.setattr(logger, "disabled", False)
+    monkeypatch.setattr(logger, "level", logging.ERROR)
+    with memory_sentry(monkeypatch) as transport:
+        exception = RuntimeError("operation failed token=secret-value")
+        sentry_sdk.capture_exception(exception)
+        logger.error("Exception in ASGI application", exc_info=(type(exception), exception, None))
+    assert len(transport.events) == 1
+    assert "secret-value" not in json.dumps(transport.events)
+
+
+@pytest.mark.parametrize("message", ["Error loading ASGI app.", "Application startup failed. Exiting."])
+def test_non_lifespan_uvicorn_errors_are_still_reported(monkeypatch: pytest.MonkeyPatch, message: str) -> None:
+    logger = logging.getLogger("uvicorn.error")
+    monkeypatch.setattr(logger, "disabled", False)
+    monkeypatch.setattr(logger, "level", logging.ERROR)
+    with memory_sentry(monkeypatch) as transport:
+        logger.error(message)
+    assert len(transport.events) == 1
+    assert transport.events[0]["logentry"]["formatted"] == message
+
+
+@pytest.mark.parametrize(
+    "pathname", ["/site-packages/uvicorn/lifespan/on.py", r"C:\site-packages\uvicorn\lifespan\on.py"]
+)
+def test_uvicorn_lifespan_logs_are_breadcrumbs_not_issues(monkeypatch: pytest.MonkeyPatch, pathname: str) -> None:
+    logger = logging.getLogger("uvicorn.error")
+    monkeypatch.setattr(logger, "disabled", False)
+    record = logging.LogRecord(
+        logger.name, logging.ERROR, pathname, 1, "Application startup failed. Exiting.", (), None
+    )
+    with memory_sentry(monkeypatch) as transport:
+        logger.handle(record)
+        assert transport.events == []
+        sentry_sdk.capture_message("later diagnostic")
+    assert len(transport.events) == 1
+    breadcrumbs = transport.events[0]["breadcrumbs"]["values"]
+    assert any(
+        breadcrumb["category"] == logger.name and breadcrumb["message"] == record.getMessage()
+        for breadcrumb in breadcrumbs
+    )
+
+
 def test_log_record_snapshots_survive_ended_spans(monkeypatch: pytest.MonkeyPatch) -> None:
     record = logging.LogRecord("app.sentry_test", logging.ERROR, __file__, 1, "operation failed", (), None)
     record.request_id, record.trace_id, record.span_id = "log-snapshot", TRACE_ID.upper(), SPAN_ID.upper()
@@ -506,6 +565,55 @@ def test_lifespan_captures_once_before_flush_after_dependency_cleanup(
     # Starlette's outer integration sees the error after our flush, but dedupes it.
     assert len(transport.events) == int(failure_phase is not None)
     assert "secret" not in json.dumps(transport.events)
+
+
+@pytest.mark.parametrize("capture_warning", [False, True])
+@pytest.mark.parametrize("failure_phase", ["startup", "shutdown"])
+def test_uvicorn_lifespan_failures_are_reported_once(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, failure_phase: str, capture_warning: bool
+) -> None:
+    logger = logging.getLogger("uvicorn.error")
+    monkeypatch.setattr(logger, "disabled", False)
+    monkeypatch.setattr(logger, "level", logging.INFO)
+    events_at_flush = []
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        async with sentry_lifespan():
+            if failure_phase == "startup":
+                raise RuntimeError("lifecycle failed token=secret-value")
+            yield
+            raise RuntimeError("lifecycle failed token=secret-value")
+
+    with memory_sentry(monkeypatch, capture_warning) as transport:
+
+        async def flush() -> None:
+            events_at_flush.append(len(transport.events))
+
+        monkeypatch.setattr(sentry_observability, "flush_sentry", flush)
+        app = FastAPI(lifespan=lifespan, telemetry=NATIVE_TELEMETRY_DISABLED)
+
+        async def run() -> None:
+            server = LifespanOn(Config(app, lifespan="on", log_config=None))
+            await server.startup()
+            if failure_phase == "shutdown":
+                await server.shutdown()
+            assert server.should_exit
+            assert server.startup_failed is (failure_phase == "startup")
+            assert server.shutdown_failed is (failure_phase == "shutdown")
+
+        asyncio.run(run())
+    assert events_at_flush == [1]
+    assert len(transport.events) == 1
+    value = transport.events[0]["exception"]["values"][-1]
+    assert value["type"] == "RuntimeError"
+    assert value["value"] == "lifecycle failed token=[REDACTED]"
+    assert "secret-value" not in json.dumps(transport.events)
+    # Suppressing Sentry events must not suppress the normal server logs.
+    errors = [record for record in caplog.records if record.name == "uvicorn.error" and record.levelno == logging.ERROR]
+    assert len(errors) == 2
+    assert "Traceback (most recent call last)" in errors[0].getMessage()
+    assert errors[1].getMessage() == f"Application {failure_phase} failed. Exiting."
 
 
 @pytest.mark.parametrize("reporting_failure", ["capture", "flush", "both"])

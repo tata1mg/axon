@@ -164,7 +164,7 @@ class CliReleaseSettings:
 
 @dataclass(frozen=True, slots=True)
 class SentrySettings:
-    """Backend-only error reporting; an empty DSN disables the integration."""
+    """Backend-only error reporting; the config parser disables empty DSNs."""
 
     dsn: str = field(repr=False)
     environment: str = "Local"
