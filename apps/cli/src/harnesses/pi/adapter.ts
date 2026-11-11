@@ -76,7 +76,8 @@ export function createPiAdapter(): HarnessAdapter {
             context.paths,
             resolveConfiguredPiVersion(context.environment),
           );
-          await applyPiProviderDefaults(context.paths);
+          if (context.paths.projectDirectory === undefined)
+            await applyPiProviderDefaults(context.paths);
         } catch {
           throw new LauncherError(
             "Could not prepare Axon's Pi startup settings safely",
@@ -160,6 +161,9 @@ export function createPiAdapter(): HarnessAdapter {
             }
           }
         }
+        // Initialize provider fallbacks after first-run defaults so they cannot mask them.
+        if (context.paths.projectDirectory !== undefined)
+          await applyPiProviderDefaults(context.paths);
         const axonSafehouse = context.axonSafehouse;
         if (!axonSafehouse) throw axonSafehouseFailure("Axon Safehouse is required");
         relay = startAuthenticatedRequestRelay(context.paths, {

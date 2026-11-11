@@ -1,10 +1,12 @@
-import { createHash } from "node:crypto";
 import { lstat, realpath } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, parse, relative, resolve, sep } from "node:path";
 import { z } from "zod";
 
+import { withFileLock } from "../launcher/file-lock.ts";
 import type { AxonPaths } from "../product/paths.ts";
+import { projectConfigurationKey, resolveProjectDirectory } from "../product/project-paths.ts";
+import { atomicJson, readJson } from "../sessions/files.ts";
 import { blockedHostsSchema } from "./network.ts";
 import { type AxonSafehousePolicy, axonSafehouseFailure } from "./policy.ts";
 
@@ -45,6 +47,7 @@ export const PI_STATE_FILES = [
   "models-store.json",
   "litellm-models-dev.json",
   "axon-changelog.json",
+  "terminal-preferences.json",
 ] as const;
 // Agent definitions are user-owned persistent data, not executable extension packages.
 export const PI_STATE_DIRECTORIES = ["sessions", "pi-org-telemetry", "agents"] as const;
@@ -62,7 +65,8 @@ export const filesystemPreferencesSchema = z.strictObject({
 });
 export type FilesystemPreferences = z.infer<typeof filesystemPreferencesSchema>;
 
-// Parent-owned memory only: never read legacy profiles or share grants with another Axon process.
+// Each invocation takes a snapshot of saved user choices. Another process cannot silently
+// widen its running sandbox; subsequent launches load the latest saved project configuration.
 const invocationPreferences = new Map<string, FilesystemPreferences>();
 const preferenceListeners = new Map<string, Set<(requiresRestart: boolean) => void>>();
 const preferenceRevisions = new Map<string, number>();
@@ -131,29 +135,50 @@ export async function canonicalPath(path: string, cwd = process.cwd()): Promise<
 }
 
 export async function filesystemPreferencesPath(paths: AxonPaths, cwd: string): Promise<string> {
-  const project = await canonicalPath(cwd);
-  const key = createHash("sha256").update(project).digest("hex");
+  const project = await resolveProjectDirectory(await canonicalPath(cwd));
+  const key = projectConfigurationKey(project);
   return join(paths.home, "axon-safehouse", "filesystem", `${key}.json`);
+}
+
+async function readSavedFilesystemPreferences(destination: string): Promise<FilesystemPreferences> {
+  try {
+    const value = await readJson(destination);
+    return filesystemPreferencesSchema.parse(
+      value === undefined
+        ? {
+            schemaVersion: 1,
+            projectMode: "read-write",
+            readPaths: [],
+            writePaths: [],
+            denyPaths: [],
+            blockedHosts: [],
+          }
+        : value,
+    );
+  } catch {
+    // Corrupt or unsafe saved rules must not silently restore more permissive defaults.
+    throw axonSafehouseFailure(`Local filesystem permissions are invalid: ${destination}`);
+  }
 }
 
 export async function readFilesystemPreferences(
   paths: AxonPaths,
   cwd: string,
 ): Promise<FilesystemPreferences> {
-  const value = invocationPreferences.get(await filesystemPreferencesPath(paths, cwd));
-  if (value === undefined) {
-    return {
-      schemaVersion: 1,
-      projectMode: "read-write",
-      readPaths: [],
-      writePaths: [],
-      denyPaths: [],
-      blockedHosts: [],
-    };
-  }
-  const parsed = filesystemPreferencesSchema.safeParse(value);
-  if (!parsed.success) throw axonSafehouseFailure("Local filesystem permissions are invalid");
-  return parsed.data;
+  const destination = await filesystemPreferencesPath(paths, cwd);
+  const cached = invocationPreferences.get(destination);
+  if (cached !== undefined) return structuredClone(cached);
+  const saved = await readSavedFilesystemPreferences(destination);
+  // Global package/catalog commands have no project and only consume the host blocklist.
+  const validated = (await isBlockedProjectDirectory(paths, cwd))
+    ? saved
+    : await validateFilesystemPreferences(paths, cwd, saved);
+  if (JSON.stringify(saved) !== JSON.stringify(validated))
+    throw axonSafehouseFailure("Saved filesystem paths changed; review the project permissions");
+  // A concurrent initial read must not replace a configuration committed while it was waiting.
+  const preferences = invocationPreferences.get(destination) ?? validated;
+  invocationPreferences.set(destination, structuredClone(preferences));
+  return structuredClone(preferences);
 }
 
 export async function protectedFilesystemPaths(
@@ -221,7 +246,9 @@ export async function validateFilesystemPreferences(
   const protectedPaths = await protectedFilesystemPaths(paths, policy);
   const essentialPaths = await Promise.all(
     [
-      ...PI_STATE_DIRECTORIES.map((directory) => join(paths.pi, directory)),
+      ...PI_STATE_DIRECTORIES.map((directory) =>
+        directory === "sessions" ? paths.piSessions : join(paths.pi, directory),
+      ),
       ...PI_STATE_FILES.flatMap((filename) => [
         join(paths.pi, filename),
         join(paths.pi, `${filename}.lock`),
@@ -313,7 +340,7 @@ export async function editFilesystemPreferences(
   return validateFilesystemPreferences(paths, cwd, next, policy);
 }
 
-/** Commit a reviewed draft to this process only; never overwrite a stale editor's changes. */
+/** Persist reviewed user choices locally; never persist backend authorization or compiled grants. */
 export async function saveFilesystemPreferences(
   paths: AxonPaths,
   cwd: string,
@@ -324,45 +351,59 @@ export async function saveFilesystemPreferences(
 ): Promise<FilesystemPreferences> {
   options?.signal?.throwIfAborted();
   const destination = await filesystemPreferencesPath(paths, cwd);
-  const revision = filesystemPreferencesRevision(paths);
-  const current = await readFilesystemPreferences(paths, cwd);
-  if (expected && JSON.stringify(current) !== JSON.stringify(expected))
-    throw axonSafehouseFailure("Filesystem permissions changed; reopen the editor before saving");
-  const validated = await validateFilesystemPreferences(paths, cwd, preferences, policy);
-  // Editors review canonical paths. A replaced symlink must not silently redirect an approval.
-  if (JSON.stringify(validated) !== JSON.stringify(preferences))
-    throw axonSafehouseFailure(
-      "Filesystem paths changed since review; reopen the editor before saving",
-    );
-  if (filesystemPreferencesRevision(paths) !== revision)
-    throw axonSafehouseFailure("Filesystem permissions changed; reopen the editor before saving");
-  if (options?.liveGrant) {
-    const project = await canonicalPath(cwd);
-    const writableRoots = [
-      ...(current.projectMode === "read-write" ? [project] : []),
-      ...current.writePaths,
-    ];
-    // A live approval may only expand access. Any revocation still requires replacing Pi,
-    // whose compiled profile could otherwise retain permissions that have been removed.
-    if (
-      JSON.stringify(current.blockedHosts) !== JSON.stringify(validated.blockedHosts) ||
-      JSON.stringify(current.denyPaths) !== JSON.stringify(validated.denyPaths) ||
-      (current.projectMode === "read-write" && validated.projectMode !== "read-write") ||
-      current.writePaths.some((path) => !validated.writePaths.includes(path)) ||
-      current.readPaths.some(
-        (path) => !validated.readPaths.includes(path) && !validated.writePaths.includes(path),
-      ) ||
-      validated.readPaths.some(
-        (path) =>
-          !current.readPaths.includes(path) &&
-          writableRoots.some((root) => isWithin(root, path) || isWithin(path, root)),
+  return withFileLock(
+    `${destination}.lock`,
+    async () => {
+      const revision = filesystemPreferencesRevision(paths);
+      const current = await readFilesystemPreferences(paths, cwd);
+      const saved = await readSavedFilesystemPreferences(destination);
+      if (
+        (expected && JSON.stringify(current) !== JSON.stringify(expected)) ||
+        JSON.stringify(current) !== JSON.stringify(saved)
       )
-    )
-      throw axonSafehouseFailure("Revoking filesystem access requires the /safehouse editor");
-    if (filesystemPreferencesRevision(paths) !== revision)
-      throw axonSafehouseFailure("Filesystem permissions changed; retry the access request");
-  }
-  options?.signal?.throwIfAborted();
-  commitFilesystemPreferences(paths, destination, validated, !options?.liveGrant);
-  return validated;
+        throw axonSafehouseFailure("Filesystem permissions changed; restart Axon before saving");
+      const validated = await validateFilesystemPreferences(paths, cwd, preferences, policy);
+      // Editors review canonical paths. A replaced symlink must not redirect an approval.
+      if (JSON.stringify(validated) !== JSON.stringify(preferences))
+        throw axonSafehouseFailure(
+          "Filesystem paths changed since review; reopen the editor before saving",
+        );
+      if (filesystemPreferencesRevision(paths) !== revision)
+        throw axonSafehouseFailure(
+          "Filesystem permissions changed; reopen the editor before saving",
+        );
+      if (options?.liveGrant) {
+        const project = await canonicalPath(cwd);
+        const writableRoots = [
+          ...(current.projectMode === "read-write" ? [project] : []),
+          ...current.writePaths,
+        ];
+        // Live approvals may only expand access. Revocations require replacing Pi,
+        // whose compiled profile could otherwise retain the removed permissions.
+        if (
+          JSON.stringify(current.blockedHosts) !== JSON.stringify(validated.blockedHosts) ||
+          JSON.stringify(current.denyPaths) !== JSON.stringify(validated.denyPaths) ||
+          (current.projectMode === "read-write" && validated.projectMode !== "read-write") ||
+          current.writePaths.some((path) => !validated.writePaths.includes(path)) ||
+          current.readPaths.some(
+            (path) => !validated.readPaths.includes(path) && !validated.writePaths.includes(path),
+          ) ||
+          validated.readPaths.some(
+            (path) =>
+              !current.readPaths.includes(path) &&
+              writableRoots.some((root) => isWithin(root, path) || isWithin(path, root)),
+          )
+        )
+          throw axonSafehouseFailure("Revoking filesystem access requires the /safehouse editor");
+        if (filesystemPreferencesRevision(paths) !== revision)
+          throw axonSafehouseFailure("Filesystem permissions changed; retry the access request");
+      }
+      options?.signal?.throwIfAborted();
+      // Publish durable state before notifying the live session. Failed writes leave it unchanged.
+      await atomicJson(destination, validated);
+      commitFilesystemPreferences(paths, destination, validated, !options?.liveGrant);
+      return validated;
+    },
+    options?.signal === undefined ? {} : { signal: options.signal },
+  );
 }

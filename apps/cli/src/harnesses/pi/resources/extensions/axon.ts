@@ -413,8 +413,8 @@ function createAxonSafehouseScopeDisplay(ctx: ExtensionContext) {
         // Match Pi's resource sections: flush-left headings, two-space body indent.
         const lines = [
           theme.fg("mdHeading", "[Axon Safehouse]"),
-          settingLine("Scope", "this Axon session", "accent") +
-            theme.fg("dim", " · resets on exit"),
+          settingLine("Scope", "this project", "accent") +
+            theme.fg("dim", " · saved locally across restarts"),
         ];
         if (scope === undefined) {
           lines.push(
@@ -756,7 +756,7 @@ export default function axonExtension(pi: ExtensionAPI): void {
   pi.on("before_agent_start", (event) => {
     event.systemPromptOptions.sections["axon"] =
       "You are running through Axon Pi, not Pi directly. " +
-      "Use PI_CODING_AGENT_DIR (normally ~/.axon/pi), not ~/.pi/agent, for user-level configuration: " +
+      "Use PI_CODING_AGENT_DIR (Axon's local project configuration directory), not ~/.pi/agent, for configuration: " +
       "MCP servers in mcp.json, skills in skills/, and extensions in extensions/. " +
       "Project-local configuration still uses .pi/. " +
       "When Safehouse blocks filesystem access, the tool waits for the user's in-chat permission review. " +
@@ -946,7 +946,7 @@ export default function axonExtension(pi: ExtensionAPI): void {
     const config = authRelayConfiguration();
     if ((ctx.mode !== "tui" && ctx.mode !== "rpc") || config === undefined) {
       ctx.ui.notify(
-        "Open an interactive Axon session to edit temporary Axon Safehouse permissions.",
+        "Open an interactive Axon session to save project-specific Axon Safehouse permissions.",
         "warning",
       );
       return;
@@ -1050,7 +1050,7 @@ export default function axonExtension(pi: ExtensionAPI): void {
   };
 
   pi.registerCommand("safehouse", {
-    description: "Edit temporary Axon Safehouse filesystem rules and blocked hosts",
+    description: "Save project-specific Axon Safehouse filesystem rules and blocked hosts",
     handler: (args, ctx) => configureAxonSafehouse(args, ctx),
   });
 

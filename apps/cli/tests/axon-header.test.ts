@@ -140,7 +140,9 @@ describe("Axon prompt context", () => {
         handlers.get("before_agent_start")?.(event, {} as ExtensionContext);
         const guidance = options.sections["axon"] ?? "";
         expect(guidance).toContain("Axon Pi, not Pi directly");
-        expect(guidance).toContain("PI_CODING_AGENT_DIR (normally ~/.axon/pi)");
+        expect(guidance).toContain(
+          "PI_CODING_AGENT_DIR (Axon's local project configuration directory)",
+        );
         expect(guidance).toContain("not ~/.pi/agent");
         expect(guidance).toContain("MCP servers in mcp.json");
         expect(guidance).toContain("skills in skills/");

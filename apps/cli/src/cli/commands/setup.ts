@@ -1,3 +1,4 @@
+import { isBlockedProjectDirectory } from "../../axon-safehouse/filesystem.ts";
 import { withAxonSafehouseSession } from "../../axon-safehouse/session.ts";
 import { synchronizePiMcpConfig } from "../../harnesses/pi/setup/mcp-config.ts";
 import { synchronizePiPackages } from "../../harnesses/pi/setup/packages/sync.ts";
@@ -15,6 +16,7 @@ import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
 import { PRODUCT_IDENTITY } from "../../product/identity.ts";
 import { AXON_MANIFEST, EMBEDDED_PI_RESOURCES } from "../../product/manifest.ts";
 import { resolveAxonPaths } from "../../product/paths.ts";
+import { resolveProjectAxonPaths } from "../../product/project-paths.ts";
 import { runPaseoSetup } from "./setup-paseo.ts";
 
 export interface SetupOptions extends PaseoSetupOptions {
@@ -58,9 +60,12 @@ export async function runSetup(
     );
   }
 
-  return withAxonSafehouseSession(
-    { cwd, environment, paths: resolveAxonPaths(environment) },
-    (context) => runAxonSafehouseSetup(registration, context),
+  const sharedPaths = resolveAxonPaths(environment);
+  const paths = (await isBlockedProjectDirectory(sharedPaths, cwd))
+    ? sharedPaths
+    : await resolveProjectAxonPaths(sharedPaths, cwd);
+  return withAxonSafehouseSession({ cwd, environment, paths }, (context) =>
+    runAxonSafehouseSetup(registration, context),
   );
 }
 

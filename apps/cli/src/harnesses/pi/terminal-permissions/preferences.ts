@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 
 import { withFileLock } from "../../../launcher/file-lock.ts";
 
-/** User-level only: never read project settings or session history for approval consent. */
+/** Axon supplies a project-scoped agent directory outside the checkout; never trust repo JSON. */
 export function terminalPreferencesPath(environment: NodeJS.ProcessEnv = process.env): string {
   const home = environment["HOME"] || homedir();
   const axonHome = environment["AXON_HOME"]?.trim() || join(home, ".axon");

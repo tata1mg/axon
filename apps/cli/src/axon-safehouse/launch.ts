@@ -434,7 +434,11 @@ export async function createAxonSafehouseLaunchSpec(
     if (purpose === "session") {
       if (!catalogOnly) await privateDirectory(projectSessionDirectory(paths, project));
       // Keep Pi's normal persistent session picker/resume behavior across projects.
-      writableDirectories.push(...PI_STATE_DIRECTORIES.map((directory) => join(piRoot, directory)));
+      writableDirectories.push(
+        ...PI_STATE_DIRECTORIES.map((directory) =>
+          directory === "sessions" ? paths.piSessions : join(piRoot, directory),
+        ),
+      );
     } else {
       rules.push(pathRule("deny file-read* file-write*", await canonicalPath(paths.piSessions)));
     }
@@ -503,7 +507,7 @@ export async function createAxonSafehouseLaunchSpec(
       const escapedPath = path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const temporaryIdPattern =
         "([0-9]+|[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})";
-      const temporaryPattern = `^${escapedPath}\\.[0-9]+\\.${temporaryIdPattern}\\.tmp$`;
+      const temporaryPattern = `^${escapedPath}\\.([0-9]+\\.)?${temporaryIdPattern}\\.tmp$`;
       rules.push(`(allow file-read* file-write* (regex #${quoted(temporaryPattern)}))`);
     }
     const repositories = projectAccess

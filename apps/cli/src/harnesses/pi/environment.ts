@@ -72,7 +72,7 @@ const PI_PROVIDER_CREDENTIAL_REMOVALS: EnvironmentOverrides = Object.freeze(
 function createPiDirectoryOverrides(paths: AxonPaths): EnvironmentOverrides {
   return Object.freeze({
     PI_CODING_AGENT_DIR: paths.pi,
-    PI_CODING_AGENT_SESSION_DIR: paths.piSessions,
+    PI_CODING_AGENT_SESSION_DIR: paths.piSessionDirectory ?? paths.piSessions,
   });
 }
 

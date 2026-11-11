@@ -62,7 +62,7 @@ export function createAxonSafehouseConfigurationRelay(
 
   return {
     async handle(request: Request, url: URL): Promise<Response> {
-      // Report the parent's live invocation settings, never a persisted or child-supplied profile.
+      // Report the parent's validated project snapshot, never child-supplied grants.
       if (
         url.pathname === "/_axon/axon-safehouse/status" &&
         request.method === "GET" &&

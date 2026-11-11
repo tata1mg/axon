@@ -16,6 +16,7 @@ import {
 } from "../harnesses/pi/setup/packages/invocation.ts";
 import { loadHarnessAdapter } from "../harnesses/registry.ts";
 import { resolveAxonPaths } from "../product/paths.ts";
+import { resolveProjectAxonPaths } from "../product/project-paths.ts";
 import { emitProductEvent } from "../telemetry/product-events.ts";
 import type {
   AxonSafehouseResumeSession,
@@ -41,7 +42,10 @@ export async function launchRegisteredHarness(
 ): Promise<never> {
   const cwd = process.cwd();
   const inheritedEnvironment = process.env;
-  const paths = resolveAxonPaths(inheritedEnvironment);
+  const sharedPaths = resolveAxonPaths(inheritedEnvironment);
+  const paths = (await isBlockedProjectDirectory(sharedPaths, cwd))
+    ? sharedPaths
+    : await resolveProjectAxonPaths(sharedPaths, cwd);
   assertAxonSafehouseSupported();
   if (isPiOffline(inheritedEnvironment, userArguments)) {
     throw axonSafehouseFailure(

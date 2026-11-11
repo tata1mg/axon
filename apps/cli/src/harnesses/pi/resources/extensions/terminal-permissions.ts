@@ -600,11 +600,11 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
 
   pi.registerCommand("yolo", {
     description:
-      "Toggle saved autonomous terminal execution for all local sessions (if backend permits)",
+      "Toggle saved autonomous terminal execution for this project's sessions (if backend permits)",
     handler: async (args, ctx) => {
       if (args.trim()) {
         ctx.ui.notify(
-          "Usage: /yolo (toggles saved on/off preference for all local sessions)",
+          "Usage: /yolo (toggles the saved on/off preference for this project)",
           "warning",
         );
         return;
@@ -654,8 +654,8 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
       });
       ctx.ui.notify(
         savedEnabled
-          ? "YOLO on for all local sessions, including future sessions: terminal commands run without approval where policy permits. Blocklists are best-effort, not OS isolation. Run /yolo to turn off."
-          : "YOLO off for all local sessions: Standard mode restored for subsequent commands.",
+          ? "YOLO on for this project's current and future sessions: terminal commands run without approval where policy permits. Blocklists are best-effort, not OS isolation. Run /yolo to turn off."
+          : "YOLO off for this project: Standard mode restored for subsequent commands.",
         savedEnabled ? "warning" : "info",
       );
     },

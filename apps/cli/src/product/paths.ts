@@ -5,6 +5,9 @@ import { PRODUCT_IDENTITY } from "./identity.ts";
 
 export interface AxonPaths {
   readonly home: string;
+  /** Present for project-scoped launches; shared authentication and runtimes remain global. */
+  readonly projectDirectory?: string;
+  readonly piSessionDirectory?: string;
   readonly sharedAuthDirectory: string;
   readonly sharedAuthFile: string;
   readonly sharedAuthLock: string;

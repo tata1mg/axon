@@ -163,7 +163,7 @@ export async function runAxonSafehouseMenu(
       LAUNCHER_EXIT_STATUS.usage,
       {
         remediation:
-          "Start an interactive axon pi session and use /safehouse to edit temporary permissions.",
+          "Start an interactive axon pi session and use /safehouse to save project permissions.",
       },
     );
   }
@@ -370,7 +370,7 @@ export async function runAxonSafehouseMenu(
         ui.note(formatFilesystemChanges(original, draft), "Review changes before saving");
         const save = await ui.select<"save" | "back">({
           ...cancellation,
-          message: "Apply these permissions now, until Axon exits?",
+          message: "Save these permissions for this project and apply them now?",
           initialValue: "back",
           options: [
             { value: "save", label: "Apply permissions" },
@@ -389,7 +389,7 @@ export async function runAxonSafehouseMenu(
         signal?.throwIfAborted();
         await saveFilesystemPreferences(paths, project, draft, original, currentPolicy);
         ui.outro(
-          "Axon Safehouse permissions applied for this Axon session. Restarting Pi to resume your chat safely.",
+          "Axon Safehouse permissions saved locally for this project. Restarting Pi to resume your chat safely.",
         );
         return true;
       }

@@ -313,7 +313,7 @@ describe("backend eligibility and user-level /yolo toggle", () => {
     const harness = setup();
     harness.start();
     await harness.command();
-    expect(harness.notify.mock.calls.at(-1)?.[0]).toContain("YOLO on for all local sessions");
+    expect(harness.notify.mock.calls.at(-1)?.[0]).toContain("YOLO on for this project's");
     expect(await harness.call("pwd", "bash", undefined, true)).toBeUndefined();
     await harness.command();
     expect(harness.notify.mock.calls.at(-1)?.[0]).toContain("Standard mode restored");

@@ -1,5 +1,9 @@
 import { Command, CommanderError } from "commander";
-import { canonicalPath, readFilesystemPreferences } from "../axon-safehouse/filesystem.ts";
+import {
+  canonicalPath,
+  isBlockedProjectDirectory,
+  readFilesystemPreferences,
+} from "../axon-safehouse/filesystem.ts";
 import { BUILD_INFO } from "../build-info.ts";
 import { currentPiInvocationEnvironment } from "../harnesses/pi/setup/packages/invocation.ts";
 import { resolveHarnessRegistration } from "../harnesses/registry.ts";
@@ -7,6 +11,7 @@ import { LauncherError } from "../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../launcher/exit-status.ts";
 import { PRODUCT_IDENTITY } from "../product/identity.ts";
 import { resolveAxonPaths } from "../product/paths.ts";
+import { resolveProjectAxonPaths } from "../product/project-paths.ts";
 import { withUpdateProgress } from "../updater/progress.ts";
 import { checkForUpdate, installUpdate, updateContext } from "../updater/update.ts";
 import { ensureAxonSession } from "./auth/preflight.ts";
@@ -23,6 +28,13 @@ import { printPaths } from "./commands/paths.ts";
 import { runSessions, runSessionsInteractive } from "./commands/sessions.ts";
 import { runSetup, type SetupOptions } from "./commands/setup.ts";
 import { runUninstall, type UninstallOptions } from "./commands/uninstall.ts";
+
+async function resolveCurrentProjectPaths(environment: NodeJS.ProcessEnv = process.env) {
+  const paths = resolveAxonPaths(environment);
+  return (await isBlockedProjectDirectory(paths, process.cwd()))
+    ? paths
+    : resolveProjectAxonPaths(paths, process.cwd());
+}
 
 function setExitStatus(status: number): void {
   if (status !== 0) {
@@ -51,13 +63,13 @@ function createLauncherProgram(): Command {
   program
     .command("paths")
     .description("show managed Axon paths")
-    .action(() => {
-      printPaths(resolveAxonPaths());
+    .action(async () => {
+      printPaths(await resolveCurrentProjectPaths());
     });
 
   const configureSafehouse = (): never => {
     throw new LauncherError(
-      "Axon Safehouse permissions are temporary and must be edited in the active Axon process",
+      "Axon Safehouse permissions must be reviewed and saved in the active Axon process",
       LAUNCHER_EXIT_STATUS.usage,
       {
         remediation: "Start axon pi, then use /safehouse. Changes apply immediately after saving.",
@@ -66,20 +78,18 @@ function createLauncherProgram(): Command {
   };
   const safehouse = program
     .command("safehouse")
-    .description(
-      "inspect Axon Safehouse defaults; use /safehouse in Pi to edit temporary permissions",
-    )
-    .option("--project <directory>", "project whose default permissions to inspect", process.cwd())
+    .description("inspect saved project permissions; use /safehouse in Pi to edit them")
+    .option("--project <directory>", "project whose saved permissions to inspect", process.cwd())
     .action(configureSafehouse);
   safehouse
     .command("configure")
     .alias("config")
-    .description("use /safehouse inside Pi to edit temporary filesystem rules and blocked hosts")
+    .description("use /safehouse inside Pi to save project filesystem rules and blocked hosts")
     .action(configureSafehouse);
   safehouse
     .command("show")
     .description(
-      "show this project's default filesystem rules and blocked hosts for a new Axon run",
+      "show this project's saved filesystem rules and blocked hosts (defaults for a new project)",
     )
     .option("--json", "print only the local preference JSON for scripts")
     .action(async (options: { json?: boolean }) => {
@@ -91,7 +101,7 @@ function createLauncherProgram(): Command {
         return;
       }
       console.log(
-        "Default Axon Safehouse permissions for a new Axon run. Use /safehouse inside Pi to inspect or edit its live permissions.",
+        "Saved project permissions (defaults if not configured). Backend restrictions are revalidated on launch. Use /safehouse inside Pi to edit.",
       );
       console.log(formatFilesystemPermissions(project, preferences));
     });
@@ -169,7 +179,7 @@ function createLauncherProgram(): Command {
         {
           cwd: process.cwd(),
           environment,
-          paths: resolveAxonPaths(environment),
+          paths: await resolveCurrentProjectPaths(environment),
         },
         harness,
       );

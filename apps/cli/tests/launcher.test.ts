@@ -10,6 +10,7 @@ import { createHarnessEnvironment } from "../src/launcher/environment.ts";
 import { SERVICE_ENDPOINTS } from "../src/product/endpoints.ts";
 import { AXON_MANIFEST } from "../src/product/manifest.ts";
 import { resolveAxonPaths } from "../src/product/paths.ts";
+import { resolveProjectAxonPaths } from "../src/product/project-paths.ts";
 import { writePiPackageFixture } from "./fixtures/pi-packages.ts";
 
 const projectRoot = resolve(import.meta.dir, "..");
@@ -139,7 +140,10 @@ afterAll(async () => {
 });
 
 async function installEmbeddedPiPackages(axonHome: string): Promise<void> {
-  const piAgentDirectory = join(axonHome, "pi");
+  const { pi: piAgentDirectory } = await resolveProjectAxonPaths(
+    resolveAxonPaths({ AXON_HOME: axonHome }),
+    projectRoot,
+  );
   const packages = normalizeManifestPackages(AXON_MANIFEST);
 
   for (const packageEntry of packages) {
@@ -298,7 +302,9 @@ describe("launcher dispatch", () => {
       arguments: userArguments,
       axonEnvironment: {},
       harnessEnvironment: {
-        PI_CODING_AGENT_DIR: join(axonHome, "pi"),
+        PI_CODING_AGENT_DIR: (
+          await resolveProjectAxonPaths(resolveAxonPaths({ AXON_HOME: axonHome }), projectRoot)
+        ).pi,
         PI_SKIP_VERSION_CHECK: "1",
         LITELLM_API_KEY: expect.any(String),
         LITELLM_BASE_URL: expect.stringMatching(/^http:\/\/127\.0\.0\.1:\d+\/litellm$/),
@@ -362,9 +368,13 @@ describe("launcher dispatch", () => {
     expect(stdout.arguments[1]).not.toContain("/current/");
     expect(stdout.arguments[3]).not.toContain("/current/");
     expect(stdout.arguments[5]).not.toContain("/current/");
-    expect(
-      (await Bun.file(join(axonHome, "pi", "settings.json")).json()).lastChangelogVersion,
-    ).toBe(PI_INSTALL_VERSION);
+    const paths = await resolveProjectAxonPaths(
+      resolveAxonPaths({ AXON_HOME: axonHome }),
+      projectRoot,
+    );
+    expect((await Bun.file(join(paths.pi, "settings.json")).json()).lastChangelogVersion).toBe(
+      PI_INSTALL_VERSION,
+    );
   });
 
   test("forwards Pi auth commands without setup arguments", async () => {
