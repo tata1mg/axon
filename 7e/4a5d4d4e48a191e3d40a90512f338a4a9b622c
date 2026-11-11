@@ -1,0 +1,60 @@
+apps/cli/src/axon-safehouse/launch.ts
+  s_c717e64581e732::t_29f31719d72c65 437-441,510
+apps/cli/src/harnesses/pi/settings-defaults.ts
+  s_c717e64581e732::t_b93c6ca9445a1c 103-104
+  s_c717e64581e732::t_52560be9a6cabb 50,61,87-102,105-107
+apps/cli/tests/terminal-permissions.test.ts
+  s_c717e64581e732::t_195cd552160064 316
+apps/cli/src/cli/launcher-program.ts
+  s_c717e64581e732::t_d393440b76bc3e 2-6,14,33-38,66,72,82,87,92,104
+  s_c717e64581e732::t_b073872dae217b 32,67,81,182
+apps/cli/src/product/paths.ts
+  s_c717e64581e732::t_23ffe9806a16fb 8-10
+apps/cli/src/cli/commands/setup.ts
+  s_c717e64581e732::t_d441098fd59c16 67-68
+  s_c717e64581e732::t_6ed38fee1d1e09 1,19,63-66
+apps/cli/src/axon-safehouse/configuration-relay.ts
+  s_c717e64581e732::t_b388b8b1aa8b1d 65
+apps/cli/src/harnesses/pi/terminal-permissions/preferences.ts
+  s_c717e64581e732::t_63b6ec94f59636 8
+apps/cli/src/harnesses/pi/adapter.ts
+  s_c717e64581e732::t_7ee6dc93236850 79-80,165-166
+  s_c717e64581e732::t_0ec77bf71285c9 164
+apps/cli/src/harnesses/pi/resources/extensions/axon.ts
+  s_c717e64581e732::t_39ba96b48052bb 416-417,759,949,1053
+apps/cli/src/harnesses/pi/resources/extensions/terminal-permissions.ts
+  s_c717e64581e732::t_ee3cf46787e578 603,607,657-658
+apps/cli/tests/launcher.test.ts
+  s_c717e64581e732::t_c4565c3c4d2582 13,143-146,305-307,371-377
+apps/cli/src/axon-safehouse/filesystem.ts
+  s_c717e64581e732::t_f97baafedd6fa1 172-175,249-251,372-374
+  s_c717e64581e732::t_eb4e12869d7d8e 6,8-9,50,68-69,138-139,143-146,157-163,168-171,176-181,343,354-362,364-371,375-408
+  s_c717e64581e732::t_9552a3d23ae93a 147-156
+apps/cli/src/launcher/launch-harness.ts
+  s_c717e64581e732::t_f371c7f89114c0 19,45-48
+apps/cli/src/harnesses/pi/environment.ts
+  s_c717e64581e732::t_129b10715933c7 75
+apps/cli/src/cli/commands/axon-safehouse.ts
+  s_c717e64581e732::t_d42208cab7bebe 166,373,392
+apps/cli/src/product/project-paths.ts
+  s_c717e64581e732::t_28560579a6370b 1-41
+  s_c717e64581e732::t_50fc6be527828f 42
+apps/cli/tests/axon-header.test.ts
+  s_c717e64581e732::t_61934c11c87e5b 143-145
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7e4a5d4d4e48a191e3d40a90512f338a4a9b622c",
+  "prompts": {},
+  "sessions": {
+    "s_c717e64581e732": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "504591",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  }
+}
