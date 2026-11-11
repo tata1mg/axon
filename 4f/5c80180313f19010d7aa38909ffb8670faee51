@@ -1,0 +1,27 @@
+apps/backend/app/observability/sentry.py
+  s_a497e92851c8f9::t_cbbce1d6e5e334 98-108,123-124,161,196-199
+  s_a497e92851c8f9::t_f6602a586a7ed4 142-145
+apps/backend/tests/test_sentry.py
+  s_a497e92851c8f9::t_fd5e23730e5d72 6-7,27-28,178-190,386-397,400-403,405,570-616
+  s_a497e92851c8f9::t_90b39abe5f69b7 398-399,404,406-408,412-414,418-427
+  s_a497e92851c8f9::t_618d515fb41b87 409-411,415-417
+  s_a497e92851c8f9::t_2676b4cf778456 428-429,617-618
+apps/backend/app/core/config.py
+  s_a497e92851c8f9::t_b555b52f7d27d4 167
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4f5c80180313f19010d7aa38909ffb8670faee51",
+  "prompts": {},
+  "sessions": {
+    "s_a497e92851c8f9": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a1bfa6-14b3-70cb-ba76-330aeddbc5e4",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}

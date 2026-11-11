@@ -1,0 +1,42 @@
+apps/backend/pyproject.toml
+  s_601660aa42e17e::t_dc90eeb8498cb1 16
+apps/backend/README.md
+  s_601660aa42e17e::t_4ef98032b0e421 702-740,797
+apps/backend/app/core/config.py
+  s_601660aa42e17e::t_41396206fd4931 13,165-174,197,234-252,749
+apps/backend/app/main.py
+  s_601660aa42e17e::t_7331d5a6ea2b24 11,18
+apps/backend/app/observability/sentry.py
+  s_601660aa42e17e::t_c232e1cc21a5bf 1-29,31-43,57-66,68-78,80-101,105-110,124,126-129,131-136
+  s_601660aa42e17e::t_1441ceb9fbb88f 30,102-104
+  s_601660aa42e17e::t_e9e7caee27de21 67,111-123,125
+  s_601660aa42e17e::t_4f36aafedd0027 130
+  s_601660aa42e17e::t_2e1b17faae0c9b 44-56,79
+apps/backend/config_template.json
+  s_601660aa42e17e::t_1aa81e80d8427a 175-177
+apps/backend/app/listeners/__init__.py
+  s_601660aa42e17e::t_2636f8af059da7 13,22-24
+apps/backend/tests/test_sentry.py
+  s_601660aa42e17e::t_60efb23df04e1c 120-122,124
+  s_601660aa42e17e::t_ec329b18d91dd7 109,111,117,157-158,289
+  s_601660aa42e17e::t_22ec3ad7136f85 29,132-140,189-190,192-195,197-199,201,203-205
+  s_601660aa42e17e::t_f8c2ef49293f85 1-28,30-108,110,112-116,118-119,123,125-131,141-156,159-188,191,196,200,202,206-288,290-303
+apps/backend/uv.lock
+  s_601660aa42e17e::t_dfc31fd92ea83b 78,103,908-920
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1df8c8257dde29069d11cb8931d85c41c7f6b5f9",
+  "prompts": {},
+  "sessions": {
+    "s_601660aa42e17e": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a1bec3-82bd-7724-a95f-7c003db51981",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}

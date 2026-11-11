@@ -1,0 +1,23 @@
+apps/backend/pyproject.toml
+  s_601660aa42e17e::t_dee904cf79a2f7 3
+apps/backend/app/main.py
+  s_601660aa42e17e::t_e3ee2c22945332 24
+apps/backend/uv.lock
+  s_601660aa42e17e::t_cf2e412ede2e29 64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4141e0bc2f3fa62086a591abba339f58c3cb6f4a",
+  "prompts": {},
+  "sessions": {
+    "s_601660aa42e17e": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a1bec3-82bd-7724-a95f-7c003db51981",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
