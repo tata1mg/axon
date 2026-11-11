@@ -28,6 +28,7 @@ function preferences(overrides: Partial<FilesystemPreferences> = {}): Filesystem
     readPaths: [],
     writePaths: [],
     denyPaths: [],
+    blockedHosts: [],
     ...overrides,
   };
 }

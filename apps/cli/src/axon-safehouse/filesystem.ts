@@ -5,25 +5,39 @@ import { dirname, isAbsolute, join, parse, relative, resolve, sep } from "node:p
 import { z } from "zod";
 
 import type { AxonPaths } from "../product/paths.ts";
+import { blockedHostsSchema } from "./network.ts";
 import { type AxonSafehousePolicy, axonSafehouseFailure } from "./policy.ts";
 
 const PROTECTED_HOME_PATHS = [
   ".deputydev",
-  ".ssh",
   ".aws",
   ".gnupg",
   ".config/gcloud",
-  ".config/gh",
   ".config/nix",
-  ".git-credentials",
-  ".gitconfig",
   ".npmrc",
   ".pypirc",
-  ".netrc",
   "Library/Keychains",
 ];
 
+// Git uses normal user configuration, credential helpers and SSH authentication.
+// Explicit backend/user filesystem denials still override these grants.
+export const GIT_USER_PATHS = [
+  ".ssh",
+  ".gitconfig",
+  ".gitconfig.lock",
+  ".git-credentials",
+  ".git-credentials.lock",
+  ".config/git",
+  ".config/gh",
+  ".netrc",
+] as const;
+
+// MCP configuration, OAuth credentials and their locks are normal user-owned state.
+export const MCP_USER_PATHS = [".config/mcp"] as const;
+export const MCP_STATE_FILES = ["mcp.json", "mcp-auth.json"] as const;
+
 export const PI_STATE_FILES = [
+  ...MCP_STATE_FILES,
   "auth.json",
   "settings.json",
   "trust.json",
@@ -43,6 +57,8 @@ export const filesystemPreferencesSchema = z.strictObject({
   readPaths: pathList,
   writePaths: pathList,
   denyPaths: pathList,
+  // The only user networking setting; no hosts are blocked by default.
+  blockedHosts: blockedHostsSchema.default([]),
 });
 export type FilesystemPreferences = z.infer<typeof filesystemPreferencesSchema>;
 
@@ -132,6 +148,7 @@ export async function readFilesystemPreferences(
       readPaths: [],
       writePaths: [],
       denyPaths: [],
+      blockedHosts: [],
     };
   }
   const parsed = filesystemPreferencesSchema.safeParse(value);
@@ -328,6 +345,7 @@ export async function saveFilesystemPreferences(
     // A live approval may only expand access. Any revocation still requires replacing Pi,
     // whose compiled profile could otherwise retain permissions that have been removed.
     if (
+      JSON.stringify(current.blockedHosts) !== JSON.stringify(validated.blockedHosts) ||
       JSON.stringify(current.denyPaths) !== JSON.stringify(validated.denyPaths) ||
       (current.projectMode === "read-write" && validated.projectMode !== "read-write") ||
       current.writePaths.some((path) => !validated.writePaths.includes(path)) ||

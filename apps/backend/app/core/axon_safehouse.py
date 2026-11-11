@@ -4,9 +4,6 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
-RegistryHost = Literal["registry.npmjs.org", "registry.yarnpkg.com", "pypi.org", "files.pythonhosted.org"]
-GitHost = Literal["github.com", "bitbucket.org"]
-NetworkMode = Literal["outbound", "relay-and-package-proxy"]
 ProtectedPath = Annotated[
     str,
     StringConstraints(min_length=1, max_length=4096, pattern=r"^(?:/|~/)[^\x00-\x1f\x7f]*$"),
@@ -21,14 +18,8 @@ class CliAxonSafehousePolicy(BaseModel):
     engine: Literal["safehouse"] = "safehouse"
     policy_id: str = Field(alias="policyId")
     max_session_seconds: int = Field(alias="maxSessionSeconds")
-    network: NetworkMode = "outbound"
-    remote_git: bool = Field(default=False, alias="remoteGit")
-    remote_git_hosts: tuple[GitHost, ...] = Field(default=(), alias="remoteGitHosts")
-    local_git: Literal["deny", "read-only", "read-write"] = Field(alias="localGit")
     allow_additional_read_paths: bool = Field(alias="allowAdditionalReadPaths")
     allow_additional_write_paths: bool = Field(alias="allowAdditionalWritePaths")
-    package_registry_hosts: tuple[RegistryHost, ...] = Field(alias="packageRegistryHosts")
-    package_git_hosts: tuple[GitHost, ...] = Field(default=(), alias="packageGitHosts")
     protected_paths: tuple[ProtectedPath, ...] = Field(alias="protectedPaths", max_length=64)
 
 
@@ -37,43 +28,23 @@ class AxonSafehouseSettings(BaseModel):
 
     policy_id: str = Field(default="safehouse-v1", alias="POLICY_ID", pattern=r"^[a-zA-Z0-9._-]{1,128}$")
     max_session_seconds: int = Field(default=14400, alias="MAX_SESSION_SECONDS", ge=60, le=86400)
-    # Normal sessions/workers can reach external APIs and local services; setup stays proxied.
-    network: NetworkMode = Field(default="outbound", alias="NETWORK")
-    local_git: Literal["deny", "read-only", "read-write"] = Field(default="read-only", alias="LOCAL_GIT")
-    # Enables managed SSH tunnels and agent access, not a network boundary in outbound mode.
-    remote_git: bool = Field(default=False, alias="REMOTE_GIT")
-    remote_git_hosts: list[GitHost] = Field(default_factory=list, alias="REMOTE_GIT_HOSTS", max_length=2)
+    # Networking and local/remote Git have no backend policy gates.
     allow_additional_read_paths: bool = Field(default=True, alias="ALLOW_ADDITIONAL_READ_PATHS")
     allow_additional_write_paths: bool = Field(default=True, alias="ALLOW_ADDITIONAL_WRITE_PATHS")
-    package_registry_hosts: list[RegistryHost] = Field(
-        default_factory=lambda: ["registry.npmjs.org", "registry.yarnpkg.com", "pypi.org", "files.pythonhosted.org"],
-        alias="PACKAGE_REGISTRY_HOSTS",
-        max_length=4,
-    )
-    # Extra proxy hosts for package setup/administration, not a direct outbound allowlist.
-    package_git_hosts: list[GitHost] = Field(
-        default_factory=lambda: ["github.com"], alias="PACKAGE_GIT_HOSTS", max_length=2
-    )
     protected_paths: list[ProtectedPath] = Field(default_factory=list, alias="PROTECTED_PATHS", max_length=64)
 
     def cli_config(self) -> CliAxonSafehousePolicy:
         return CliAxonSafehousePolicy(
             policyId=self.policy_id,
             maxSessionSeconds=self.max_session_seconds,
-            network=self.network,
-            localGit=self.local_git,
-            remoteGit=self.remote_git,
-            remoteGitHosts=tuple(self.remote_git_hosts),
             allowAdditionalReadPaths=self.allow_additional_read_paths,
             allowAdditionalWritePaths=self.allow_additional_write_paths,
-            packageRegistryHosts=tuple(self.package_registry_hosts),
-            packageGitHosts=tuple(self.package_git_hosts),
             protectedPaths=tuple(self.protected_paths),
         )
 
 
 def parse_axon_safehouse(raw: dict[str, object]) -> AxonSafehouseSettings:
-    # Missing deployment settings still require the sandbox, with outbound session networking.
+    # Missing deployment settings still require the filesystem/process sandbox.
     section = raw.get("AXON_SAFEHOUSE", {})
     if not isinstance(section, dict):
         raise ValueError("AXON_SAFEHOUSE must be an object")

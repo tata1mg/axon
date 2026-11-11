@@ -364,6 +364,7 @@ interface AxonSafehouseScope {
   readonly readPaths: string[];
   readonly writePaths: string[];
   readonly denyPaths: string[];
+  readonly blockedHosts: string[];
 }
 
 function parseAxonSafehouseScope(value: unknown): AxonSafehouseScope {
@@ -373,7 +374,7 @@ function parseAxonSafehouseScope(value: unknown): AxonSafehouseScope {
     typeof scope.project !== "string" ||
     scope.project.length > 4096 ||
     (scope.projectMode !== "read-only" && scope.projectMode !== "read-write") ||
-    ![scope.readPaths, scope.writePaths, scope.denyPaths].every(
+    ![scope.readPaths, scope.writePaths, scope.denyPaths, scope.blockedHosts].every(
       (paths) =>
         Array.isArray(paths) &&
         paths.length <= 64 &&
@@ -451,6 +452,12 @@ function createAxonSafehouseScopeDisplay(ctx: ExtensionContext) {
               pathsSummary(scope.denyPaths),
               scope.denyPaths.length ? "error" : "dim",
             ),
+            settingLine(
+              "Blocked hosts (HTTP/S only, best-effort)",
+              scope.blockedHosts.length ? scope.blockedHosts.join(", ") : "(none — all allowed)",
+              scope.blockedHosts.length ? "error" : "dim",
+            ),
+            settingLine("Git", "local/remote allowed · filesystem rules still apply", "dim"),
           );
         }
         lines.push(
@@ -931,7 +938,7 @@ export default function axonExtension(pi: ExtensionAPI): void {
     }
     if (args.trim()) {
       ctx.ui.notify(
-        "Use /safehouse without arguments to open the Axon Safehouse filesystem access editor.",
+        "Use /safehouse without arguments to edit Axon Safehouse filesystem rules and blocked hosts.",
         "warning",
       );
       return;
@@ -1043,7 +1050,7 @@ export default function axonExtension(pi: ExtensionAPI): void {
   };
 
   pi.registerCommand("safehouse", {
-    description: "Edit temporary Axon Safehouse filesystem access in your terminal or RPC client",
+    description: "Edit temporary Axon Safehouse filesystem rules and blocked hosts",
     handler: (args, ctx) => configureAxonSafehouse(args, ctx),
   });
 

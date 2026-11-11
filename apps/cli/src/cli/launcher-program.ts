@@ -74,11 +74,13 @@ function createLauncherProgram(): Command {
   safehouse
     .command("configure")
     .alias("config")
-    .description("use /safehouse inside Pi to edit temporary filesystem grants")
+    .description("use /safehouse inside Pi to edit temporary filesystem rules and blocked hosts")
     .action(configureSafehouse);
   safehouse
     .command("show")
-    .description("show this project's default filesystem rules for a new Axon run")
+    .description(
+      "show this project's default filesystem rules and blocked hosts for a new Axon run",
+    )
     .option("--json", "print only the local preference JSON for scripts")
     .action(async (options: { json?: boolean }) => {
       const paths = resolveAxonPaths();

@@ -1,5 +1,7 @@
 import { isAbsolute } from "node:path";
 
+import { createHarnessEnvironment } from "../launcher/environment.ts";
+
 const PASSTHROUGH = [
   "TERM",
   "COLORTERM",
@@ -8,7 +10,17 @@ const PASSTHROUGH = [
   // Pi uses these non-secret markers to copy to the client clipboard over OSC 52.
   "SSH_CONNECTION",
   "SSH_CLIENT",
+  "SSH_AUTH_SOCK",
+  "SSH_ASKPASS",
   "MOSH_CONNECTION",
+  "HTTP_PROXY",
+  "HTTPS_PROXY",
+  "ALL_PROXY",
+  "NO_PROXY",
+  "http_proxy",
+  "https_proxy",
+  "all_proxy",
+  "no_proxy",
   "PI_CLIPBOARD_OSC52",
   "LANG",
   "LC_ALL",
@@ -79,16 +91,25 @@ const PASSTHROUGH = [
   "OTEL_METRIC_EXPORT_INTERVAL",
 ] as const;
 
-/** Build from nothing: ambient tokens, shell hooks, injection variables and Safehouse flags stay out. */
+/** Sessions retain application/MCP credentials; installers and probes inherit only essentials. */
 export function axonSafehouseEnvironment(
   source: NodeJS.ProcessEnv,
   home: string,
   temporary: string,
   proxyUrl: string | undefined,
+  inheritApplicationEnvironment = false,
 ): NodeJS.ProcessEnv {
-  const environment: NodeJS.ProcessEnv = {};
+  // MCP env/header templates and credential commands can use arbitrary variable names.
+  // Keep the normal launcher filtering instead of maintaining an MCP credential allowlist.
+  const environment: NodeJS.ProcessEnv = inheritApplicationEnvironment
+    ? createHarnessEnvironment(source)
+    : {};
   for (const name of PASSTHROUGH) {
     if (source[name] !== undefined) environment[name] = source[name];
+  }
+  // Preserve normal Git identity, transport, config and credential-helper settings.
+  for (const [name, value] of Object.entries(source)) {
+    if (name.startsWith("GIT_") && value !== undefined) environment[name] = value;
   }
   environment["HOME"] = home;
   environment["PATH"] = (source["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin")
@@ -103,19 +124,21 @@ export function axonSafehouseEnvironment(
   environment["npm_config_cache"] = `${temporary}/npm-cache`;
   environment["PIP_CACHE_DIR"] = `${temporary}/pip-cache`;
   environment["BUN_INSTALL_CACHE_DIR"] = `${temporary}/bun-cache`;
-  // Direct outbound sessions must not be routed through the package-only proxy.
-  // Ambient proxy settings remain excluded by the environment allowlist above.
+  environment["UV_CACHE_DIR"] = `${temporary}/uv-cache`;
+  environment["UV_PYTHON_INSTALL_DIR"] = `${temporary}/uv-python`;
+  // An empty user blocklist leaves networking untouched, including corporate proxies.
+  // Opt-in filtering is best-effort: clients that bypass HTTP proxies remain unrestricted.
   if (proxyUrl) {
     environment["HTTP_PROXY"] = proxyUrl;
     environment["HTTPS_PROXY"] = proxyUrl;
     environment["http_proxy"] = proxyUrl;
     environment["https_proxy"] = proxyUrl;
-    environment["NO_PROXY"] = "127.0.0.1";
-    environment["no_proxy"] = "127.0.0.1";
+    // Do not automatically exempt localhost or private services from user blocks.
+    environment["NO_PROXY"] = "";
+    environment["no_proxy"] = "";
+    delete environment["ALL_PROXY"];
+    delete environment["all_proxy"];
   }
-  environment["GIT_CONFIG_NOSYSTEM"] = "1";
-  environment["GIT_CONFIG_GLOBAL"] = "/dev/null";
-  environment["GIT_TERMINAL_PROMPT"] = "0";
   environment["PI_AXON_SAFEHOUSE"] = "safehouse";
   return environment;
 }

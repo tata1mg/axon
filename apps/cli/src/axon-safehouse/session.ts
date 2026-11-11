@@ -57,7 +57,7 @@ async function readCommandOutput(
   );
 }
 
-/** One authorization, runtime verification, baseline and proxy for the whole Axon invocation. */
+/** One authorization, runtime verification and baseline for the whole Axon invocation. */
 export async function createAxonSafehouseSession(
   context: LaunchContext,
   suppliedAuthorization?: AxonSafehouseAuthorization,
@@ -139,7 +139,7 @@ export async function createAxonSafehouseSession(
         throw axonSafehouseFailure("RPC catalog probes cannot configure project permissions");
       const verified = await authorizeAxonSafehouse(context.paths);
       assertActive();
-      // A settings change cannot silently replace network/Git restrictions or renew the lease.
+      // A settings change cannot silently replace backend filesystem limits or renew the lease.
       // Changed backend boundaries require a new Axon invocation, not just a new Pi child.
       if (!isDeepStrictEqual(verified.policy, authorization.policy))
         throw axonSafehouseFailure(
@@ -242,13 +242,14 @@ export async function createAxonSafehouseSession(
         specification.environment["PATH"],
         specification.environment["PI_CODING_AGENT_DIR"],
         writePaths,
-        options.purpose === "operation" ? revision : undefined,
+        revision,
       ]);
       let pending = profiles.get(key);
       if (!pending) {
         pending = createAxonSafehouseLaunchSpec(command, context.paths, authorization, {
           purpose: options.purpose,
-          ...(options.purpose === "operation" ? { project: context.cwd } : {}),
+          // Every purpose inherits the user's optional host blocklist, not project file grants.
+          project: context.cwd,
           writePaths,
           resources,
         }).catch((error: unknown) => {

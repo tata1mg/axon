@@ -8,6 +8,7 @@ import {
   saveFilesystemPreferences,
   validateFilesystemProject,
 } from "../../axon-safehouse/filesystem.ts";
+import { blockedHostsSchema } from "../../axon-safehouse/network.ts";
 import { type AxonSafehousePolicy, authorizeAxonSafehouse } from "../../axon-safehouse/policy.ts";
 import { currentPiInvocationEnvironment } from "../../harnesses/pi/setup/packages/invocation.ts";
 import { LauncherError } from "../../launcher/errors.ts";
@@ -19,10 +20,18 @@ export type AxonSafehouseMenuUI = Pick<
   typeof prompts,
   "select" | "autocomplete" | "text" | "intro" | "outro" | "cancel" | "note"
 >;
-type MenuAction = "mode" | "allow-read" | "allow-write" | "deny" | "manage" | "save" | "discard";
+type MenuAction =
+  | "mode"
+  | "allow-read"
+  | "allow-write"
+  | "deny"
+  | "manage"
+  | "blocked-hosts"
+  | "save"
+  | "discard";
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Could not update filesystem permissions";
+  return error instanceof Error ? error.message : "Could not update Safehouse settings";
 }
 
 function formatFilesystemAccess(access: string | undefined): string {
@@ -45,7 +54,7 @@ export function formatFilesystemPermissions(
 ): string {
   const lines = [
     `${colors.bold("Project")}      ${colors.cyan(formatHomePath(project))} (${formatFilesystemAccess(preferences.projectMode)})`,
-    colors.dim("Project and directory/file rules only; required runtime access is not listed."),
+    colors.dim("Required runtime access is not listed."),
     "",
   ];
   for (const [label, entries, color] of [
@@ -62,6 +71,16 @@ export function formatFilesystemPermissions(
     );
   }
   lines.push(
+    colors.bold(colors.cyan("Network host blocklist (HTTP/HTTPS, best-effort)")),
+    ...(preferences.blockedHosts.length
+      ? preferences.blockedHosts.map((host) => `  ${colors.red(host)}`)
+      : [colors.dim("  (none — all networking allowed)")]),
+    colors.dim("Domains include subdomains. Only clients using the HTTP/HTTPS proxy are filtered."),
+    colors.dim(
+      "Direct sockets, SSH, UDP and clients ignoring proxy settings can bypass this list.",
+    ),
+    colors.dim("Local and remote Git have no separate restrictions; filesystem rules still apply."),
+    "",
     colors.bold(colors.cyan("Rules and safeguards")),
     colors.dim("Read-only: The agent can read files, but cannot change them."),
     colors.dim("Read/write: The agent can read, edit, create and delete files."),
@@ -69,7 +88,8 @@ export function formatFilesystemPermissions(
     colors.dim(
       "Read-only rules override write grants; blocked/protected directories/files are excluded.",
     ),
-    colors.dim("DeputyDev data, SSH keys, cloud credentials and Keychain are protected."),
+    colors.dim("DeputyDev data, cloud credentials and Keychain are protected."),
+    colors.dim("Git uses your normal configuration, credential helpers, SSH keys and SSH agent."),
     "",
     colors.bold(colors.cyan("Notes")),
     colors.dim(
@@ -106,7 +126,14 @@ function formatFilesystemChanges(
       );
     }
   }
-  if (lines.length === 0) return "No access changes; only directory/file rule ordering changed.";
+  for (const host of draft.blockedHosts) {
+    if (!original.blockedHosts.includes(host))
+      lines.push(`Block HTTP/HTTPS host: ${host} (including subdomains)`);
+  }
+  for (const host of original.blockedHosts) {
+    if (!draft.blockedHosts.includes(host)) lines.push(`Remove HTTP/HTTPS host block: ${host}`);
+  }
+  if (lines.length === 0) return "No access changes; only rule ordering changed.";
   lines.push("", "Removing an explicit rule leaves parent grants and baseline access in effect.");
   return lines.join("\n");
 }
@@ -132,7 +159,7 @@ export async function runAxonSafehouseMenu(
     (invocation.ci || !invocation.stdinIsTty || !invocation.stdoutIsTty)
   ) {
     throw new LauncherError(
-      "Interactive filesystem configuration requires a terminal",
+      "Interactive Safehouse configuration requires a terminal",
       LAUNCHER_EXIT_STATUS.usage,
       {
         remediation:
@@ -146,15 +173,15 @@ export async function runAxonSafehouseMenu(
   const changed = () => JSON.stringify(draft) !== JSON.stringify(original);
   function cancelled(value: unknown): value is symbol {
     if (!prompts.isCancel(value)) return false;
-    ui.cancel("Filesystem editor cancelled. No changes saved.");
+    ui.cancel("Safehouse editor cancelled. No changes saved.");
     return true;
   }
   ui.intro("Axon Safehouse · settings");
-  ui.note(formatFilesystemPermissions(project, original), "Current filesystem permissions");
+  ui.note(formatFilesystemPermissions(project, original), "Current Safehouse settings");
   while (!signal?.aborted) {
     const action = await ui.select<MenuAction>({
       ...cancellation,
-      message: `Edit filesystem rules${changed() ? colors.yellow(" · unsaved changes") : ""}`,
+      message: `Edit Safehouse settings${changed() ? colors.yellow(" · unsaved changes") : ""}`,
       options: [
         {
           value: "mode",
@@ -177,6 +204,11 @@ export async function runAxonSafehouseMenu(
           hint: "exclude sensitive files or subdirectories",
         },
         { value: "manage", label: "Change or remove a directory/file rule" },
+        {
+          value: "blocked-hosts",
+          label: "Edit network host blocklist",
+          hint: `${draft.blockedHosts.length} blocked · HTTP/HTTPS proxy-aware clients only`,
+        },
         {
           value: "save",
           label: "Review changes and save",
@@ -291,6 +323,29 @@ export async function runAxonSafehouseMenu(
           draft = await editFilesystemPreferences(paths, project, draft, operation, selected);
           break;
         }
+      } else if (action === "blocked-hosts") {
+        ui.note(
+          "Networking is allowed by default. Enter hostnames or IPs, separated by commas. Domains also block their subdomains. Leave empty to clear the list. This best-effort HTTP/HTTPS filter does not block direct sockets, SSH, UDP, or clients that ignore proxy settings.",
+          "Optional network host blocklist",
+        );
+        const selected = await ui.text({
+          ...cancellation,
+          message: "Blocked hosts (empty = no restrictions)",
+          initialValue: draft.blockedHosts.join(", "),
+          placeholder: "example.com, telemetry.example.org",
+          validate(value) {
+            const entries = value?.trim() ? value.split(",").map((host) => host.trim()) : [];
+            const parsed = blockedHostsSchema.safeParse(entries);
+            return parsed.success ? undefined : parsed.error.issues[0]?.message;
+          },
+        });
+        if (cancelled(selected)) return false;
+        draft = {
+          ...draft,
+          blockedHosts: blockedHostsSchema.parse(
+            selected.trim() ? selected.split(",").map((host) => host.trim()) : [],
+          ),
+        };
       } else if (action === "discard") {
         if (changed()) {
           const discard = await ui.select<"discard" | "back">({

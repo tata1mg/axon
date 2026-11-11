@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, realpath, rm, symlink } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -16,23 +16,13 @@ beforeEach(async () => {
   root = await realpath(await mkdtemp(join(tmpdir(), "axon-safehouse-launch-")));
   const runDirectory = join(root, "run");
   const temporary = join(runDirectory, "tmp");
-  const gitBin = join(runDirectory, "git-bin");
   await mkdir(temporary, { recursive: true });
-  await mkdir(gitBin, { recursive: true });
-  await symlink("/usr/bin/git", join(gitBin, "git"));
   resources = {
     // Test only: a permissive baseline so the Axon rules alone decide file access.
     baseline: "(version 1)\n(allow default)",
     runDirectory,
     temporary,
-    gitBin,
-    proxy: {
-      origin: "http://127.0.0.1:9",
-      authenticatedUrl: "http://axon:test@127.0.0.1:9",
-      authenticatedProvisioningUrl: "http://axon:provision@127.0.0.1:9",
-      sshTunnels: [],
-      dispose() {},
-    },
+    networkProxies: new Map(),
     certificateEnvironment: {},
     packageScans: new Map(),
     dispose() {},
@@ -50,14 +40,8 @@ const authorization: AxonSafehouseAuthorization = {
     engine: "safehouse",
     policyId: "test",
     maxSessionSeconds: 3_600,
-    network: "relay-and-package-proxy",
-    remoteGit: false,
-    remoteGitHosts: [],
-    localGit: "read-only",
     allowAdditionalReadPaths: true,
     allowAdditionalWritePaths: true,
-    packageRegistryHosts: [],
-    packageGitHosts: [],
     protectedPaths: [],
   },
 };

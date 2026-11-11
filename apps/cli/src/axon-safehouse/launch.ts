@@ -1,5 +1,5 @@
 import { rmSync } from "node:fs";
-import { lstat, mkdtemp, realpath, symlink, writeFile } from "node:fs/promises";
+import { lstat, mkdtemp, realpath, stat, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, parse } from "node:path";
 
@@ -10,8 +10,12 @@ import { privateDirectory } from "../sessions/files.ts";
 import { axonSafehouseEnvironment } from "./environment.ts";
 import {
   canonicalPath,
+  type FilesystemPreferences,
+  GIT_USER_PATHS,
   isBlockedProjectDirectory,
   isWithin,
+  MCP_STATE_FILES,
+  MCP_USER_PATHS,
   PI_STATE_DIRECTORIES,
   PI_STATE_FILES,
   protectedFilesystemPaths,
@@ -20,7 +24,7 @@ import {
   validateFilesystemProject,
 } from "./filesystem.ts";
 import { resolveGitAiBinary } from "./git-ai-binary.ts";
-import { type PackageProxy, startPackageProxy } from "./package-proxy.ts";
+import { type NetworkProxy, startNetworkProxy } from "./package-proxy.ts";
 import { installedPackagePaths, PACKAGE_WRITE_FILTERS, type PackageScanCache } from "./packages.ts";
 import { type AxonSafehouseAuthorization, axonSafehouseFailure } from "./policy.ts";
 import { restrictFilesystemGrants, restrictSafehouseBaseline } from "./profile.ts";
@@ -44,6 +48,7 @@ const SYSTEM_READ_PATHS = [
   "/private/var/db/dyld",
   "/private/var/select",
   "/private/etc/ssl",
+  "/private/etc/ssh",
   "/private/etc/hosts",
   "/private/etc/resolv.conf",
   "/private/etc/services",
@@ -94,9 +99,7 @@ async function readGrant(path: string): Promise<string[]> {
 async function gitMetadata(project: string): Promise<string[]> {
   const marker = join(project, ".git");
   try {
-    const info = await lstat(marker);
-    if (info.isSymbolicLink())
-      throw axonSafehouseFailure("Symlinked Git metadata is not supported");
+    const info = await stat(marker);
     if (info.isDirectory()) return [await realpath(marker)];
     if (!info.isFile() || info.size > 8192)
       throw axonSafehouseFailure("Invalid Git worktree metadata");
@@ -125,13 +128,7 @@ export interface AxonSafehouseResources {
   readonly baseline: string;
   readonly runDirectory: string;
   readonly temporary: string;
-  readonly gitBin: string;
-  readonly proxy: PackageProxy;
-  readonly ssh?: {
-    readonly configuration: string;
-    readonly knownHosts: string;
-    readonly agent?: string;
-  };
+  readonly networkProxies: Map<string, Promise<NetworkProxy>>;
   readonly certificateEnvironment: NodeJS.ProcessEnv;
   /** Package-root scans shared by this invocation's profiles; cleared on settings changes. */
   readonly packageScans: PackageScanCache;
@@ -147,7 +144,7 @@ interface AxonSafehouseLaunchOptions {
   readonly resources?: AxonSafehouseResources;
 }
 
-/** Verify/download once and share the immutable baseline and proxy across an Axon invocation. */
+/** Verify/download once and share the immutable baseline across an Axon invocation. */
 export async function createAxonSafehouseResources(
   paths: AxonPaths,
   environment: NodeJS.ProcessEnv,
@@ -159,16 +156,10 @@ export async function createAxonSafehouseResources(
   const runs = join(paths.home, "axon-safehouse", "runs");
   await privateDirectory(runs);
   const runDirectory = await mkdtemp(join(runs, "session-"));
-  let proxy: PackageProxy | undefined;
+  const networkProxies = new Map<string, Promise<NetworkProxy>>();
   try {
     const temporary = join(runDirectory, "tmp");
     await privateDirectory(temporary);
-    // Extensions and package management both spawn Git by name. Use system Git
-    // instead of inaccessible user wrappers, preserving PATH for other tools.
-    const gitBin = join(runDirectory, "git-bin");
-    await privateDirectory(gitBin);
-    await symlink("/usr/bin/git", join(gitBin, "git"));
-    proxy = await startPackageProxy(authorization.policy);
     const baseline = restrictSafehouseBaseline(
       await generateSafehousePolicy(runtime, await canonicalPath(homedir()), runDirectory),
     );
@@ -186,97 +177,27 @@ export async function createAxonSafehouseResources(
       ])
         certificateEnvironment[name] = certificatePath;
     }
-    let ssh: AxonSafehouseResources["ssh"];
-    if (proxy.sshTunnels.length > 0) {
-      const home = await canonicalPath(homedir());
-      const backendProtectedPaths = await Promise.all(
-        authorization.policy.protectedPaths.map((path) => canonicalPath(path)),
-      );
-      const sourceKnownHosts = await canonicalPath(join(home, ".ssh", "known_hosts"));
-      if (backendProtectedPaths.some((path) => isWithin(path, sourceKnownHosts)))
-        throw axonSafehouseFailure("Backend policy protects SSH host-verification data");
-      let hostKeys = "";
-      try {
-        const info = await lstat(join(home, ".ssh", "known_hosts"));
-        if (!info.isFile() || info.isSymbolicLink() || info.size > 1024 * 1024)
-          throw axonSafehouseFailure("SSH known_hosts must be a regular file smaller than 1 MiB");
-        hostKeys = await Bun.file(sourceKnownHosts).text();
-      } catch (error) {
-        if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
-      }
-      let agent: string | undefined;
-      const sourceAgent = environment["SSH_AUTH_SOCK"];
-      if (sourceAgent && isAbsolute(sourceAgent)) {
-        // macOS launchd sockets cannot themselves be realpath()'d by Bun.
-        const candidate = join(await canonicalPath(dirname(sourceAgent)), basename(sourceAgent));
-        try {
-          if ((await lstat(candidate)).isSocket()) {
-            const protectedPaths = await protectedFilesystemPaths(paths, authorization.policy);
-            if (protectedPaths.some((path) => isWithin(path, candidate)))
-              throw axonSafehouseFailure("SSH agent socket is inside a protected location");
-            agent = candidate;
-          }
-        } catch (error) {
-          if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
-        }
-      }
-      const configuration = join(runDirectory, "ssh_config");
-      const knownHosts = join(runDirectory, "known_hosts");
-      // Snapshot public host keys only. Private keys and ~/.ssh/config remain protected.
-      // Escape OpenSSH's path tokens as well as quotes; no user SSH hooks are imported.
-      const sshPath = (path: string): string => quoted(path.replace(/%/g, "%%"));
-      const configurationLines = [
-        ...proxy.sshTunnels.flatMap(({ host, port }) => [
-          `Host ${host}`,
-          `  ProxyCommand /usr/bin/nc 127.0.0.1 ${port}`,
-          `  HostKeyAlias ${host}`,
-        ]),
-        "Host *",
-        "  ProxyCommand /usr/bin/false",
-        "  User git",
-        "  Port 22",
-        "  BatchMode yes",
-        "  IdentityFile none",
-        `  IdentityAgent ${agent ? sshPath(agent) : "none"}`,
-        `  UserKnownHostsFile ${sshPath(knownHosts)}`,
-        "  GlobalKnownHostsFile /dev/null",
-        "  StrictHostKeyChecking yes",
-        "  UpdateHostKeys no",
-        "  ForwardAgent no",
-        "  ForwardX11 no",
-        "  ClearAllForwardings yes",
-        "  PermitLocalCommand no",
-        "  ControlMaster no",
-        "  ControlPath none",
-        "  ConnectTimeout 15",
-      ];
-      await writeFile(knownHosts, hostKeys, { mode: 0o400, flag: "wx" });
-      await writeFile(configuration, `${configurationLines.join("\n")}\n`, {
-        mode: 0o400,
-        flag: "wx",
-      });
-      ssh = { configuration, knownHosts, ...(agent ? { agent } : {}) };
-    }
-    const activeProxy = proxy;
     let disposed = false;
     return {
       baseline,
       runDirectory,
       temporary,
-      gitBin,
-      proxy: activeProxy,
-      ...(ssh ? { ssh } : {}),
+      networkProxies,
       certificateEnvironment,
       packageScans: new Map(),
       dispose() {
         if (disposed) return;
         disposed = true;
-        activeProxy.dispose();
+        for (const pending of networkProxies.values())
+          void pending.then(
+            (proxy) => proxy.dispose(),
+            () => {},
+          );
+        networkProxies.clear();
         rmSync(runDirectory, { force: true, recursive: true });
       },
     };
   } catch (error) {
-    proxy?.dispose();
     rmSync(runDirectory, { force: true, recursive: true });
     throw error;
   }
@@ -294,23 +215,19 @@ export async function createAxonSafehouseLaunchSpec(
   const brokeredSession =
     purpose === "session" && specification.environment["PI_AXON_SAFEHOUSE_OPERATIONS"] === "1";
   const catalogOnly = options.catalogOnly === true && purpose === "session";
-  // Package setup and catalog probes retain their narrower network capabilities.
-  const outboundNetwork =
-    policy.network === "outbound" &&
-    !catalogOnly &&
-    (purpose === "session" || purpose === "operation");
   const catalogDirectory = catalogOnly ? options.resources?.temporary : undefined;
   if (catalogOnly && !catalogDirectory)
     throw axonSafehouseFailure("RPC catalog requires Axon Safehouse");
-  // Global package commands (install/remove/update) need no project. Run them from home or
-  // another non-project directory in a private empty directory, without project access.
+  // Global package and MCP commands need no project. Run them from home or another
+  // non-project directory in a private empty directory, without granting the home tree.
   const globalAdministration =
-    purpose === "administration" &&
+    (purpose === "administration" ||
+      (purpose === "session" && specification.arguments[0] === "mcp")) &&
     (await isBlockedProjectDirectory(paths, options.project ?? specification.cwd));
   const isolatedDirectory =
     catalogDirectory ?? (globalAdministration ? options.resources?.temporary : undefined);
   if (globalAdministration && !isolatedDirectory)
-    throw axonSafehouseFailure("Package administration outside a project requires Axon Safehouse");
+    throw axonSafehouseFailure("Global administration requires Axon Safehouse resources");
   const projectAccess =
     !catalogOnly &&
     !globalAdministration &&
@@ -325,14 +242,26 @@ export async function createAxonSafehouseLaunchSpec(
       : await canonicalPath(specification.cwd);
   const home = await canonicalPath(homedir());
   // Provisioning never inherits user project grants or grants access to project contents.
-  const preferences = projectAccess
+  const preferences: FilesystemPreferences = projectAccess
     ? await validateFilesystemPreferences(
         paths,
         project,
         await readFilesystemPreferences(paths, project),
         policy,
       )
-    : { projectMode: "read-only" as const, readPaths: [], writePaths: [], denyPaths: [] };
+    : {
+        schemaVersion: 1,
+        projectMode: "read-only",
+        readPaths: [],
+        writePaths: [],
+        denyPaths: [],
+        blockedHosts: [],
+      };
+  // Network preferences apply to every purpose, independently of project filesystem grants.
+  const { blockedHosts } = await readFilesystemPreferences(
+    paths,
+    options.project ?? specification.cwd,
+  );
   if (
     (!policy.allowAdditionalReadPaths && preferences.readPaths.length > 0) ||
     (!policy.allowAdditionalWritePaths && preferences.writePaths.length > 0)
@@ -404,30 +333,32 @@ export async function createAxonSafehouseLaunchSpec(
   const resources =
     options.resources ??
     (await createAxonSafehouseResources(paths, specification.environment, authorization));
-  const { baseline, runDirectory, temporary, proxy } = resources;
+  const { baseline, runDirectory, temporary } = resources;
   try {
-    const proxyPort = new URL(proxy.origin).port;
+    let proxy: NetworkProxy | undefined;
+    if (blockedHosts.length > 0) {
+      const key = JSON.stringify(blockedHosts);
+      let pending = resources.networkProxies.get(key);
+      if (!pending) {
+        pending = startNetworkProxy(blockedHosts).catch((error: unknown) => {
+          if (resources.networkProxies.get(key) === pending) resources.networkProxies.delete(key);
+          throw error;
+        });
+        resources.networkProxies.set(key, pending);
+      }
+      proxy = await pending;
+    }
     const rules = [
       ";; Axon security boundary: replace all Safehouse filesystem/network grants.",
       '(deny file-read* file-write* (subpath "/"))',
       // dyld and system symlink resolution need directory-root reads, not just stat().
       '(allow file-read* (literal "/") (literal "/etc") (literal "/var"))',
-      "(deny network*)",
-      "(deny system-socket)",
+      // No network policy gates: TCP/UDP, listeners and Unix sockets are available
+      // in sessions, workers, probes and package setup alike.
+      "(allow network*)",
+      "(allow system-socket)",
       "(deny lsopen)",
     ];
-    if (outboundNetwork) {
-      // Allow external APIs and local TCP/UDP services, without granting listeners
-      // or arbitrary Unix sockets. Native hostname resolution needs mDNSResponder.
-      rules.push(
-        "(allow network-outbound (remote ip))",
-        '(allow network-outbound (literal "/private/var/run/mDNSResponder"))',
-      );
-    }
-    if (relay)
-      rules.push(`(allow network-outbound (remote tcp ${quoted(`localhost:${relay.port}`)}))`);
-    if (purpose !== "probe")
-      rules.push(`(allow network-outbound (remote tcp ${quoted(`localhost:${proxyPort}`)}))`);
     if (purpose === "session" && !catalogOnly) {
       // Safehouse's clipboard integration is opt-in. Give Pi's UI native copy/paste
       // access without granting the clipboard to brokered shell tools or installers.
@@ -435,25 +366,31 @@ export async function createAxonSafehouseLaunchSpec(
         '(allow mach-lookup (global-name "com.apple.pasteboard.1") (global-name "com.apple.lsd.mapdb") (global-name "com.apple.lsd.modifydb"))',
       );
     }
-    const ssh =
-      !catalogOnly &&
-      (purpose === "session" || purpose === "operation" || purpose === "administration")
-        ? resources.ssh
-        : undefined;
-    if (ssh) {
-      for (const { port } of proxy.sshTunnels)
-        rules.push(`(allow network-outbound (remote tcp ${quoted(`localhost:${port}`)}))`);
-      for (const path of [ssh.configuration, ssh.knownHosts])
-        rules.push(...(await readGrant(path)));
-      if (ssh.agent) {
+    if (!catalogOnly && purpose !== "probe") {
+      for (const entry of GIT_USER_PATHS) {
+        const path = await canonicalPath(join(home, entry));
+        rules.push(...ancestorRules(path), pathRule("allow file-read* file-write*", path));
+      }
+      const agent = specification.environment["SSH_AUTH_SOCK"];
+      if (agent && isAbsolute(agent)) {
+        const socket = join(await canonicalPath(dirname(agent)), basename(agent));
         rules.push(
-          ...ancestorRules(ssh.agent),
-          `(allow file-read-metadata (literal ${quoted(ssh.agent)}))`,
-          `(allow network-outbound (literal ${quoted(ssh.agent)}))`,
+          ...ancestorRules(socket),
+          `(allow file-read-metadata (literal ${quoted(socket)}))`,
         );
       }
     }
-    rules.push(...(await readGrant(resources.gitBin)));
+    if (!catalogOnly && (purpose === "session" || purpose === "operation")) {
+      for (const entry of MCP_USER_PATHS) {
+        const path = await canonicalPath(join(home, entry));
+        rules.push(...ancestorRules(path), pathRule("allow file-read* file-write*", path));
+      }
+      // Pi serializes each MCP server's OAuth refresh with a hashed lock directory.
+      // Grant those locks without making the managed agent/runtime directory writable.
+      const escapedRoot = piRoot.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const refreshLockPattern = `^${escapedRoot}/mcp-auth-refresh-[0-9a-f]{16}\\.lock(/|$)`;
+      rules.push(`(allow file-read* file-write* (regex #${quoted(refreshLockPattern)}))`);
+    }
     // Discover optional user-installed git-ai outside Seatbelt, then expose only
     // its executable, never the rest of ~/.git-ai or another PATH directory.
     const gitAiCandidate =
@@ -546,9 +483,17 @@ export async function createAxonSafehouseLaunchSpec(
         throw axonSafehouseFailure("Pi state files must remain inside the managed Pi directory");
       rules.push(pathRule("allow file-read* file-write*", `${trustPath}.lock`));
     }
+    // MCP management through a shell worker needs its config/OAuth state too, but
+    // workers must not inherit writes to Pi's provider authentication or settings.
+    const writableStateFiles =
+      purpose === "session"
+        ? stateFiles
+        : purpose === "operation"
+          ? stateFiles.filter((path) => MCP_STATE_FILES.some((name) => basename(path) === name))
+          : [];
     // Pi and Axon require writable state files and their lock directories.
     // This is Pi's own state, never the shared Axon/DeputyDev login credential.
-    for (const path of purpose === "session" ? stateFiles : []) {
+    for (const path of writableStateFiles) {
       if (dirname(path) !== piRoot)
         throw axonSafehouseFailure("Pi state files must remain inside the managed Pi directory");
       rules.push(`(allow file-read* file-write* (literal ${quoted(path)}))`);
@@ -564,50 +509,41 @@ export async function createAxonSafehouseLaunchSpec(
     const repositories = projectAccess
       ? [project, ...preferences.readPaths, ...preferences.writePaths]
       : [];
-    const metadata = [
-      ...new Set(
-        (
-          await Promise.all(
-            repositories.map(async (path) => {
-              try {
-                return (await lstat(path)).isDirectory() ? await gitMetadata(path) : [];
-              } catch (error) {
-                // A granted path removed since approval has no metadata to expose.
-                if (error instanceof Error && "code" in error && error.code === "ENOENT") return [];
-                throw error;
-              }
-            }),
-          )
-        ).flat(),
-      ),
-    ];
-    if (policy.localGit !== "deny") {
-      for (const path of metadata) {
-        rules.push(
-          ...ancestorRules(path),
-          pathRule(
-            !brokeredSession && purpose !== "administration" && policy.localGit === "read-write"
-              ? "allow file-read* file-write*"
-              : "allow file-read*",
-            path,
-          ),
-        );
-      }
-    }
-    // Package Git metadata is writable only during explicit package administration.
-    // This exception never grants writes to the project's own Git metadata.
-    const packageRoots = provisioning
-      ? writePaths.filter((path) => basename(path) === "git" || basename(path) === "npm")
-      : [];
-    const gitFilter = packageRoots.length
-      ? `(require-all (regex #"/[.]git(/|$)") ${packageRoots.map((path) => `(require-not (subpath ${quoted(path)}))`).join(" ")})`
-      : '(regex #"/[.]git(/|$)")';
-    // Regex protects newly created .git directories too; path rules cover linked worktrees.
-    const gitOperations =
-      policy.localGit === "deny" ? "deny file-read* file-write*" : "deny file-write*";
-    if (policy.localGit !== "read-write") {
-      rules.push(`(${gitOperations} ${gitFilter})`);
-      for (const path of metadata) rules.push(pathRule(gitOperations, path));
+    const metadataEntries = (
+      await Promise.all(
+        repositories.map(async (path) => {
+          try {
+            const writable =
+              path === project
+                ? preferences.projectMode === "read-write"
+                : preferences.writePaths.includes(path);
+            return (await stat(path)).isDirectory()
+              ? (await gitMetadata(path)).map((metadataPath) => ({ path: metadataPath, writable }))
+              : [];
+          } catch (error) {
+            // A granted path removed since approval has no metadata to expose.
+            if (error instanceof Error && "code" in error && error.code === "ENOENT") return [];
+            throw error;
+          }
+        }),
+      )
+    ).flat();
+    const metadata = [...new Set(metadataEntries.map((entry) => entry.path))];
+    // Linked worktrees need their external metadata too. Git follows ordinary
+    // filesystem access; a read-only repository must not gain metadata writes.
+    const readOnlyMetadata = metadataEntries
+      .filter((entry) => !entry.writable)
+      .map((entry) => entry.path);
+    for (const path of metadata) {
+      rules.push(
+        ...ancestorRules(path),
+        pathRule(
+          !brokeredSession && purpose !== "administration" && !readOnlyMetadata.includes(path)
+            ? "allow file-read* file-write*"
+            : "allow file-read*",
+          path,
+        ),
+      );
     }
     for (const path of protectedPaths) {
       rules.push(pathRule("deny file-read* file-write*", await canonicalPath(path)));
@@ -626,9 +562,15 @@ export async function createAxonSafehouseLaunchSpec(
     const packageWriteDenials = dependencyPaths.filter(
       (path) => !provisioning || !writePaths.some((target) => isWithin(path, target)),
     );
+    // npx/uvx MCP servers install ephemeral dependencies in the private session cache.
+    // Persistent dependency trees and the managed runtime remain read-only.
+    const packageFilterExclusions = [
+      ...writePaths,
+      ...(purpose === "session" || purpose === "operation" ? [temporary] : []),
+    ];
     const provisioningPackageFilters = PACKAGE_WRITE_FILTERS.map((filter) =>
-      writePaths.length
-        ? `(require-all ${filter} ${writePaths.map((path) => `(require-not (subpath ${quoted(path)}))`).join(" ")})`
+      packageFilterExclusions.length
+        ? `(require-all ${filter} ${packageFilterExclusions.map((path) => `(require-not (subpath ${quoted(path)}))`).join(" ")})`
         : filter,
     );
     for (const path of packageWriteDenials) rules.push(pathRule("deny file-write*", path));
@@ -642,9 +584,7 @@ export async function createAxonSafehouseLaunchSpec(
         join(paths.pi, "bin"),
         join(paths.pi, "extensions"),
         join(paths.home, "axon-safehouse", "runtime"),
-        resources.gitBin,
         ...(gitAiBinary ? [gitAiBinary] : []),
-        ...(resources.ssh ? [resources.ssh.configuration, resources.ssh.knownHosts] : []),
       ].map((path) => canonicalPath(path)),
     );
     for (const path of managedCodePaths) {
@@ -673,13 +613,11 @@ export async function createAxonSafehouseLaunchSpec(
             await canonicalPath(paths.piSessions),
             ...stateFiles.filter((path) => basename(path) === "auth.json"),
           ]),
-      ...(policy.localGit === "deny" ? metadata : []),
     ];
     const managedWriteDenials = provisioning
       ? managedCodePaths.filter((path) => !writePaths.some((target) => isWithin(path, target)))
       : managedCodePaths;
-    const metadataWriteDenials =
-      purpose === "administration" || policy.localGit !== "read-write" ? metadata : [];
+    const metadataWriteDenials = purpose === "administration" ? metadata : readOnlyMetadata;
     const deniedWritePaths = [
       ...deniedReadPaths,
       ...preferences.readPaths,
@@ -693,8 +631,8 @@ export async function createAxonSafehouseLaunchSpec(
       [...new Set(rules)],
       deniedReadPaths,
       deniedWritePaths,
-      policy.localGit === "deny" ? [gitFilter] : [],
-      [...PACKAGE_WRITE_FILTERS, ...(policy.localGit === "read-write" ? [] : [gitFilter])],
+      [],
+      provisioningPackageFilters,
     );
     // Explicit package grants must not inherit session-only read-only exclusions.
     // Backend/user denies, managed code and the project's Git metadata still win.
@@ -708,8 +646,8 @@ export async function createAxonSafehouseLaunchSpec(
           ...metadataWriteDenials,
           ...packageWriteDenials,
         ],
-        policy.localGit === "deny" ? [gitFilter] : [],
-        [...provisioningPackageFilters, ...(policy.localGit === "read-write" ? [] : [gitFilter])],
+        [],
+        provisioningPackageFilters,
       ),
     );
     const profile = join(runDirectory, `profile-${crypto.randomUUID()}.sb`);
@@ -744,21 +682,11 @@ export async function createAxonSafehouseLaunchSpec(
         specification.environment,
         home,
         temporary,
-        outboundNetwork
-          ? undefined
-          : provisioning
-            ? proxy.authenticatedProvisioningUrl
-            : proxy.authenticatedUrl,
+        proxy?.authenticatedUrl,
+        purpose === "session" || purpose === "operation",
       ),
       ...resources.certificateEnvironment,
     };
-    environment["PATH"] = `${resources.gitBin}:${environment["PATH"]}`;
-    if (ssh) {
-      const configuration = `'${ssh.configuration.replace(/'/g, "'\\''")}'`;
-      environment["GIT_SSH_COMMAND"] = `/usr/bin/ssh -F ${configuration}`;
-      environment["GIT_SSH_VARIANT"] = "ssh";
-      if (ssh.agent) environment["SSH_AUTH_SOCK"] = ssh.agent;
-    }
     if (purpose === "session") {
       environment["PI_CODING_AGENT_DIR"] = paths.pi;
       // Pin discovery to the canonical file granted above, including symlinked installs.
@@ -775,7 +703,6 @@ export async function createAxonSafehouseLaunchSpec(
           delete environment[name];
       }
       environment["PI_SKIP_VERSION_CHECK"] = "1";
-      if (purpose === "probe") environment["PI_OFFLINE"] = "1";
     }
     let disposed = false;
     return Object.freeze({

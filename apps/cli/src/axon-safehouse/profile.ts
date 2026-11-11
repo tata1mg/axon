@@ -32,9 +32,9 @@ export function restrictFilesystemGrants(
 }
 
 /**
- * Remove Safehouse's convenience grants before adding Axon's explicit filesystem
- * and egress rules. A broad appended deny does not reliably defeat more-specific
- * Seatbelt grants, so preserving upstream allow rules is not an option here.
+ * Axon owns filesystem and networking rules. Remove upstream grants and denials
+ * before adding Axon's filesystem protections and unrestricted networking.
+ * In particular, inherited socket denials must not silently block SSH agents.
  */
 export function restrictSafehouseBaseline(policy: string): string {
   let output = "";
@@ -73,15 +73,16 @@ export function restrictSafehouseBaseline(policy: string): string {
     } while (cursor < policy.length && depth > 0);
     if (depth !== 0 || inString) throw new Error("Malformed Safehouse policy");
     const form = policy.slice(start, cursor);
-    const header = /^\(\s*allow\s+((?:[a-zA-Z0-9_*+-]+\s*)+)/.exec(form);
+    const header = /^\(\s*(allow|deny)\s+((?:[a-zA-Z0-9_*+-]+\s*)+)/.exec(form);
     if (!header) {
       // No executable policy macros may hide grants from this top-level filter.
-      if (/\(\s*allow\s/.test(form)) throw new Error("Unsupported nested Safehouse grant");
+      if (/\(\s*(?:allow|deny)\s/.test(form)) throw new Error("Unsupported nested Safehouse rule");
       output += form;
       continue;
     }
-    const operations = header[1]?.trim().split(/\s+/) ?? [];
-    if (operations.includes("default") || operations.includes("*")) {
+    const action = header[1];
+    const operations = header[2]?.trim().split(/\s+/) ?? [];
+    if (action === "allow" && (operations.includes("default") || operations.includes("*"))) {
       throw new Error("Unsafe Safehouse default grant");
     }
     const retained = operations.filter(
@@ -93,7 +94,7 @@ export function restrictSafehouseBaseline(policy: string): string {
         operation !== "lsopen",
     );
     if (retained.length > 0) {
-      output += `(allow ${retained.join(" ")} ${form.slice(header[0].length)}`;
+      output += `(${action} ${retained.join(" ")} ${form.slice(header[0].length)}`;
     }
   }
   return output;

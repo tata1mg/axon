@@ -93,16 +93,16 @@ async function launchAxonSafehouseHarness(
   );
   // Fail before installing or allocating anything: local package state needs a project.
   if (
-    packageAdministration &&
+    (packageAdministration || userArguments[0] === "mcp") &&
     userArguments.slice(1).some((argument) => argument === "-l" || argument === "--local") &&
     (await isBlockedProjectDirectory(paths, cwd))
   ) {
     throw new LauncherError(
-      "Local Pi package commands need a project directory",
+      "Local Pi commands need a project directory",
       LAUNCHER_EXIT_STATUS.usage,
       {
         remediation:
-          "Run this from your project directory, or drop -l/--local to manage global packages.",
+          "Run this from your project directory, or drop -l/--local to manage global configuration or packages.",
       },
     );
   }

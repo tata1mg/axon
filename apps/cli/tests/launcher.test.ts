@@ -43,12 +43,8 @@ beforeAll(async () => {
             engine: "safehouse",
             policyId: "launcher-fixture",
             maxSessionSeconds: 60,
-            network: "relay-and-package-proxy",
-            remoteGit: false,
-            localGit: "read-only",
             allowAdditionalReadPaths: true,
             allowAdditionalWritePaths: true,
-            packageRegistryHosts: [],
             protectedPaths: [],
           },
         });
