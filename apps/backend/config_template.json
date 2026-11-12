@@ -184,7 +184,9 @@
   },
   "SENTRY": {
     "DSN": "",
-    "SERVICE_NAME": "axon-backend"
+    "ENVIRONMENT": "Local",
+    "SERVICE_NAME": "axon-backend",
+    "CAPTURE_WARNING": false
   },
   "OPEN_TELEMETRY": {
     "ENABLED": false,
