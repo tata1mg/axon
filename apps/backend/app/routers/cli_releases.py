@@ -1,17 +1,17 @@
-"""Public CLI release discovery and private release-upload URL signing."""
+"""Stable release discovery, invite-only beta downloads and private upload signing."""
 
 from hmac import compare_digest
-from typing import Annotated
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
+from app.authentication import require_authenticated_user
 from app.core.config import DEFAULT_CLI_RELEASE_TARGET, CliReleaseSettings, Settings, get_settings
 from app.services.cli_releases import CliReleaseService, archive_for_version, checksums_text
 from app.services.storage_dependencies import get_cli_release_service
 
-router = APIRouter(prefix="/api/v1/cli/releases", tags=["cli-releases"])
 NO_STORE = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"}
 
 
@@ -19,6 +19,38 @@ def enabled(settings: Settings) -> CliReleaseSettings:
     if settings.cli_releases is None:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "CLI releases are not configured")
     return settings.cli_releases
+
+
+async def authorize_release(
+    request: Request,
+    response: Response,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> None:
+    releases = enabled(settings)
+    version = request.path_params.get("version", "")
+    # Exact URLs (including legacy checksum names) must not bypass the beta gate.
+    prerelease = "-" in version.split("+", 1)[0]
+    if not prerelease and request.query_params.get("channel", "stable") != "beta":
+        return
+    # Publishing verifies staged/paused artifacts without giving testers the upload key.
+    authorization = request.headers.get("authorization", "")
+    if version and compare_digest(authorization, f"Bearer {releases.upload_auth_key}"):
+        return
+    auth = await require_authenticated_user(request, response)
+    if auth.user_id not in releases.beta_user_ids:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Your account does not have beta access", headers=NO_STORE)
+    if releases.channel("beta").paused:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Beta distribution is paused", headers=NO_STORE)
+
+
+router = APIRouter(prefix="/api/v1/cli/releases", tags=["cli-releases"], dependencies=[Depends(authorize_release)])
+
+
+def channel_version(releases: CliReleaseSettings, channel: str) -> str:
+    selection = releases.channel(channel)
+    if selection.paused or not selection.version:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, f"No {channel} release is available", headers=NO_STORE)
+    return selection.version
 
 
 class PresignUploadRequest(BaseModel):
@@ -53,19 +85,18 @@ def presign_upload(
 
 
 @router.get("/latest")
-def latest(settings: Annotated[Settings, Depends(get_settings)]) -> JSONResponse:
-    releases = enabled(settings)
-    if not releases.latest_version:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "No CLI release is published")
-    return JSONResponse({"version": releases.latest_version}, headers=NO_STORE)
+def latest(
+    settings: Annotated[Settings, Depends(get_settings)], channel: Literal["stable", "beta"] = "stable"
+) -> JSONResponse:
+    return JSONResponse({"version": channel_version(enabled(settings), channel)}, headers=NO_STORE)
 
 
 @router.get("/latest/VERSION")
-def latest_version(settings: Annotated[Settings, Depends(get_settings)]) -> Response:
-    releases = enabled(settings)
-    if not releases.latest_version:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "No CLI release is published")
-    return Response(content=f"{releases.latest_version}\n", media_type="text/plain", headers=NO_STORE)
+def latest_version(
+    settings: Annotated[Settings, Depends(get_settings)], channel: Literal["stable", "beta"] = "stable"
+) -> Response:
+    version = channel_version(enabled(settings), channel)
+    return Response(content=f"{version}\n", media_type="text/plain", headers=NO_STORE)
 
 
 def checksums_response(settings: Settings, version: str, target: str) -> Response:

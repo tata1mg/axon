@@ -148,6 +148,12 @@ class CliReleaseAsset:
 
 
 @dataclass(frozen=True, slots=True)
+class CliReleaseChannel:
+    version: str = ""
+    paused: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class CliReleaseSettings:
     s3: S3StorageSettings
     key_prefix: str
@@ -160,6 +166,12 @@ class CliReleaseSettings:
     latest_version: str
     # version -> release target -> asset
     versions: dict[str, dict[str, CliReleaseAsset]]
+    channels: dict[str, CliReleaseChannel] = field(default_factory=dict)
+    beta_user_ids: frozenset[int] = field(default_factory=frozenset)
+
+    def channel(self, name: str) -> CliReleaseChannel:
+        # LATEST_VERSION remains the stable pointer for older deployments/clients.
+        return self.channels.get(name, CliReleaseChannel(self.latest_version if name == "stable" else ""))
 
 
 @dataclass(frozen=True, slots=True)
@@ -421,6 +433,43 @@ def _cloudfront_credentials(config: dict[str, Any]) -> tuple[str, str, str]:
     return distribution_url, key_pair_id, private_key
 
 
+def _release_channel(
+    name: str, config: Any, versions: dict[str, dict[str, CliReleaseAsset]], latest: str
+) -> CliReleaseChannel:
+    path = f"config.CLI_RELEASES.CHANNELS.{name}"
+    if not isinstance(config, dict):
+        raise ConfigurationError(f"{path} must be an object")
+    version = config.get("VERSION", "")
+    if not isinstance(version, str) or (version and version not in versions):
+        raise ConfigurationError(f"{path}.VERSION must reference a configured version")
+    if name == "stable":
+        version = version or latest
+    if version:
+        prerelease = "-" in version.split("+", 1)[0]
+        if prerelease != (name == "beta"):
+            expected = "a prerelease" if name == "beta" else "a production release"
+            raise ConfigurationError(f"{path}.VERSION must be {expected}")
+    return CliReleaseChannel(version, _boolean(config, "PAUSED", path, default=False))
+
+
+def _release_channels(
+    config: dict[str, Any], versions: dict[str, dict[str, CliReleaseAsset]], latest: str
+) -> dict[str, CliReleaseChannel]:
+    channels = config.get("CHANNELS", {})
+    if not isinstance(channels, dict) or set(channels) - {"stable", "beta"}:
+        raise ConfigurationError("config.CLI_RELEASES.CHANNELS accepts only stable and beta objects")
+    return {name: _release_channel(name, channels.get(name, {}), versions, latest) for name in ("stable", "beta")}
+
+
+def _beta_user_ids(config: dict[str, Any]) -> frozenset[int]:
+    user_ids = config.get("BETA_USER_IDS", [])
+    if not isinstance(user_ids, list) or any(
+        type(user_id) is not int or not 0 < user_id <= 9223372036854775807 for user_id in user_ids
+    ):
+        raise ConfigurationError("config.CLI_RELEASES.BETA_USER_IDS must be a list of positive auth-service user IDs")
+    return frozenset(user_ids)
+
+
 def _cli_releases(raw: dict[str, Any]) -> CliReleaseSettings | None:
     if "CLI_RELEASES" not in raw:
         return None
@@ -436,6 +485,7 @@ def _cli_releases(raw: dict[str, Any]) -> CliReleaseSettings | None:
     latest = _string(config, "LATEST_VERSION", "config.CLI_RELEASES", allow_empty=True)
     if latest and latest not in versions:
         raise ConfigurationError("config.CLI_RELEASES.LATEST_VERSION must reference a configured version")
+    channels = _release_channels(config, versions, latest)
     distribution_url, key_pair_id, private_key = _cloudfront_credentials(config)
     upload_auth_key = _string(config, "UPLOAD_AUTH_KEY", "config.CLI_RELEASES")
     if len(upload_auth_key) < 32:
@@ -453,8 +503,10 @@ def _cli_releases(raw: dict[str, Any]) -> CliReleaseSettings | None:
         distribution_url=distribution_url,
         key_pair_id=key_pair_id,
         private_key=private_key,
-        latest_version=latest,
+        latest_version=channels["stable"].version,
         versions=versions,
+        channels=channels,
+        beta_user_ids=_beta_user_ids(config),
     )
 
 

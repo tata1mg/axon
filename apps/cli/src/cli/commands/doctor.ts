@@ -19,6 +19,7 @@ import { LAUNCHER_EXIT_STATUS, type LauncherExitStatus } from "../../launcher/ex
 import { compareSemVer } from "../../launcher/version.ts";
 import { PRODUCT_IDENTITY } from "../../product/identity.ts";
 import type { AxonPaths } from "../../product/paths.ts";
+import { describeReleaseChannel, releaseChannelForVersion } from "../../product/release-channel.ts";
 import { hostReleaseTarget, RELEASE_TARGETS } from "../../product/release-targets.ts";
 
 const PATH_ENVIRONMENT_VARIABLE = "PATH";
@@ -389,7 +390,7 @@ export async function runDoctor(
       : []),
     {
       level: "info",
-      message: `Axon ${BUILD_INFO.version} (${BUILD_INFO.kind}, commit ${BUILD_INFO.commit})`,
+      message: `Axon ${BUILD_INFO.version} (${BUILD_INFO.kind}, commit ${BUILD_INFO.commit}, release: ${releaseChannelForVersion(BUILD_INFO.version)}, update channel: ${describeReleaseChannel(context.paths.home)})`,
     },
     {
       level: "info",

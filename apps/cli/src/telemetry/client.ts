@@ -5,6 +5,7 @@ import { isPiOffline } from "../harnesses/pi/setup/packages/invocation.ts";
 import type { TelemetryRuntime } from "../harnesses/pi/telemetry/src/telemetry-types.ts";
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../product/endpoints.ts";
 import type { AxonPaths } from "../product/paths.ts";
+import { releaseChannelForVersion } from "../product/release-channel.ts";
 import { createTelemetryBatchEnvironment } from "./batching.ts";
 import { hasProductEvents, subscribeProductEvents, takeProductEvents } from "./product-events.ts";
 
@@ -84,7 +85,7 @@ export async function initializeProductTelemetry(
         OTEL_TRACES_SAMPLER_ARG: String(telemetry.traceSampleRatio),
         OTEL_METRIC_EXPORT_INTERVAL: String(telemetry.metricExportIntervalMs),
         ...createTelemetryBatchEnvironment(telemetry),
-        OTEL_RESOURCE_ATTRIBUTES: `axon.cli.version=${encodeURIComponent(BUILD_INFO.version)}`,
+        OTEL_RESOURCE_ATTRIBUTES: `axon.cli.version=${encodeURIComponent(BUILD_INFO.version)},axon.release.channel=${releaseChannelForVersion(BUILD_INFO.version)}`,
       });
       if (!config) return;
       runtime = createOtelRuntime(config, { userId: "managed", source: "axon_auth" }, undefined, {

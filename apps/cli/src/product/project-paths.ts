@@ -30,7 +30,8 @@ export function projectConfigurationKey(project: string): string {
 export async function resolveProjectAxonPaths(paths: AxonPaths, cwd: string): Promise<AxonPaths> {
   const projectDirectory = await resolveProjectDirectory(cwd);
   const key = projectConfigurationKey(projectDirectory);
-  const directory = join(paths.home, "projects", key);
+  // The global Pi root already selects stable or isolated beta state.
+  const directory = join(dirname(paths.pi), "projects", key);
   return Object.freeze({
     ...paths,
     projectDirectory,

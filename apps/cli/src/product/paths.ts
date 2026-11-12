@@ -1,7 +1,9 @@
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
+import { BUILD_INFO } from "../build-info.ts";
 import { PRODUCT_IDENTITY } from "./identity.ts";
+import { releaseStateHome } from "./release-channel.ts";
 
 export interface AxonPaths {
   readonly home: string;
@@ -43,8 +45,10 @@ export function resolveAxonPaths(
   // Authentication belongs to the OS user, never to AXON_HOME or a project.
   const sharedAuthDirectory = resolve(userHome, PRODUCT_IDENTITY.sharedAuthDirectoryName);
   const bin = join(home, "bin");
-  const runtime = join(home, "runtime");
-  const pi = join(home, "pi");
+  const stateHome =
+    BUILD_INFO.kind === "binary" ? releaseStateHome(home, BUILD_INFO.version) : home;
+  const runtime = join(stateHome, "runtime");
+  const pi = join(stateHome, "pi");
   const locks = join(home, "locks");
   const staged = join(home, "staged");
 
@@ -60,12 +64,12 @@ export function resolveAxonPaths(
     runtimeCurrent: join(runtime, "current"),
     pi,
     piSessions: join(pi, "sessions"),
-    piPackageState: join(home, "pi-packages.json"),
+    piPackageState: join(stateHome, "pi-packages.json"),
     piPackageLock: join(locks, "pi-packages.lock"),
     piInstallLock: join(locks, "pi-install.lock"),
-    piRuntime: join(home, "pi-runtime"),
-    piExecutableState: join(home, "pi-executable.json"),
-    piMcpSyncState: join(home, "pi-mcp-sync.json"),
+    piRuntime: join(stateHome, "pi-runtime"),
+    piExecutableState: join(stateHome, "pi-executable.json"),
+    piMcpSyncState: join(stateHome, "pi-mcp-sync.json"),
     materializationLock: join(locks, "materialization.lock"),
     staged,
     stagedBinary: join(staged, PRODUCT_IDENTITY.command),

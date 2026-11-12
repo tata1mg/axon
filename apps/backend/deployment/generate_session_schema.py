@@ -48,7 +48,13 @@ async def generate(admin_url: str) -> str:
             text=True,
             check=True,
         )
-        lines = [line for line in dump.stdout.splitlines() if not line.startswith(("\\restrict", "\\unrestrict"))]
+        # pg_dump 17+ adds this session setting, which PostgreSQL 14-16 cannot read.
+        # It is not application DDL; omit it so the schema works on those servers.
+        lines = [
+            line
+            for line in dump.stdout.splitlines()
+            if not line.startswith(("\\restrict", "\\unrestrict")) and line != "SET transaction_timeout = 0;"
+        ]
         return "-- Generated in isolation; no auth-service tables required.\n" + "\n".join(lines).rstrip() + "\n"
     finally:
         await admin.execute(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')

@@ -1,3 +1,4 @@
+import { confirm, isCancel } from "@clack/prompts";
 import { Command, CommanderError } from "commander";
 import {
   canonicalPath,
@@ -12,7 +13,14 @@ import { LAUNCHER_EXIT_STATUS } from "../launcher/exit-status.ts";
 import { PRODUCT_IDENTITY } from "../product/identity.ts";
 import { resolveAxonPaths } from "../product/paths.ts";
 import { resolveProjectAxonPaths } from "../product/project-paths.ts";
+import {
+  describeReleaseChannel,
+  isReleaseChannel,
+  readReleaseChannel,
+  releaseChannelForVersion,
+} from "../product/release-channel.ts";
 import { withUpdateProgress } from "../updater/progress.ts";
+import { ReleaseAccessError } from "../updater/release.ts";
 import { checkForUpdate, installUpdate, updateContext } from "../updater/update.ts";
 import { ensureAxonSession } from "./auth/preflight.ts";
 import {
@@ -49,7 +57,11 @@ function createLauncherProgram(): Command {
     .description(`${PRODUCT_IDENTITY.displayName} Pi launcher by DeputyDev`)
     .usage("<harness> [harness arguments...] | <command> [options]")
     .helpOption("-h, --help", "display launcher help")
-    .version(BUILD_INFO.version, "-V, --version", "display launcher version")
+    .version(
+      `${BUILD_INFO.version} (channel: ${describeReleaseChannel(resolveAxonPaths().home)})`,
+      "-V, --version",
+      "display launcher version and update channel",
+    )
     .showHelpAfterError()
     .exitOverride();
 
@@ -201,16 +213,61 @@ function createLauncherProgram(): Command {
     .command("update")
     .description("download and install the latest verified macOS release")
     .option("--check", "report whether a newer release is available without installing")
-    .action(async (options: { check?: boolean }) => {
+    .option("--channel <channel>", "select stable or invite-only beta")
+    .option("--yes", "confirm returning to stable without prompting")
+    .action(async (options: { check?: boolean; channel?: string; yes?: boolean }) => {
+      if (options.channel !== undefined && !isReleaseChannel(options.channel)) {
+        throw new LauncherError(
+          "Update channel must be stable or beta",
+          LAUNCHER_EXIT_STATUS.usage,
+        );
+      }
+      const context = {
+        ...updateContext(),
+        ...(options.channel === undefined ? {} : { channel: options.channel }),
+      };
+      const channel = context.channel ?? readReleaseChannel(context.paths.home);
+      if (
+        options.channel === "stable" &&
+        !options.check &&
+        (describeReleaseChannel(context.paths.home) !== "stable" ||
+          releaseChannelForVersion(BUILD_INFO.version) === "beta") &&
+        !options.yes
+      ) {
+        if (!process.stdin.isTTY || !process.stdout.isTTY) {
+          throw new LauncherError(
+            "Returning to stable requires confirmation",
+            LAUNCHER_EXIT_STATUS.usage,
+            {
+              remediation: "Run axon update --channel stable interactively, or add --yes.",
+            },
+          );
+        }
+        const accepted = await confirm({
+          message:
+            "Return to stable? This may downgrade Axon. Stable settings are preserved separately from beta.",
+        });
+        if (isCancel(accepted) || !accepted) return;
+      }
+      if (options.channel === "beta") {
+        // A pasted installer uses piped stdin, so open browser login directly.
+        await runAuthLogin(context.paths, { browser: true, reuseExistingSession: true });
+      }
       if (options.check) {
         try {
           const available = await withUpdateProgress((onProgress) =>
-            checkForUpdate({ ...updateContext(), onProgress }),
+            checkForUpdate({ ...context, onProgress }),
           );
-          console.log(available ? `axon ${available} is available` : "axon is up to date");
+          console.log(
+            available
+              ? `axon ${available} is available (${channel})`
+              : `axon is up to date (${channel})`,
+          );
         } catch (error) {
           throw new LauncherError(
-            "could not check for axon updates",
+            error instanceof ReleaseAccessError
+              ? error.message
+              : "could not check for axon updates",
             LAUNCHER_EXIT_STATUS.updateFailure,
             {
               cause: error,
@@ -220,9 +277,10 @@ function createLauncherProgram(): Command {
         }
       } else {
         const installed = await withUpdateProgress((onProgress) =>
-          installUpdate({ ...updateContext(), onProgress }),
+          installUpdate({ ...context, onProgress }),
         );
         console.log(installed ? `Updated axon to ${installed}` : "axon is up to date");
+        console.log(`Update channel: ${channel}`);
       }
     });
 

@@ -14,6 +14,7 @@ CHECKSUMS_FILE=
 ARCHIVE_FILE=
 STAGED_BINARY=
 BACKUP_TEMP=
+CHANNEL=stable
 
 say() {
   printf '%s\n' "$*"
@@ -38,6 +39,21 @@ cleanup() {
 
 trap cleanup 0
 trap 'exit 1' 1 2 15
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --channel)
+      [ "$#" -ge 2 ] || die "--channel requires stable or beta"
+      CHANNEL=$2
+      shift 2
+      ;;
+    *) die "unknown installer argument: $1" ;;
+  esac
+done
+case "$CHANNEL" in
+  stable|beta) ;;
+  *) die "channel must be stable or beta" ;;
+esac
 
 require_tool() {
   command -v "$1" >/dev/null 2>&1 || die "required tool is not available: $1"
@@ -242,6 +258,35 @@ BIN_DIR=$MANAGED_HOME/bin
 BINARY=$BIN_DIR/$PROGRAM
 PREVIOUS_BINARY=$BIN_DIR/$PROGRAM.prev
 
+# Reuse a channel-aware managed installation. In particular, never replace an
+# existing beta with the stable bootstrap before eligibility/confirmation succeeds.
+if [ -x "$BINARY" ] && "$BINARY" update --help 2>/dev/null | grep -q -- '--channel'; then
+  if [ "$CHANNEL" = beta ]; then
+    "$BINARY" update --channel beta || die "beta installation did not complete; your current installation was preserved"
+    say "Run axon pi to get started."
+    exit 0
+  fi
+  INSTALLED_VERSION=$("$BINARY" --version 2>/dev/null || true)
+  RETURN_TO_STABLE=0
+  case "$INSTALLED_VERSION" in
+    *'(channel: beta)'|*'(channel: unknown)') RETURN_TO_STABLE=1 ;;
+  esac
+  INSTALLED_NUMBER=${INSTALLED_VERSION%% *}
+  case "${INSTALLED_NUMBER%%+*}" in
+    *-*) RETURN_TO_STABLE=1 ;;
+  esac
+  if [ "$RETURN_TO_STABLE" -eq 1 ]; then
+    # The installer usually receives piped stdin. Give the CLI the terminal for
+    # its downgrade confirmation, rather than consuming the installer stream.
+    if [ -r /dev/tty ] && [ -w /dev/tty ]; then
+      "$BINARY" update --channel stable < /dev/tty || die "could not return to stable; your current installation was preserved"
+    else
+      die "returning to stable requires confirmation; run axon update --channel stable, or add --yes to that command"
+    fi
+    exit 0
+  fi
+fi
+
 umask 077
 mkdir -p "$MANAGED_HOME" "$BIN_DIR"
 chmod 700 "$MANAGED_HOME" "$BIN_DIR"
@@ -265,6 +310,9 @@ done < "$VERSION_FILE"
 
 SEMVER_PATTERN='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
 printf '%s\n' "$VERSION" | grep -Eq "$SEMVER_PATTERN" || die "VERSION is not canonical semantic version syntax: $VERSION"
+case "${VERSION%%+*}" in
+  *-*) die "the stable bootstrap endpoint returned a prerelease" ;;
+esac
 
 # Pin all remaining requests to the version resolved above, never to mutable latest.
 EXACT_RELEASE_URL=$RELEASES_URL/$VERSION
@@ -292,7 +340,10 @@ fi
 if ! STAGED_VERSION=$("$STAGED_BINARY" --version 2>/dev/null); then
   die "the staged executable did not run successfully"
 fi
-[ "$STAGED_VERSION" = "$VERSION" ] || die "staged executable reports $STAGED_VERSION, expected $VERSION"
+case "$STAGED_VERSION" in
+  "$VERSION"|"$VERSION (channel: stable)"|"$VERSION (channel: beta)") ;;
+  *) die "staged executable reports $STAGED_VERSION, expected $VERSION" ;;
+esac
 
 if [ -e "$BINARY" ]; then
   [ -f "$BINARY" ] || die "existing managed path is not a regular file: $BINARY"
@@ -334,7 +385,13 @@ else
   say "Pi is not bundled; axon pi will install its pinned Pi release on first use."
 fi
 
-if [ "$PATH_HAS_MANAGED_BIN" -eq 1 ]; then
+if [ "$CHANNEL" = beta ]; then
+  say "Sign in to access the invite-only beta channel."
+  if ! "$BINARY" update --channel beta; then
+    die "beta installation did not complete. Axon stable is installed and ready to use; ask your administrator to confirm beta access"
+  fi
+  say "Run axon pi to get started."
+elif [ "$PATH_HAS_MANAGED_BIN" -eq 1 ]; then
   say "Next, run: axon doctor"
 else
   say "After updating PATH, run: axon doctor"

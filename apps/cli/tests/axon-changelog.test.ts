@@ -321,9 +321,7 @@ test("latest changelog entry matches the CLI release version", async () => {
 
 test("skipped releases include all unseen entries, newest first", () => {
   expect(newReleaseNotes("1.0.0", "1.0.3")).toBe(
-    [AXON_RELEASES[0].markdown, AXON_RELEASES[1].markdown, AXON_RELEASES[2].markdown].join(
-      "\n\n",
-    ),
+    [AXON_RELEASES[0].markdown, AXON_RELEASES[1].markdown, AXON_RELEASES[2].markdown].join("\n\n"),
   );
   expect(newReleaseNotes("1.0.0", "1.0.2")).not.toContain("## 1.0.0");
   expect(newReleaseNotes("1.0.1", "1.0.2")).not.toContain("## 1.0.1");
