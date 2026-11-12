@@ -1,0 +1,27 @@
+apps/cli/src/product/manifest.ts
+  s_2b899467055916::t_101777983d1c48 26-28,97-102,134,168,213-215
+  s_2b899467055916::t_080d392789f1f0 216
+apps/cli/tests/launcher.test.ts
+  s_2b899467055916::t_8e91fa22dcccc6 350-351
+apps/cli/src/harnesses/pi/resources/extensions/session-naming.ts
+  s_2b899467055916::t_00125f3c189fb2 16,93
+  s_2b899467055916::t_8633685edaa63b 1-15,17-92,94-155
+apps/cli/tests/pi-package-setup.test.ts
+  s_2b899467055916::t_4518a6a2901677 1020
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ef14ace3ce4555e097bb069d174fa008932d84be",
+  "prompts": {},
+  "sessions": {
+    "s_2b899467055916": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "503107",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  }
+}
