@@ -2,6 +2,7 @@ import { test } from "bun:test";
 import assert from "node:assert/strict";
 import {
   describeEnvironment,
+  normalizeWorkflowName,
   PI_ORG_TELEMETRY_VERSION,
   readExtensionVersion,
   readPiVersion,
@@ -34,6 +35,30 @@ test("includes the configured CLI version without inheriting it into other tests
 test("omits invalid CLI version values", () => {
   process.env.PI_AXON_CLI_VERSION = "invalid version";
   assert.equal("cliVersion" in describeEnvironment(), false);
+});
+
+test("reads the workflow tag from AXON_WORKFLOW and omits it when unset", () => {
+  assert.equal("workflowName" in describeEnvironment(), false);
+  process.env.AXON_WORKFLOW = " PR-Review ";
+  assert.equal(describeEnvironment().workflowName, "pr-review");
+});
+
+test("accepts only short, label-safe workflow names", () => {
+  assert.equal(normalizeWorkflowName("nightly.dependency_bump-v2"), "nightly.dependency_bump-v2");
+  assert.equal(normalizeWorkflowName("a".repeat(64)), "a".repeat(64));
+  for (const invalid of [
+    undefined,
+    "",
+    "   ",
+    "a".repeat(65),
+    "pr review",
+    "team/pr-review",
+    "-leading-dash",
+    ".hidden",
+    "pr\nreview",
+    "émoji",
+  ])
+    assert.equal(normalizeWorkflowName(invalid), undefined, JSON.stringify(invalid));
 });
 
 test("maps platform and arch to semantic-convention values", () => {

@@ -18,6 +18,18 @@ const STATE_FILE = "axon-changelog.json";
 /** Axon's release notes, newest first. Keep these independent of Pi's releases. */
 export const AXON_RELEASES = [
   {
+    version: "1.0.4",
+    markdown: `## 1.0.4
+
+### Changed
+- Updated Pi to 1.5.2 and LiteLLM provider to 4.7.3.
+- Non-interactive sessions check for updates in the background, ready for the next launch.
+- Tag workflow telemetry with AXON_WORKFLOW and filter usage in Grafana.
+
+### Fixed
+- Safer recovery from abandoned locks and clearer startup errors.`,
+  },
+  {
     version: "1.0.3",
     markdown: `## 1.0.3
 

@@ -48,6 +48,7 @@ import {
   ATTR_TERMINAL_TYPE,
   ATTR_USER_EMAIL,
   ATTR_USER_ID,
+  ATTR_WORKFLOW_NAME,
   COUNTER_UNITS,
   EXTENSION_NAME,
   INSTRUMENTATION_NAME,
@@ -333,6 +334,8 @@ export function createOtelRuntime(
     // Constant per process, so it adds no per-process series; enables terminal breakdowns on
     // backends that do not promote resource attributes to labels.
     [ATTR_TERMINAL_TYPE]: environment.terminalType,
+    // Same reasoning: one bounded value per process, set only by workflow-driven launches.
+    ...(environment.workflowName ? { [ATTR_WORKFLOW_NAME]: environment.workflowName } : {}),
   };
   const resource = defaultResource().merge(
     resourceFromAttributes({
@@ -352,6 +355,7 @@ export function createOtelRuntime(
       [ATTR_RUNTIME_NAME]: environment.runtimeName,
       [ATTR_RUNTIME_VERSION]: environment.runtimeVersion,
       [ATTR_TERMINAL_TYPE]: environment.terminalType,
+      ...(environment.workflowName ? { [ATTR_WORKFLOW_NAME]: environment.workflowName } : {}),
     }),
   );
   const health = new ExportHealth(config.diagnostics && !options.quiet, options.now);

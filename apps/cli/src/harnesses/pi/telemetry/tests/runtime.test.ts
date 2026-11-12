@@ -2,6 +2,7 @@ import { test } from "bun:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { resolveConfig } from "../src/config.ts";
+import { describeEnvironment } from "../src/environment.ts";
 import { createOtelRuntime } from "../src/otel/runtime.ts";
 import { AgentTelemetryTracker } from "../src/tracker.ts";
 import { isolateTelemetryEnvironment } from "./helpers.ts";
@@ -95,4 +96,22 @@ test("accepts the shortest allowed metric export interval", async () => {
     quiet: true,
   });
   await runtime.shutdown();
+});
+
+test("tags every signal with the workflow name only when one is configured", async () => {
+  const config = resolveConfig({
+    OTEL_EXPORTER_OTLP_ENDPOINT: "http://127.0.0.1:9",
+    PI_ORG_OTEL_DIAGNOSTICS: "false",
+  });
+  assert.ok(config);
+  const identity = { userId: "u", source: "installation_id" } as const;
+
+  const untagged = createOtelRuntime(config, identity, describeEnvironment(), { quiet: true });
+  assert.equal("axon.workflow.name" in untagged.commonAttributes, false);
+  await untagged.shutdown();
+
+  process.env.AXON_WORKFLOW = "pr-review";
+  const tagged = createOtelRuntime(config, identity, describeEnvironment(), { quiet: true });
+  assert.equal(tagged.commonAttributes["axon.workflow.name"], "pr-review");
+  await tagged.shutdown();
 });

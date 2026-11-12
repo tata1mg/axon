@@ -4,6 +4,7 @@ export interface ResourceEnvironment {
   readonly extensionVersion: string;
   readonly piVersion?: string;
   readonly cliVersion?: string;
+  readonly workflowName?: string;
   readonly osType: string;
   readonly hostArch: string;
   readonly runtimeName: string;
@@ -49,6 +50,21 @@ export async function readPiVersion(
   }
 }
 
+/** Environment variable a calling workflow sets to tag every Axon/Pi signal it produces. */
+export const WORKFLOW_ENV = "AXON_WORKFLOW";
+
+const WORKFLOW_NAME = /^[a-z0-9][a-z0-9._-]{0,63}$/;
+
+/**
+ * Workflow names become a label on every metric series, so only short, stable identifiers are
+ * accepted. Values are trimmed and lowercased; anything else (spaces, slashes, >64 chars) is
+ * dropped rather than rewritten, so a malformed value never silently merges with another workflow.
+ */
+export function normalizeWorkflowName(value: string | undefined): string | undefined {
+  const name = value?.trim().toLowerCase();
+  return name && WORKFLOW_NAME.test(name) ? name : undefined;
+}
+
 export function describeEnvironment(
   piVersion?: string,
   extensionVersion: string = readExtensionVersion(),
@@ -58,6 +74,7 @@ export function describeEnvironment(
   terminalType: TerminalType = detectTerminalType(),
 ): ResourceEnvironment {
   const bun = Reflect.get(versions, "bun") as string | undefined;
+  const workflowName = normalizeWorkflowName(process.env[WORKFLOW_ENV]);
   return {
     extensionVersion,
     ...(piVersion ? { piVersion } : {}),
@@ -65,6 +82,7 @@ export function describeEnvironment(
     /^[a-zA-Z0-9._+-]{1,80}$/.test(process.env["PI_AXON_CLI_VERSION"])
       ? { cliVersion: process.env["PI_AXON_CLI_VERSION"] }
       : {}),
+    ...(workflowName ? { workflowName } : {}),
     osType: OS_TYPES[platform] ?? platform,
     hostArch: HOST_ARCHS[arch] ?? arch,
     runtimeName: bun ? "bun" : "node",
