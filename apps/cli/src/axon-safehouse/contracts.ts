@@ -5,7 +5,6 @@ export const axonSafehousePolicySchema = z.strictObject({
   required: z.literal(true),
   engine: z.literal("safehouse"),
   policyId: z.string().regex(/^[a-zA-Z0-9._-]{1,128}$/),
-  maxSessionSeconds: z.number().int().min(60).max(86_400),
   allowAdditionalReadPaths: z.boolean(),
   allowAdditionalWritePaths: z.boolean(),
   protectedPaths: z

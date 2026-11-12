@@ -148,10 +148,7 @@ interface AxonSafehouseLaunchOptions {
 export async function createAxonSafehouseResources(
   paths: AxonPaths,
   environment: NodeJS.ProcessEnv,
-  authorization: AxonSafehouseAuthorization,
 ): Promise<AxonSafehouseResources> {
-  if (Date.now() >= authorization.expiresAt)
-    throw axonSafehouseFailure("Axon Safehouse authorization expired");
   const runtime = await ensureSafehouseRuntime(paths);
   const runs = join(paths.home, "axon-safehouse", "runs");
   await privateDirectory(runs);
@@ -210,7 +207,7 @@ export async function createAxonSafehouseLaunchSpec(
   authorization: AxonSafehouseAuthorization,
   options: AxonSafehouseLaunchOptions = {},
 ): Promise<LaunchSpec> {
-  const { policy, expiresAt } = authorization;
+  const { policy } = authorization;
   const purpose = options.purpose ?? "session";
   const brokeredSession =
     purpose === "session" && specification.environment["PI_AXON_SAFEHOUSE_OPERATIONS"] === "1";
@@ -233,8 +230,6 @@ export async function createAxonSafehouseLaunchSpec(
     !globalAdministration &&
     (purpose === "operation" || purpose === "administration" || purpose === "session");
   const provisioning = purpose === "provision" || purpose === "administration";
-  if (Date.now() >= expiresAt)
-    throw axonSafehouseFailure("Axon Safehouse authorization expired during startup");
   const project = isolatedDirectory
     ? await canonicalPath(isolatedDirectory)
     : purpose === "session" || purpose === "operation" || purpose === "administration"
@@ -331,8 +326,7 @@ export async function createAxonSafehouseLaunchSpec(
       "Backend policy blocks essential Pi state; ask your administrator to allow Pi auth, settings, trust and model state",
     );
   const resources =
-    options.resources ??
-    (await createAxonSafehouseResources(paths, specification.environment, authorization));
+    options.resources ?? (await createAxonSafehouseResources(paths, specification.environment));
   const { baseline, runDirectory, temporary } = resources;
   try {
     let proxy: NetworkProxy | undefined;
@@ -679,8 +673,6 @@ export async function createAxonSafehouseLaunchSpec(
           `exit=${probeExit}; signal=${probe.signalCode ?? "none"}; ${probeDiagnostics.slice(0, 8192)}`,
         ),
       );
-    if (Date.now() >= expiresAt)
-      throw axonSafehouseFailure("Axon Safehouse authorization expired during setup");
     const environment = {
       ...axonSafehouseEnvironment(
         specification.environment,
@@ -715,7 +707,6 @@ export async function createAxonSafehouseLaunchSpec(
       executable: "/usr/bin/sandbox-exec",
       arguments: ["-f", profile, specification.executable, ...specification.arguments],
       environment,
-      expiresAt,
       dispose: () => {
         if (disposed) return;
         disposed = true;

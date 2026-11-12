@@ -53,7 +53,6 @@ test.each(["unminified", "minified"] as const)(
               required: true,
               engine: "safehouse",
               policyId: "compiled-resource-fixture",
-              maxSessionSeconds: 60,
               allowAdditionalReadPaths: true,
               allowAdditionalWritePaths: true,
               protectedPaths: [],

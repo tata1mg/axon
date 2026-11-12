@@ -132,7 +132,7 @@ export function createAxonSafehouseConfigurationRelay(
       }
     },
     dispose(): void {
-      // Release terminal prompts if Pi exits or its backend authorization expires.
+      // Release terminal prompts when the invocation closes.
       shutdown.abort();
       access.dispose();
     },

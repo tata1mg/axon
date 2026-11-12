@@ -64,11 +64,7 @@ export async function createAxonSafehouseSession(
 ): Promise<AxonSafehouseSession> {
   assertAxonSafehouseSupported();
   const authorization = suppliedAuthorization ?? (await authorizeAxonSafehouse(context.paths));
-  const resources = await createAxonSafehouseResources(
-    context.paths,
-    context.environment,
-    authorization,
-  );
+  const resources = await createAxonSafehouseResources(context.paths, context.environment);
   const profiles = new Map<string, Promise<LaunchSpec>>();
   const activeCommands = new Set<() => void>();
   const activeOperations = new Set<() => void>();
@@ -106,18 +102,14 @@ export async function createAxonSafehouseSession(
     }
     if (
       !operationAuthorization ||
-      Date.now() >= operationAuthorization.expiresAt ||
       (await loadEncryptedSession(context.paths)) !== operationAuthorization.session
     ) {
-      throw axonSafehouseFailure(
-        "Axon Safehouse identity changed or authorization expired; retry after signing in",
-      );
+      throw axonSafehouseFailure("Axon Safehouse identity changed; retry after signing in");
     }
   };
 
   const assertActive = (): void => {
-    if (disposed || Date.now() >= authorization.expiresAt)
-      throw axonSafehouseFailure("Axon Safehouse authorization expired or was closed");
+    if (disposed) throw axonSafehouseFailure("Axon Safehouse session was closed");
   };
   const dispose = (): void => {
     if (disposed) return;
@@ -126,10 +118,7 @@ export async function createAxonSafehouseSession(
     activeCommands.clear();
     stopWatching();
     resources.dispose();
-    clearTimeout(expiry);
   };
-  const expiry = setTimeout(dispose, Math.max(1, authorization.expiresAt - Date.now()));
-  expiry.unref();
 
   return {
     dispose,
@@ -139,7 +128,7 @@ export async function createAxonSafehouseSession(
         throw axonSafehouseFailure("RPC catalog probes cannot configure project permissions");
       const verified = await authorizeAxonSafehouse(context.paths);
       assertActive();
-      // A settings change cannot silently replace backend filesystem limits or renew the lease.
+      // A settings change cannot silently replace backend filesystem limits.
       // Changed backend boundaries require a new Axon invocation, not just a new Pi child.
       if (!isDeepStrictEqual(verified.policy, authorization.policy))
         throw axonSafehouseFailure(
@@ -279,8 +268,8 @@ export async function createAxonSafehouseSession(
           stdin: options.stdin === undefined ? "ignore" : new TextEncoder().encode(options.stdin),
           stdout: options.inheritOutput ? "inherit" : "pipe",
           stderr: options.inheritOutput ? "inherit" : "pipe",
-          // The session lease bounds all commands. Only explicit operation deadlines
-          // impose a shorter timeout; Pi's shell tool has no default deadline.
+          // Explicit operation deadlines and invocation cleanup bound commands;
+          // Pi's shell tool has no default deadline.
         },
       );
       const signalGroup = (signal: NodeJS.Signals): void => {
@@ -302,7 +291,7 @@ export async function createAxonSafehouseSession(
         releaseGroup();
       };
       // Probes keep a safety deadline. Installs may legitimately take a long time on slow
-      // networks and are bounded by the session lease, like operations.
+      // networks; invocation cleanup still terminates their owned process groups.
       const timeoutMs = options.timeoutMs ?? (options.purpose === "probe" ? 300_000 : undefined);
       let timedOut = false;
       const timeout =

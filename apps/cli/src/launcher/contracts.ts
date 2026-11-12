@@ -35,8 +35,6 @@ export interface LaunchSpec {
   readonly cwd: string;
   /** Explicit invocation offline state, not a telemetry environment preference. */
   readonly offline?: boolean;
-  /** Backend-authorized session lease; no local setting may extend it. */
-  readonly expiresAt?: number;
   /** Revocation of a compiled filesystem profile requires terminating its process group. */
   readonly revoked?: AbortSignal;
   /** Preserve invocation-owned resources only while replacing a revoked child. */

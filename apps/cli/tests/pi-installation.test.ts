@@ -301,13 +301,11 @@ describe("Pi version probe cache", () => {
     expect(await resolvePiVersion(executable, axonSafehouseContext)).toBe("0.86.0");
     expect(runProbe).toHaveBeenCalledTimes(1);
 
-    // Missing/expired authorization must not be mistaken for an unknown version.
+    // Missing authorization or a closed session must not look like an unknown version.
     await expect(
       probePiVersion(executable, fixture.context.environment, fixture.context),
     ).rejects.toThrow("Axon Safehouse is required before running Pi");
-    const authorizationError = axonSafehouseFailure(
-      "Axon Safehouse authorization expired or was closed",
-    );
+    const authorizationError = axonSafehouseFailure("Axon Safehouse session was closed");
     runProbe.mockRejectedValueOnce(authorizationError);
     await expect(
       probePiVersion(executable, fixture.context.environment, axonSafehouseContext),

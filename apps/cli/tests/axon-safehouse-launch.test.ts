@@ -33,13 +33,11 @@ afterEach(async () => {
 });
 
 const authorization: AxonSafehouseAuthorization = {
-  expiresAt: Date.now() + 3_600_000,
   policy: {
     schemaVersion: 1,
     required: true,
     engine: "safehouse",
     policyId: "test",
-    maxSessionSeconds: 3_600,
     allowAdditionalReadPaths: true,
     allowAdditionalWritePaths: true,
     protectedPaths: [],

@@ -23,10 +23,7 @@ export async function createFixtureAxonSafehouse(
   let disposed = false;
 
   const prepareFixture = async (specification: LaunchSpec): Promise<LaunchSpec> => {
-    if (disposed || Date.now() >= authorization.expiresAt)
-      throw axonSafehouseFailure(
-        "Launcher fixture Axon Safehouse authorization expired or was closed",
-      );
+    if (disposed) throw axonSafehouseFailure("Launcher fixture Axon Safehouse session was closed");
     const executable = await realpath(specification.executable);
     const difference = relative(fixtureRoot, executable);
     if (
@@ -48,7 +45,7 @@ export async function createFixtureAxonSafehouse(
       if (specification.environment[name] !== undefined)
         environment[name] = specification.environment[name];
     }
-    return { ...specification, environment, expiresAt: authorization.expiresAt };
+    return { ...specification, environment };
   };
 
   return {

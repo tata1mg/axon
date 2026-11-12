@@ -8,7 +8,7 @@ import { exitLikeChild, LAUNCHER_EXIT_STATUS } from "./exit-status.ts";
 
 const FORWARDED_SIGNALS = ["SIGTERM", "SIGHUP"] as const;
 
-/** Restart only a revoked profile; normal exits, user signals and lease expiry never relaunch. */
+/** Restart only a revoked profile; normal exits and user signals never relaunch. */
 export async function spawnHarness(
   specification: LaunchSpec,
   restart?: () => Promise<LaunchSpec>,
@@ -93,7 +93,6 @@ async function runHarness(
   };
   let interrupted = false;
   let revoked = false;
-  let expired = false;
   let restarting = false;
   const revoke = (): void => {
     revoked = true;
@@ -128,26 +127,6 @@ async function runHarness(
   };
   if (detached && !rpc) process.on("SIGWINCH", forwardResize);
 
-  let forceStop: ReturnType<typeof setTimeout> | undefined;
-  const expiry =
-    specification.expiresAt === undefined
-      ? undefined
-      : setTimeout(
-          () => {
-            expired = true;
-            console.error(
-              "axon: backend Axon Safehouse authorization expired; restart axon pi to continue",
-            );
-            // Closing parent-owned capabilities immediately revokes all brokered network access.
-            specification.dispose?.();
-            signalGroup(detached ? "SIGKILL" : "SIGTERM");
-            forceStop = setTimeout(() => {
-              if (subprocess.exitCode === null && subprocess.signalCode === null)
-                subprocess.kill("SIGKILL");
-            }, 5_000);
-          },
-          Math.max(1, specification.expiresAt - Date.now()),
-        );
   try {
     if (rpc) {
       if (!subprocess.stdin || !subprocess.stdout)
@@ -156,8 +135,6 @@ async function runHarness(
     }
     await subprocess.exited;
   } finally {
-    if (expiry !== undefined) clearTimeout(expiry);
-    if (forceStop !== undefined) clearTimeout(forceStop);
     specification.revoked?.removeEventListener("abort", revoke);
     process.off("SIGINT", terminalInterrupt);
     for (const [signal, handler] of forwardingHandlers) {
@@ -166,13 +143,7 @@ async function runHarness(
     process.off("SIGWINCH", forwardResize);
     // Reap extension descendants before granting the replacement profile.
     if (detached) signalGroup("SIGKILL");
-    restarting =
-      allowRestart &&
-      revoked &&
-      !interrupted &&
-      !expired &&
-      spawnError === undefined &&
-      (specification.expiresAt === undefined || Date.now() < specification.expiresAt);
+    restarting = allowRestart && revoked && !interrupted && spawnError === undefined;
     await rpc?.detach(restarting);
     if (!restarting) {
       rpc?.dispose();

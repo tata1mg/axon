@@ -43,7 +43,6 @@ beforeAll(async () => {
             required: true,
             engine: "safehouse",
             policyId: "launcher-fixture",
-            maxSessionSeconds: 60,
             allowAdditionalReadPaths: true,
             allowAdditionalWritePaths: true,
             protectedPaths: [],
