@@ -1,0 +1,26 @@
+apps/cli/tests/axon-header.test.ts
+  s_00bc12b6db06f5::t_c740ba8b7f252b 753-770
+  s_00bc12b6db06f5::t_88a12b59c4600a 24
+  s_00bc12b6db06f5::t_d35c2c35caa759 509-540
+apps/cli/src/harnesses/pi/resources/extensions/axon.ts
+  s_00bc12b6db06f5::t_db0c2430755520 191-193,197,201-217
+  s_00bc12b6db06f5::t_3a2c9aa0a871e8 270,273,276
+  s_00bc12b6db06f5::t_17d5dee9d3dc4c 294,298-299
+  s_00bc12b6db06f5::t_f291a74eb27450 218-219
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "85c7b7161279c0745eb5093b81e88611f4665012",
+  "prompts": {},
+  "sessions": {
+    "s_00bc12b6db06f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9ace8c3c-c265-4e97-b4f7-845a3b0ba1a3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
