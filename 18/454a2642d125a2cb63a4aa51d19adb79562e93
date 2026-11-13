@@ -1,0 +1,14 @@
+apps/cli/src/harnesses/pi/resources/extensions/session-backup.mjs
+  h_dc688f708c4675 28-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "18454a2642d125a2cb63a4aa51d19adb79562e93",
+  "prompts": {},
+  "humans": {
+    "h_dc688f708c4675": {
+      "author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  }
+}
