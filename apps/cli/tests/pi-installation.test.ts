@@ -1,10 +1,9 @@
-import { afterEach, describe, expect, mock, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import { chmod, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { checkPiVersion } from "../scripts/check-pi-version.ts";
-import { axonSafehouseFailure } from "../src/axon-safehouse/policy.ts";
 import {
   managedPiExecutable,
   PI_INSTALL_VERSION,
@@ -22,13 +21,9 @@ import {
   NPM_PUBLIC_REGISTRY,
   NpmInstallFailure,
 } from "../src/harnesses/pi/npm-registry.ts";
-import { probePiVersion, resolvePiVersion } from "../src/harnesses/pi/version.ts";
+import { resolvePiVersion } from "../src/harnesses/pi/version.ts";
 import { resolveHarnessRegistration } from "../src/harnesses/registry.ts";
-import type {
-  AxonSafehouseSession,
-  HarnessRegistration,
-  LaunchContext,
-} from "../src/launcher/contracts.ts";
+import type { HarnessRegistration, LaunchContext } from "../src/launcher/contracts.ts";
 import { resolveAxonPaths } from "../src/product/paths.ts";
 
 const fixtureRoots: string[] = [];
@@ -127,8 +122,6 @@ function installerDependencies(fixture: { readonly root: string }, version: stri
       return url.endsWith("/package-lock.json") ? artifacts.packageLock : artifacts.metadata;
     },
     probeToolchain: async () => healthyToolchain,
-    // Installation decisions use an injected probe; unit fixtures never spawn Pi.
-    probeVersion: async () => version,
     runNpmCi: async (request: { readonly cwd: string; readonly npmPath: string }) => {
       state.npmRuns += 1;
       expect(request.npmPath).toBe("/fixture/npm");
@@ -271,51 +264,7 @@ describe("Pi version probe cache", () => {
     // A changed executable invalidates the cached record.
     await Bun.sleep(5);
     await writePi(executable, "0.86.0 with a longer banner line\n");
-    const runProbe = mock<AxonSafehouseSession["run"]>(async (specification, options) => {
-      expect(specification.executable).toBe(executable);
-      expect(specification.arguments).toEqual(["--version"]);
-      expect(specification.environment["PI_OFFLINE"]).toBe("1");
-      expect(options).toEqual({ purpose: "probe", timeoutMs: 5_000 });
-      return {
-        exitCode: 0,
-        signalCode: null,
-        stdout: "0.86.0 with a longer banner line\n",
-        stderr: "",
-      };
-    });
-    const axonSafehouseContext: LaunchContext = {
-      ...fixture.context,
-      axonSafehouse: {
-        async configurationPolicy() {
-          throw new Error("Unexpected Axon Safehouse configuration in a version-probe fixture");
-        },
-        clientConfig: () => undefined,
-        async wrap() {
-          throw new Error("Unexpected interactive launch in a version-probe fixture");
-        },
-        run: runProbe,
-        dispose() {},
-      },
-    };
-    expect(await resolvePiVersion(executable, axonSafehouseContext)).toBe("0.86.0");
-    expect(await resolvePiVersion(executable, axonSafehouseContext)).toBe("0.86.0");
-    expect(runProbe).toHaveBeenCalledTimes(1);
-
-    // Missing authorization or a closed session must not look like an unknown version.
-    await expect(
-      probePiVersion(executable, fixture.context.environment, fixture.context),
-    ).rejects.toThrow("Axon Safehouse is required before running Pi");
-    const authorizationError = axonSafehouseFailure("Axon Safehouse session was closed");
-    runProbe.mockRejectedValueOnce(authorizationError);
-    await expect(
-      probePiVersion(executable, fixture.context.environment, axonSafehouseContext),
-    ).rejects.toBe(authorizationError);
-
-    // Ordinary process failures remain an unknown version and are never cached.
-    runProbe.mockRejectedValueOnce(new Error("Fixture process could not start"));
-    expect(
-      await probePiVersion(executable, fixture.context.environment, axonSafehouseContext),
-    ).toBeUndefined();
+    expect(await resolvePiVersion(executable, fixture.context)).toBe("0.86.0");
   });
 });
 
@@ -478,44 +427,10 @@ await chmod("node_modules/.bin/pi", 0o755);
     await chmod(npmPath, 0o755);
     const { dependencies } = installerDependencies(fixture, PI_INSTALL_VERSION);
     const { runNpmCi: _unused, ...productionDependencies } = dependencies;
-    // Installs require Axon Safehouse; this fixture runs the fake npm directly.
-    const axonSafehouseContext: LaunchContext = {
-      ...fixture.context,
-      axonSafehouse: {
-        async configurationPolicy() {
-          throw new Error("Unexpected Axon Safehouse configuration in an npm fallback fixture");
-        },
-        clientConfig: () => undefined,
-        async wrap() {
-          throw new Error("Unexpected interactive launch in an npm fallback fixture");
-        },
-        async run(specification) {
-          const child = Bun.spawn([specification.executable, ...specification.arguments], {
-            cwd: specification.cwd,
-            env: specification.environment,
-            stdin: "ignore",
-            stdout: "pipe",
-            stderr: "pipe",
-          });
-          const [exitCode, stdout, stderr] = await Promise.all([
-            child.exited,
-            new Response(child.stdout).text(),
-            new Response(child.stderr).text(),
-          ]);
-          return { exitCode, signalCode: child.signalCode, stdout, stderr };
-        },
-        dispose() {},
-      },
-    };
-    const executable = await resolvePiExecutable(
-      axonSafehouseContext,
-      piRegistration(),
-      launchOptions,
-      {
-        ...productionDependencies,
-        probeToolchain: async () => ({ ...healthyToolchain, npmPath }),
-      },
-    );
+    const executable = await resolvePiExecutable(fixture.context, piRegistration(), launchOptions, {
+      ...productionDependencies,
+      probeToolchain: async () => ({ ...healthyToolchain, npmPath }),
+    });
     expect(executable).toBe(managedPiExecutable(fixture.context.paths, PI_INSTALL_VERSION));
     const attempts = (await Bun.file(record).text())
       .trim()
@@ -568,10 +483,7 @@ await chmod("node_modules/.bin/pi", 0o755);
     await writePi(binary, DEVELOPMENT_VERSION);
     const { dependencies, state } = installerDependencies(fixture, PI_INSTALL_VERSION);
     await expect(
-      resolvePiExecutable(fixture.context, piRegistration(), launchOptions, {
-        ...dependencies,
-        probeVersion: async () => DEVELOPMENT_VERSION,
-      }),
+      resolvePiExecutable(fixture.context, piRegistration(), launchOptions, dependencies),
     ).rejects.toMatchObject({
       exitStatus: 121,
       message: expect.stringContaining("does not match pinned version"),
@@ -618,17 +530,6 @@ await chmod("node_modules/.bin/pi", 0o755);
       message: expect.stringContaining("Node.js 20.0.0 is older than 22.19.0"),
       remediation: expect.stringContaining("https://pi.dev/install.sh"),
     });
-
-    // The real toolchain probe must preserve missing Axon Safehouse authorization, too.
-    await writePi(join(fixture.bin, "node"), healthyToolchain.nodeVersion ?? "22.19.0");
-    await writePi(join(fixture.bin, "npm"), "10.0.0");
-    await expect(
-      resolvePiExecutable(fixture.context, piRegistration(), launchOptions, {
-        fetchArtifact: dependencies.fetchArtifact,
-        runNpmCi: dependencies.runNpmCi,
-        probeVersion: dependencies.probeVersion,
-      }),
-    ).rejects.toThrow("Axon Safehouse is required before running Pi");
     expect(state.fetched).toEqual([]);
   });
 

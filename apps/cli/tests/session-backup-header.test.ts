@@ -4,15 +4,15 @@ import sessionBackupExtension, {
   BACKUP_HEADER_CHANNEL,
   backupHeaderState,
 } from "../src/harnesses/pi/session-backup/index.ts";
-import { BackupRelayClient } from "../src/harnesses/pi/session-backup/relay-client.ts";
+import { SessionBackups } from "../src/sessions/backup.ts";
 
-const environmentKeys = ["PI_AXON_AUTH_RELAY_URL", "PI_AXON_AUTH_RELAY_KEY"] as const;
+const environmentKeys = ["PI_AXON_BACKUP_SERVICE_ORIGIN", "PI_AXON_BACKUP_HOME"] as const;
 let savedEnvironment: Record<string, string | undefined>;
 
 beforeEach(() => {
   savedEnvironment = Object.fromEntries(environmentKeys.map((key) => [key, process.env[key]]));
-  process.env["PI_AXON_AUTH_RELAY_URL"] = "http://127.0.0.1:43210";
-  process.env["PI_AXON_AUTH_RELAY_KEY"] = "backup-header-fixture-capability";
+  process.env["PI_AXON_BACKUP_SERVICE_ORIGIN"] = "https://backend.example.test";
+  process.env["PI_AXON_BACKUP_HOME"] = "/tmp/axon-backup-header-test";
 });
 
 afterEach(() => {
@@ -100,7 +100,7 @@ describe("backup header status", () => {
     const entered = new Promise<void>((resolve) => {
       started = resolve;
     });
-    const boundary = spyOn(BackupRelayClient.prototype, "boundary").mockImplementation(() => {
+    const boundary = spyOn(SessionBackups.prototype, "boundary").mockImplementation(() => {
       started();
       return checkpoint;
     });
@@ -121,7 +121,7 @@ describe("backup header status", () => {
   });
 
   test("keeps detailed command notifications while publishing safe concise states", async () => {
-    const status = spyOn(BackupRelayClient.prototype, "status").mockResolvedValue(
+    const status = spyOn(SessionBackups.prototype, "status").mockResolvedValue(
       "Backups enabled; last confirmed: none; pending streams: 1; paused: 0",
     );
     try {

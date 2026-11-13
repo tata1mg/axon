@@ -7,10 +7,8 @@ import { PI_INSTALL_VERSION, PI_PACKAGE_NAME } from "../src/harnesses/pi/install
 import { normalizeManifestPackages } from "../src/harnesses/pi/setup/packages/manifest.ts";
 import { resolveHarnessRegistration } from "../src/harnesses/registry.ts";
 import { createHarnessEnvironment } from "../src/launcher/environment.ts";
-import { SERVICE_ENDPOINTS } from "../src/product/endpoints.ts";
 import { AXON_MANIFEST } from "../src/product/manifest.ts";
 import { resolveAxonPaths } from "../src/product/paths.ts";
-import { resolveProjectAxonPaths } from "../src/product/project-paths.ts";
 import { writePiPackageFixture } from "./fixtures/pi-packages.ts";
 
 const projectRoot = resolve(import.meta.dir, "..");
@@ -30,26 +28,6 @@ beforeAll(async () => {
         request.headers.get("authorization") === "Bearer launcher-fixture-session"
       ) {
         return Response.json({ status: "VERIFIED" });
-      }
-      if (
-        new URL(request.url).pathname === SERVICE_ENDPOINTS.cli.config &&
-        request.method === "GET" &&
-        request.headers.get("authorization") === "Bearer launcher-fixture-session"
-      ) {
-        return Response.json({
-          schemaVersion: 1,
-          axonSafehouse: {
-            schemaVersion: 1,
-            required: true,
-            engine: "safehouse",
-            policyId: "launcher-fixture",
-            allowAdditionalReadPaths: true,
-            allowAdditionalWritePaths: true,
-            protectedPaths: [],
-            readPaths: [],
-            writePaths: [],
-          },
-        });
       }
       return new Response(null, { status: 404 });
     },
@@ -145,10 +123,7 @@ afterAll(async () => {
 });
 
 async function installEmbeddedPiPackages(axonHome: string): Promise<void> {
-  const { pi: piAgentDirectory } = await resolveProjectAxonPaths(
-    resolveAxonPaths({ AXON_HOME: axonHome }),
-    projectRoot,
-  );
+  const piAgentDirectory = join(axonHome, "pi");
   const packages = normalizeManifestPackages(AXON_MANIFEST);
 
   for (const packageEntry of packages) {
@@ -166,29 +141,18 @@ function runLauncher(
   argumentsVector: readonly string[],
   environment: Record<string, string> = {},
 ): Bun.Subprocess<"ignore", "pipe", "pipe"> {
-  return Bun.spawn(
-    [
-      process.execPath,
-      "--no-env-file",
-      "--preload",
-      join(import.meta.dir, "fixtures", "launcher-preload.ts"),
-      "src/index.ts",
-      ...argumentsVector,
-    ],
-    {
-      cwd: projectRoot,
-      env: {
-        ...process.env,
-        HOME: fixtureDirectory,
-        AXON_SERVICE_ORIGIN: authService.url.origin,
-        ...environment,
-        AXON_LAUNCHER_FIXTURE_ROOT: fixtureDirectory,
-      },
-      stdin: "ignore",
-      stdout: "pipe",
-      stderr: "pipe",
+  return Bun.spawn([process.execPath, "--no-env-file", "src/index.ts", ...argumentsVector], {
+    cwd: projectRoot,
+    env: {
+      ...process.env,
+      HOME: fixtureDirectory,
+      AXON_SERVICE_ORIGIN: authService.url.origin,
+      ...environment,
     },
-  );
+    stdin: "ignore",
+    stdout: "pipe",
+    stderr: "pipe",
+  });
 }
 
 describe("harness registry", () => {
@@ -317,18 +281,19 @@ describe("launcher dispatch", () => {
       arguments: userArguments,
       axonEnvironment: {},
       harnessEnvironment: {
-        PI_CODING_AGENT_DIR: (
-          await resolveProjectAxonPaths(resolveAxonPaths({ AXON_HOME: axonHome }), projectRoot)
-        ).pi,
+        PI_CODING_AGENT_DIR: join(axonHome, "pi"),
+        PI_CODING_AGENT_SESSION_DIR: join(axonHome, "pi", "sessions"),
         PI_SKIP_VERSION_CHECK: "1",
+        PI_AXON_BACKUP_SERVICE_ORIGIN: authService.url.origin,
+        PI_AXON_BACKUP_HOME: axonHome,
+        LITELLM_API_KEY: "litellm-token",
+        LITELLM_BASE_URL: "https://litellm.example",
         LITELLM_DISPLAY_NAME: "Company AI Gateway",
         OTEL_EXPORTER_OTLP_ENDPOINT: "https://otel.example",
-        PI_ORG_OTEL_ENABLED: "false",
+        OTEL_EXPORTER_OTLP_HEADERS: "authorization=secret",
+        PI_ORG_OTEL_ENABLED: "true",
       },
       cwd: projectRoot,
-    });
-    expect(stdout).not.toMatchObject({
-      harnessEnvironment: { LITELLM_API_KEY: "litellm-token" },
     });
   });
 
@@ -383,13 +348,9 @@ describe("launcher dispatch", () => {
     expect(stdout.arguments[1]).not.toContain("/current/");
     expect(stdout.arguments[3]).not.toContain("/current/");
     expect(stdout.arguments[5]).not.toContain("/current/");
-    const paths = await resolveProjectAxonPaths(
-      resolveAxonPaths({ AXON_HOME: axonHome }),
-      projectRoot,
-    );
-    expect((await Bun.file(join(paths.pi, "settings.json")).json()).lastChangelogVersion).toBe(
-      PI_INSTALL_VERSION,
-    );
+    expect(
+      (await Bun.file(join(axonHome, "pi", "settings.json")).json()).lastChangelogVersion,
+    ).toBe(PI_INSTALL_VERSION);
   });
 
   test("recovers dead Pi settings locks and explains live locks without debug mode", async () => {
@@ -405,9 +366,7 @@ describe("launcher dispatch", () => {
     expect(initialStderr).toBe("");
     expect(initialStatus).toBe(0);
 
-    // Interactive launches from a project hold that project's lock, not the shared one.
-    const lockPath = (await resolveProjectAxonPaths(resolveAxonPaths(environment), projectRoot))
-      .piPackageLock;
+    const lockPath = resolveAxonPaths(environment).piPackageLock;
     await mkdir(lockPath);
     const owner = {
       createdAt: Date.now(),
@@ -476,23 +435,14 @@ describe("launcher dispatch", () => {
   });
 
   test("keeps forwarded Pi package commands free of setup arguments", async () => {
-    for (const userArguments of [
-      ["install", "npm:user-package"],
-      ["remove", "npm:user-package"],
-      ["uninstall", "npm:user-package"],
-      ["update", "npm:user-package"],
-      ["update", "--extensions"],
-      ["update", "--extension", "git:github.com/example/pi-tools"],
-    ]) {
-      const subprocess = runLauncher(["pi", ...userArguments]);
-      const [stdout, exitCode] = await Promise.all([
-        new Response(subprocess.stdout).json() as Promise<{ arguments: string[] }>,
-        subprocess.exited,
-      ]);
+    const subprocess = runLauncher(["pi", "install", "npm:user-package"]);
+    const [stdout, exitCode] = await Promise.all([
+      new Response(subprocess.stdout).json() as Promise<{ arguments: string[] }>,
+      subprocess.exited,
+    ]);
 
-      expect(exitCode).toBe(0);
-      expect(stdout.arguments).toEqual(userArguments);
-    }
+    expect(exitCode).toBe(0);
+    expect(stdout.arguments).toEqual(["install", "npm:user-package"]);
   });
 
   test("source runs use the developer's exact Pi version without touching global Pi", async () => {
@@ -542,38 +492,14 @@ describe("launcher dispatch", () => {
     expect(await Bun.file(join(absentHome, "pi-runtime", PI_INSTALL_VERSION)).exists()).toBe(false);
   });
 
-  test("doctor keeps diagnosing when Axon Safehouse cannot start", async () => {
-    const home = join(fixtureDirectory, ".axon");
-    await chmod(home, 0o700);
-    await installEmbeddedPiPackages(home);
-    // Without a cached Pi version, every Pi check would have to execute Pi.
-    await rm(resolveAxonPaths({ AXON_HOME: home }).piExecutableState, { force: true });
-    // A saved login with an unreachable backend: the Safehouse policy cannot be fetched.
-    const subprocess = runLauncher(["doctor", "pi"], {
-      AXON_SERVICE_ORIGIN: "http://127.0.0.1:9",
-    });
-    const [output, status] = await Promise.all([
-      new Response(subprocess.stdout).text(),
-      subprocess.exited,
-    ]);
-    expect(status).not.toBe(0);
-    expect(output).toContain("Axon Safehouse unavailable:");
-    // Checks that execute nothing still report; executions are skipped, never unsandboxed.
-    expect(output).toContain("pi: executable check skipped: Axon Safehouse is unavailable");
-    expect(output).toContain("pi: managed runtime check skipped: Axon Safehouse is unavailable");
-    expect(output).toContain("pi package pi-provider-litellm:");
-    expect(output).not.toContain(`version ${PI_INSTALL_VERSION} (pinned)`);
-  });
-
-  test("blocks Pi self-updates before resolving or installing Pi", async () => {
+  test("blocks every forwarded Pi update before resolving or installing Pi", async () => {
     for (const argumentsVector of [
       ["pi", "update"],
       ["pi", "update", "--self"],
       ["pi", "update", "--all"],
-      ["pi", "update", "self"],
-      ["pi", "update", "pi", "--extensions"],
+      ["pi", "update", "--extensions"],
       ["pi", "update", "--models"],
-      ["pi", "update", "--self", "--extensions"],
+      ["pi", "update", "npm:example"],
     ]) {
       const subprocess = runLauncher(argumentsVector, {
         AXON_HOME: join(fixtureDirectory, "no installed Pi"),

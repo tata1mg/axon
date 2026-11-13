@@ -21,28 +21,9 @@ export const PRODUCT_STAGES = {
   terminal: ["policy", "decision", "approval", "yolo"],
   update: ["check", "install"],
   release: ["launch"],
-  safehouse: [
-    "authorize",
-    "prepare",
-    "opt_out",
-    "policy",
-    "access_request",
-    "access_decision",
-    "config_change",
-  ],
 } as const;
 export type ProductCategory = keyof typeof PRODUCT_STAGES;
 export type CompactionTrigger = "manual" | "threshold" | "overflow" | "extension_threshold";
-/** Where a Safehouse permission decision or settings change came from. */
-export type SafehouseSource = "menu" | "access_grant" | "tui" | "rpc";
-/** One kind of saved Safehouse settings change; never the path or host itself. */
-export type SafehouseChange =
-  | "mode"
-  | "rule_read"
-  | "rule_write"
-  | "rule_deny"
-  | "rule_revoke"
-  | "blocked_hosts";
 export type ProductOutcome =
   | "success"
   | "failed"
@@ -63,8 +44,6 @@ export interface ProductEvent {
   terminalShell?: "bash" | "powershell";
   terminalSource?: "tool" | "nested_tool" | "user_bash";
   yoloMode?: boolean;
-  safehouseSource?: SafehouseSource;
-  safehouseChange?: SafehouseChange;
   durationMs?: number;
   bytes?: number;
   candidateCount?: number;
@@ -144,31 +123,6 @@ const reasons = new Set([
   "not_approved",
   "yolo_enabled",
   "yolo_disabled",
-  // Safehouse
-  "flag",
-  "env",
-  "first_seen",
-  "changed",
-  "restart_required",
-  "probe_failed",
-  "grantable",
-  "protected",
-  "policy_disallows",
-  "unresolved",
-  "allow_read",
-  "allow_write",
-  "denied",
-  "not_permitted",
-  "discarded",
-]);
-const safehouseSources = new Set<SafehouseSource>(["menu", "access_grant", "tui", "rpc"]);
-const safehouseChanges = new Set<SafehouseChange>([
-  "mode",
-  "rule_read",
-  "rule_write",
-  "rule_deny",
-  "rule_revoke",
-  "blocked_hosts",
 ]);
 const compactionTriggers = new Set<CompactionTrigger>([
   "manual",
@@ -223,13 +177,6 @@ export function sanitizeProductEvent(value: unknown): ProductEvent | undefined {
     )
       event.terminalSource = source["terminalSource"];
     if (typeof source["yoloMode"] === "boolean") event.yoloMode = source["yoloMode"];
-  }
-  // Safehouse dimensions are fixed enums, never paths, hosts or policy contents.
-  if (category === "safehouse") {
-    if (safehouseSources.has(source["safehouseSource"] as SafehouseSource))
-      event.safehouseSource = source["safehouseSource"] as SafehouseSource;
-    if (safehouseChanges.has(source["safehouseChange"] as SafehouseChange))
-      event.safehouseChange = source["safehouseChange"] as SafehouseChange;
   }
   for (const field of textFields) {
     const value = source[field];

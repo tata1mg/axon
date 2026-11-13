@@ -35,28 +35,6 @@ export function piOptionTokens(argumentsVector: readonly string[]): readonly str
   return terminatorIndex === -1 ? argumentsVector : argumentsVector.slice(0, terminatorIndex);
 }
 
-/** Pi 1.4 defaults `update` to self-update; only explicit package targets are safe to forward. */
-export function isPiPackageUpdate(argumentsVector: readonly string[]): boolean {
-  if (argumentsVector[0] !== "update") return false;
-  let packageTarget = false;
-  for (let index = 1; index < argumentsVector.length; index++) {
-    const argument = argumentsVector[index];
-    if (argument === "--self" || argument === "--all" || argument === "--models") return false;
-    if (argument === "--extension") {
-      const source = argumentsVector[++index];
-      if (!source || source.startsWith("-")) return false;
-      packageTarget = true;
-    } else if (argument === "--extensions") {
-      packageTarget = true;
-    } else if (argument !== undefined && !argument.startsWith("-")) {
-      // Positional `self` and `pi` are aliases for replacing the pinned executable.
-      if (argument === "self" || argument === "pi") return false;
-      packageTarget = true;
-    }
-  }
-  return packageTarget;
-}
-
 /** `CI=0`/`CI=false` are common in local wrappers and do not mean CI. */
 export function isCiEnvironment(environment: NodeJS.ProcessEnv = process.env): boolean {
   const ciValue = (Reflect.get(environment, "CI") as string | undefined)?.toLowerCase();

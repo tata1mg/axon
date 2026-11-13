@@ -10,7 +10,6 @@ export const ATTR_CONVERSATION_ID = "gen_ai.conversation.id";
 export const ATTR_PROJECT = "pi.project.name";
 export const ATTR_REPO_SLUG = "pi.repo.slug";
 export const ATTR_WORKFLOW_NAME = "axon.workflow.name";
-export const ATTR_SAFEHOUSE = "axon.safehouse";
 export const ATTR_MODE = "pi.mode";
 export const ATTR_PI_VERSION = "pi.version";
 export const ATTR_OS_TYPE = "os.type";

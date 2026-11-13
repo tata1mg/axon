@@ -47,7 +47,7 @@ export async function applyPiChangelogDefaults(paths: AxonPaths, piVersion: stri
   });
 }
 
-/** Initialize project preferences once; shared legacy settings retain managed refresh behavior. */
+/** Apply managed defaults; project settings and Pi CLI flags can still override them. */
 export async function applyPiDefaults(
   paths: AxonPaths,
   defaults: PiConfig,
@@ -58,7 +58,6 @@ export async function applyPiDefaults(
     paths.piPackageLock,
     async () => {
       const settings = await readPiSettings(piSettingsPath(paths.pi));
-      const preserveExisting = paths.projectDirectory !== undefined;
       const current = settings.config["defaultTools"];
       if (
         current !== undefined &&
@@ -84,27 +83,11 @@ export async function applyPiDefaults(
       const mcp = settingsObject(litellm["mcp"]);
       const config = {
         ...settings.config,
-        defaultTools: preserveExisting && current !== undefined ? current : tools,
-        showCacheMissNotices:
-          preserveExisting && settings.config["showCacheMissNotices"] !== undefined
-            ? settings.config["showCacheMissNotices"]
-            : (defaults.showCacheMissNotices ?? true),
-        litellm: {
-          ...litellm,
-          mcp: {
-            ...mcp,
-            enabled:
-              preserveExisting && mcp["enabled"] !== undefined
-                ? mcp["enabled"]
-                : defaults.litellmMcpEnabled,
-          },
-        },
-        // A saved project model wins over new defaults on subsequent launches/reloads.
-        ...(defaults.defaultProvider !== undefined &&
-        defaults.defaultModel !== undefined &&
-        (!preserveExisting ||
-          (settings.config["defaultProvider"] === undefined &&
-            settings.config["defaultModel"] === undefined))
+        defaultTools: tools,
+        showCacheMissNotices: defaults.showCacheMissNotices ?? true,
+        litellm: { ...litellm, mcp: { ...mcp, enabled: defaults.litellmMcpEnabled } },
+        // Unmanaged defaults keep the user's last /model selection.
+        ...(defaults.defaultProvider !== undefined && defaults.defaultModel !== undefined
           ? { defaultProvider: defaults.defaultProvider, defaultModel: defaults.defaultModel }
           : {}),
       };

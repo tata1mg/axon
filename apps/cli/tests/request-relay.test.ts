@@ -527,7 +527,7 @@ test("deployment base paths reach auth, config, backups and upstream relay reque
     await api.request(api.endpoint("download", "fixture-session"), "POST");
     const { createPiEnvironment } = await import("./src/harnesses/pi/environment.ts");
     const environment = createPiEnvironment({}, paths);
-    assert.equal(environment.PI_AXON_BACKUP_SERVICE_ORIGIN, undefined);
+    assert.equal(environment.PI_AXON_BACKUP_SERVICE_ORIGIN, base);
     assert.equal(environment.PI_MODEL_RECOMMENDER_URL, base + "/api/v1/model-recommendations");
     const { createTelemetryOverrides } = await import("./src/harnesses/pi/telemetry-environment.ts");
     const telemetry = createTelemetryOverrides({}, {
@@ -1599,40 +1599,4 @@ test("real Pi reload refreshes disk defaults but retains all launch-time environ
     "",
     true,
   );
-});
-
-// Inside Axon Safehouse, Pi's OTEL exporter can only reach the backend through this relay.
-test("telemetry is forwarded with the live session only when the launch allows it", async () => {
-  await runRelayScript(
-    `
-    const seen = [];
-    upstream = async request => {
-      seen.push([new URL(request.url).pathname, request.headers.get("authorization")]);
-      return new Response(null, { status: 200 });
-    };
-    for (const signal of ["traces", "metrics", "logs"]) {
-      const response = await send("/api/v1/otel/v1/" + signal);
-      assert.equal(response.status, 200, signal);
-    }
-    assert.deepEqual(seen, ["traces", "metrics", "logs"].map(signal => [
-      "/api/v1/otel/v1/" + signal,
-      "Bearer initial-session",
-    ]));
-    // Only exact signal paths, without query strings, are telemetry.
-    assert.equal((await send("/api/v1/otel/v1/metrics?x=1")).status, 404);
-    assert.equal((await send("/api/v1/otel/v1/other")).status, 404);
-    assert.equal(seen.length, 3);
-  `,
-    "",
-    false,
-    "",
-    "allowTelemetry: true,",
-  );
-});
-
-test("telemetry is not forwarded when the launch's policy disables it", async () => {
-  await runRelayScript(`
-    const response = await send("/api/v1/otel/v1/metrics");
-    assert.equal(response.status, 404);
-  `);
 });

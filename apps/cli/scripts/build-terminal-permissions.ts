@@ -13,7 +13,7 @@ await mkdir(temporary, { recursive: true });
 try {
   const result = await Bun.build({
     entrypoints: ["src/harnesses/pi/resources/extensions/terminal-permissions.ts"],
-    external: ["@earendil-works/pi-coding-agent", "@earendil-works/pi-tui"],
+    external: ["@earendil-works/pi-coding-agent"],
     target: "node",
     format: "esm",
     minify: true,

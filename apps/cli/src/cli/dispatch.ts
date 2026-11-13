@@ -1,11 +1,9 @@
 import { intro } from "@clack/prompts";
 
-import { resolveConfiguredPiVersion } from "../harnesses/pi/installation.ts";
 import {
   classifyPiInvocation,
   currentPiInvocationEnvironment,
   isPiOffline,
-  isPiPackageUpdate,
   isPiRpcMode,
 } from "../harnesses/pi/setup/packages/invocation.ts";
 import { resolveHarnessRegistration } from "../harnesses/registry.ts";
@@ -34,26 +32,8 @@ async function runDefaultHarness(): Promise<void> {
   await dispatch(["pi"]);
 }
 
-export async function dispatch(
-  argumentsVector: readonly string[],
-  options: { readonly safehouseDisabled?: boolean } = {},
-): Promise<void> {
-  const [head, ...remainingArguments] = argumentsVector;
-  // Reserve the leading launcher flag; never scan prompt text or tokens after `--`.
-  if (head === "--no-safehouse") {
-    await dispatch(
-      remainingArguments[0] === "pi" ? remainingArguments : ["pi", ...remainingArguments],
-      { safehouseDisabled: true },
-    );
-    return;
-  }
-  const safehouseDisabled =
-    options.safehouseDisabled === true ||
-    (head === "pi" && remainingArguments[0] === "--no-safehouse");
-  const harnessArguments =
-    head === "pi" && remainingArguments[0] === "--no-safehouse"
-      ? remainingArguments.slice(1)
-      : remainingArguments;
+export async function dispatch(argumentsVector: readonly string[]): Promise<void> {
+  const [head, ...harnessArguments] = argumentsVector;
   if (head === undefined) {
     await runDefaultHarness();
     return;
@@ -65,33 +45,19 @@ export async function dispatch(
   const registration = resolveHarnessRegistration(head);
 
   if (registration !== undefined) {
-    // Provider diagnostics need the managed version before login. Reading the pin
-    // never resolves, installs or executes Pi, so no Axon Safehouse authorization is bypassed.
-    if (
-      registration.id === "pi" &&
-      harnessArguments.length === 1 &&
-      ["--version", "-v"].includes(harnessArguments[0] ?? "")
-    ) {
-      console.log(resolveConfiguredPiVersion(process.env));
-      return;
-    }
-    if (
-      registration.id === "pi" &&
-      harnessArguments[0] === "update" &&
-      !isPiPackageUpdate(harnessArguments)
-    ) {
+    if (registration.id === "pi" && harnessArguments[0] === "update") {
       throw new LauncherError(
         "axon pi update is disabled: Axon pins its own Pi executable",
         LAUNCHER_EXIT_STATUS.usage,
         {
           remediation:
-            "Use axon pi update --extensions or axon pi update <source> for packages. Upgrade axon for a reviewed Pi version change.",
+            "Upgrade axon for a reviewed Pi version change; use pi directly for your separate global installation.",
         },
       );
     }
     // Interactive launches update in the foreground; RPC/JSON/scripted ones in a
     // detached, throttled worker that takes effect on the next launch.
-    await runStartupUpdate(harnessArguments, safehouseDisabled ? { safehouseDisabled } : {});
+    await runStartupUpdate(harnessArguments);
     await scheduleBackgroundUpdate(harnessArguments);
     const paths = resolveAxonPaths();
     const invocationKind = classifyPiInvocation(harnessArguments);
@@ -106,7 +72,6 @@ export async function dispatch(
     if (authentication === "cancelled") return;
     await launchRegisteredHarness(registration, harnessArguments, {
       authenticationDeferred: authentication === "deferred",
-      ...(safehouseDisabled ? { safehouseDisabled: true } : {}),
     });
     return;
   }

@@ -17,8 +17,6 @@ const POLL_INTERVAL_MS = 1_000;
 const CONTROL_TIMEOUT_MS = 5_000;
 const BROWSER_LOGIN_TIMEOUT_MS = 5 * 60_000;
 const STATUS_KEY = "axon-auth";
-// Keep this bus contract in sync with axon.ts; both extensions ship standalone.
-const AXON_SAFEHOUSE_EDITOR_CHANNEL = "axon:axon-safehouse-editor";
 
 const LOGIN_CHOICE = "Login from browser";
 const NOT_NOW_CHOICE = "Not now (keep chat open)";
@@ -358,10 +356,7 @@ function startAuthSession(
     }
   };
 
-  // Paseo attaches its event subscriber after the initial get_state response.
-  // A one-shot dialog emitted immediately from session_start can otherwise be lost.
-  if (rpc) timer = setTimeout(() => void poll(), settings.pollIntervalMs);
-  else void poll();
+  void poll();
   return {
     login() {
       command ??= runCommand().finally(() => {
@@ -396,22 +391,10 @@ export function createAxonAuth(options: AxonAuthOptions = {}): (pi: ExtensionAPI
 
   return function axonAuth(pi: ExtensionAPI): void {
     let session: AuthSession | undefined;
-    let activeContext: ExtensionContext | undefined;
     let lastRunFailed = false;
 
-    pi.events.on(AXON_SAFEHOUSE_EDITOR_CHANNEL, (open) => {
-      if (
-        !activeContext ||
-        (activeContext.mode !== "tui" && activeContext.mode !== "rpc") ||
-        typeof open !== "boolean"
-      )
-        return;
-      session?.stop();
-      session = open ? undefined : startAuthSession(activeContext, settings());
-    });
     pi.on("session_start", (_event, ctx) => {
       session?.stop();
-      activeContext = ctx;
       session = startAuthSession(ctx, settings());
     });
     pi.on("agent_end", (event) => {
@@ -429,7 +412,6 @@ export function createAxonAuth(options: AxonAuthOptions = {}): (pi: ExtensionAPI
     pi.on("session_shutdown", () => {
       session?.stop();
       session = undefined;
-      activeContext = undefined;
     });
 
     pi.registerCommand("axon-login", {

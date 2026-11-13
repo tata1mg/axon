@@ -51,7 +51,7 @@ async function digest(path: string): Promise<Digest> {
 
 async function reportedVersion(executable: string, target: ReleaseTarget): Promise<string> {
   try {
-    return (await run(executable, "--version")).split(" ", 1)[0] ?? "";
+    return await run(executable, "--version");
   } catch (error) {
     // Apple Silicon runs the cross-compiled x64 binary only through Rosetta.
     if (target === "darwin-x64" && process.arch === "arm64") {

@@ -1,5 +1,3 @@
-import { delimiter, dirname, join } from "node:path";
-
 import { BUILD_INFO } from "../../build-info.ts";
 import { createHarnessEnvironment, type EnvironmentOverrides } from "../../launcher/environment.ts";
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../../product/endpoints.ts";
@@ -12,9 +10,8 @@ const PI_PROCESS_OVERRIDES = Object.freeze({
   PI_AXON_CLI_VERSION: BUILD_INFO.version,
   // Only a live managed relay can supply a diagnostic destination.
   PI_AXON_RELAY_LOG_FILE: undefined,
-  // Backup storage is parent-owned; discard obsolete inherited locations too.
-  PI_AXON_BACKUP_SERVICE_ORIGIN: undefined,
-  PI_AXON_BACKUP_HOME: undefined,
+  // PI_* markers survive the launcher's final Axon-control-variable filter.
+  PI_AXON_BACKUP_SERVICE_ORIGIN: BUILD_INFO.serviceOrigin,
   PI_MODEL_RECOMMENDER_URL: resolveServiceUrl(
     BUILD_INFO.serviceOrigin,
     SERVICE_ENDPOINTS.models.recommendations,
@@ -74,7 +71,8 @@ const PI_PROVIDER_CREDENTIAL_REMOVALS: EnvironmentOverrides = Object.freeze(
 function createPiDirectoryOverrides(paths: AxonPaths): EnvironmentOverrides {
   return Object.freeze({
     PI_CODING_AGENT_DIR: paths.pi,
-    PI_CODING_AGENT_SESSION_DIR: paths.piSessionDirectory ?? paths.piSessions,
+    PI_CODING_AGENT_SESSION_DIR: paths.piSessions,
+    PI_AXON_BACKUP_HOME: paths.home,
   });
 }
 
@@ -83,18 +81,11 @@ export function createPiEnvironment(
   paths: AxonPaths,
   ...additionalOverrides: readonly EnvironmentOverrides[]
 ): NodeJS.ProcessEnv {
-  // Project Pi roots share the runtime's global helper binaries, including fd.
-  // Derive the selected release's Pi root without using the project-scoped paths.pi.
-  const sharedBin = join(dirname(paths.piRuntime), "pi", "bin");
-  const inheritedPath = inheritedEnvironment["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin";
   return createHarnessEnvironment(
     inheritedEnvironment,
     createPiDirectoryOverrides(paths),
     PI_PROCESS_OVERRIDES,
     {
-      PATH: [...new Set([sharedBin, ...inheritedPath.split(delimiter).filter(Boolean)])].join(
-        delimiter,
-      ),
       // Select once per launch; header renders and status updates keep the same tip.
       PI_AXON_STARTUP_TIP: randomStartupTip(),
       // The provider extension gives settings.json displayName precedence.

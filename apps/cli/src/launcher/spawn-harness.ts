@@ -1,4 +1,3 @@
-import type { AxonSafehouseRpcTransport } from "../axon-safehouse/rpc-configuration.ts";
 import { resolveAxonPaths } from "../product/paths.ts";
 import { flushProductTelemetry } from "../telemetry/client.ts";
 import { emitProductEvent } from "../telemetry/product-events.ts";
@@ -8,54 +7,17 @@ import { exitLikeChild, LAUNCHER_EXIT_STATUS } from "./exit-status.ts";
 
 const FORWARDED_SIGNALS = ["SIGTERM", "SIGHUP"] as const;
 
-/** Restart only a revoked profile; normal exits and user signals never relaunch. */
-export async function spawnHarness(
-  specification: LaunchSpec,
-  restart?: () => Promise<LaunchSpec>,
-  rpc?: AxonSafehouseRpcTransport,
-): Promise<never> {
-  let current = specification;
-  try {
-    while (true) {
-      const result = await runHarness(current, restart !== undefined, rpc);
-      if (!result.restart || !restart) return exitLikeChild(result);
-      try {
-        current = await restart();
-      } catch (error) {
-        // A failed rebuild must close the relay and invocation resources retained for restart.
-        current.dispose?.();
-        throw error;
-      }
-    }
-  } finally {
-    rpc?.dispose();
-  }
-}
-
-async function runHarness(
-  specification: LaunchSpec,
-  allowRestart: boolean,
-  rpc?: AxonSafehouseRpcTransport,
-): Promise<{
-  readonly exitCode: number | null;
-  readonly signalCode: NodeJS.Signals | number | null;
-  readonly restart: boolean;
-}> {
-  let subprocess: Bun.Subprocess<"inherit" | "pipe", "inherit" | "pipe", "inherit">;
+export async function spawnHarness(specification: LaunchSpec): Promise<never> {
+  let subprocess: Bun.Subprocess<"inherit", "inherit", "inherit">;
   let spawnError: Error | undefined;
   const startedAt = Date.now();
-  // A read-capable session needs its own group so revocation reaches extensions too.
-  // Terminal interrupts are forwarded explicitly because this group is not foreground.
-  const detached = specification.revoked !== undefined;
 
   try {
-    specification.revoked?.throwIfAborted();
     subprocess = Bun.spawn([specification.executable, ...specification.arguments], {
       cwd: specification.cwd,
       env: specification.environment,
-      detached,
-      stdin: rpc ? "pipe" : "inherit",
-      stdout: rpc ? "pipe" : "inherit",
+      stdin: "inherit",
+      stdout: "inherit",
       stderr: "inherit",
       onExit: (_subprocess, _exitCode, _signalCode, error) => {
         spawnError = error;
@@ -83,73 +45,33 @@ async function runHarness(
     outcome: "success",
     durationMs: Date.now() - startedAt,
   });
-  const signalGroup = (signal: NodeJS.Signals): void => {
-    try {
-      if (detached) process.kill(-subprocess.pid, signal);
-      else subprocess.kill(signal);
-    } catch (error) {
-      if (!(error instanceof Error && "code" in error && error.code === "ESRCH")) throw error;
-    }
-  };
-  let interrupted = false;
-  let revoked = false;
-  let restarting = false;
-  const revoke = (): void => {
-    revoked = true;
-    // SIGTERM would leave revoked file grants usable during shutdown hooks.
-    signalGroup("SIGKILL");
-  };
-  specification.revoked?.addEventListener("abort", revoke, { once: true });
-  if (specification.revoked?.aborted) revoke();
-  const terminalInterrupt = (): void => {
-    interrupted = true;
-    // Non-detached administrative commands already receive the foreground signal.
-    if (detached) signalGroup("SIGINT");
-  };
-  process.on("SIGINT", terminalInterrupt);
+  // The terminal sends SIGINT to the whole foreground process group, including the
+  // harness. Catch it in the wrapper so the harness can restore terminal state; do
+  // not forward it and accidentally deliver the signal twice.
+  const ignoreTerminalInterrupt = (): void => {};
+  process.on("SIGINT", ignoreTerminalInterrupt);
 
   const forwardingHandlers = new Map<NodeJS.Signals, () => void>();
   for (const signal of FORWARDED_SIGNALS) {
     const forwardSignal = (): void => {
-      interrupted = true;
       if (subprocess.exitCode === null && subprocess.signalCode === null) {
-        signalGroup(signal);
+        subprocess.kill(signal);
       }
     };
 
     forwardingHandlers.set(signal, forwardSignal);
     process.on(signal, forwardSignal);
   }
-  // A detached Pi has its own session, so the terminal resizes only Axon's foreground group.
-  // Forward resizes so the TUI re-lays out; this is not an interruption.
-  const forwardResize = (): void => {
-    if (subprocess.exitCode === null && subprocess.signalCode === null) signalGroup("SIGWINCH");
-  };
-  if (detached && !rpc) process.on("SIGWINCH", forwardResize);
 
   try {
-    if (rpc) {
-      if (!subprocess.stdin || !subprocess.stdout)
-        throw new Error("RPC transport requires private child stdin and stdout pipes");
-      rpc.attach(subprocess.stdin, subprocess.stdout);
-    }
     await subprocess.exited;
   } finally {
-    specification.revoked?.removeEventListener("abort", revoke);
-    process.off("SIGINT", terminalInterrupt);
+    process.off("SIGINT", ignoreTerminalInterrupt);
     for (const [signal, handler] of forwardingHandlers) {
       process.off(signal, handler);
     }
-    process.off("SIGWINCH", forwardResize);
-    // Reap extension descendants before granting the replacement profile.
-    if (detached) signalGroup("SIGKILL");
-    restarting = allowRestart && revoked && !interrupted && spawnError === undefined;
-    await rpc?.detach(restarting);
-    if (!restarting) {
-      rpc?.dispose();
-      await flushProductTelemetry(resolveAxonPaths(), specification.offline ?? false);
-    }
-    specification.dispose?.({ restarting });
+    await flushProductTelemetry(resolveAxonPaths(), specification.offline ?? false);
+    specification.dispose?.();
   }
 
   if (spawnError !== undefined) {
@@ -160,9 +82,8 @@ async function runHarness(
     );
   }
 
-  return {
+  return exitLikeChild({
     exitCode: subprocess.exitCode,
     signalCode: subprocess.signalCode,
-    restart: restarting,
-  };
+  });
 }

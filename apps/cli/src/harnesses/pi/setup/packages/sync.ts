@@ -1,6 +1,6 @@
 import { lstat } from "node:fs/promises";
 import { join } from "node:path";
-import { runAxonSafehouseCommand } from "../../../../axon-safehouse/session.ts";
+
 import type { HarnessLaunchContext } from "../../../../launcher/contracts.ts";
 import { LauncherError } from "../../../../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../../../launcher/exit-status.ts";
@@ -96,35 +96,48 @@ async function runPiPackageActionOnce(
   request: PiPackageActionRequest,
   environment: NodeJS.ProcessEnv,
 ): Promise<{ readonly exitCode: number }> {
-  const result = await runAxonSafehouseCommand(
-    context,
-    {
-      executable: context.executable,
-      arguments: [request.action, request.source],
-      cwd: context.cwd,
-      environment,
-    },
-    {
-      purpose: "provision",
-      writePaths: [
-        `${context.paths.pi}/npm`,
-        `${context.paths.pi}/git`,
-        `${context.paths.pi}/settings.json`,
-        `${context.paths.pi}/settings.json.lock`,
-      ],
-      // Keep successful provisioning quiet; expose captured output only on failure.
-      inheritOutput: false,
-    },
-  );
-  if (result.exitCode !== 0 || result.signalCode !== null) {
-    process.stderr.write(result.stdout + result.stderr);
+  // Pi, npm and git progress is noise on a successful launch; keep it for failures.
+  const subprocess = Bun.spawn([context.executable, request.action, request.source], {
+    cwd: context.cwd,
+    env: environment,
+    stdin: "ignore",
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const output = Promise.all([
+    new Response(subprocess.stdout).text(),
+    new Response(subprocess.stderr).text(),
+  ]);
+
+  const forwardingHandlers = new Map<NodeJS.Signals, () => void>();
+  for (const signal of ["SIGTERM", "SIGHUP"] as const) {
+    const handler = (): void => {
+      if (subprocess.exitCode === null && subprocess.signalCode === null) {
+        subprocess.kill(signal);
+      }
+    };
+    forwardingHandlers.set(signal, handler);
+    process.on(signal, handler);
   }
-  if (result.signalCode !== null)
-    throw new Error(`Pi package ${request.action} terminated by signal ${result.signalCode}`);
-  if (result.exitCode !== 0 && request.action === "install" && request.source.startsWith("npm:")) {
-    throw new NpmInstallFailure(result.exitCode, result.stdout + result.stderr);
+
+  try {
+    const exitCode = await subprocess.exited;
+    const [stdout, stderr] = await output;
+    if (exitCode !== 0 || subprocess.signalCode !== null) {
+      process.stderr.write(stdout + stderr);
+    }
+    if (subprocess.signalCode !== null) {
+      throw new Error(`Pi package ${request.action} terminated by signal ${subprocess.signalCode}`);
+    }
+    if (exitCode !== 0 && request.action === "install" && request.source.startsWith("npm:")) {
+      throw new NpmInstallFailure(exitCode, stdout + stderr);
+    }
+    return { exitCode };
+  } finally {
+    for (const [signal, handler] of forwardingHandlers) {
+      process.off(signal, handler);
+    }
   }
-  return { exitCode: result.exitCode };
 }
 
 function packageStateMatchesInspection(

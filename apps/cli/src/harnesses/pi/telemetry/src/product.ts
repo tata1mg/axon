@@ -19,8 +19,6 @@ export function recordProductEvent(
     ...(event.terminalShell ? { terminal_shell: event.terminalShell } : {}),
     ...(event.terminalSource ? { terminal_source: event.terminalSource } : {}),
     ...(event.yoloMode !== undefined ? { yolo_mode: event.yoloMode } : {}),
-    ...(event.safehouseSource ? { safehouse_source: event.safehouseSource } : {}),
-    ...(event.safehouseChange ? { safehouse_change: event.safehouseChange } : {}),
     ...(event.model ? { model: event.model } : {}),
     ...(event.rank !== undefined ? { selected_rank: event.rank } : {}),
     ...(event.policyVersion ? { policy_version: event.policyVersion } : {}),

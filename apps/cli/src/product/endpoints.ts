@@ -45,8 +45,6 @@ export const SERVICE_ENDPOINTS = Object.freeze({
   cli: Object.freeze({
     /** Authenticated, non-secret telemetry preferences. */
     config: defineEndpoint("/api/v1/cli/config"),
-    /** Public Axon Safehouse boundary only, allowing RPC to offer login inside Axon Safehouse. */
-    axonSafehouseBootstrap: defineEndpoint("/api/v1/cli/config/axon-safehouse-bootstrap"),
   }),
   pi: Object.freeze({
     /** Organization MCP catalog consumed by Pi setup. */

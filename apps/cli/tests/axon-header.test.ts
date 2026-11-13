@@ -140,9 +140,7 @@ describe("Axon prompt context", () => {
         handlers.get("before_agent_start")?.(event, {} as ExtensionContext);
         const guidance = options.sections["axon"] ?? "";
         expect(guidance).toContain("Axon Pi, not Pi directly");
-        expect(guidance).toContain(
-          "PI_CODING_AGENT_DIR (Axon's local project configuration directory)",
-        );
+        expect(guidance).toContain("PI_CODING_AGENT_DIR (normally ~/.axon/pi)");
         expect(guidance).toContain("not ~/.pi/agent");
         expect(guidance).toContain("MCP servers in mcp.json");
         expect(guidance).toContain("skills in skills/");
@@ -246,7 +244,7 @@ describe("Axon startup tips", () => {
     const output = text(component);
     expect(output.match(/\[Tips\]/g)).toHaveLength(1);
     expect(output).toContain(
-      " [Tips]\n Use /yolo to toggle approval-free terminal commands.\n Only when your policy allows it.",
+      " [Tips]\n   Use /yolo to toggle approval-free terminal commands.\n   Only when your policy allows it.",
     );
     expect(output.indexOf("[Tips]")).toBeGreaterThan(output.indexOf("/hotkeys"));
     expect(output.indexOf("[Tips]")).toBeGreaterThan(output.indexOf("──╯"));

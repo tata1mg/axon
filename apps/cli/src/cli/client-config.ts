@@ -1,15 +1,7 @@
 import { z } from "zod";
-import {
-  type AxonSafehousePolicy,
-  axonSafehousePolicySchema,
-} from "../axon-safehouse/contracts.ts";
 import { BUILD_INFO } from "../build-info.ts";
 import { isSingleCommandPrefix } from "../harnesses/pi/terminal-permissions/command-parser.ts";
-import {
-  resolveServiceUrl,
-  SERVICE_ENDPOINTS,
-  type ServiceEndpointPath,
-} from "../product/endpoints.ts";
+import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../product/endpoints.ts";
 import { emitProductEvent } from "../telemetry/product-events.ts";
 
 export const CLIENT_CONFIG_TIMEOUT_MS = 700;
@@ -137,7 +129,6 @@ const litellmClientSchema = z.strictObject({
   defaultContextWindow: optionalOverride(positiveInteger),
 });
 const featureSchemas = {
-  axonSafehouse: axonSafehousePolicySchema,
   pi: piSchema,
   telemetry: telemetrySchema,
   webSearch: webSearchSchema,
@@ -231,43 +222,21 @@ export interface ClientConfigFetchOptions {
 }
 
 /** No cache, redirects, or body/header logging. Only successful responses may rotate auth. */
-export function fetchClientConfig(
+export async function fetchClientConfig(
   encryptedSession: string,
   options: ClientConfigFetchOptions = {},
-): Promise<ClientConfigResult> {
-  return fetchConfigResponse(encryptedSession, SERVICE_ENDPOINTS.cli.config, options);
-}
-
-/** A public policy is a startup boundary, never proof of an authenticated session. */
-export async function fetchAxonSafehouseBootstrap(
-  options: ClientConfigFetchOptions = {},
-): Promise<AxonSafehousePolicy | undefined> {
-  const result = await fetchConfigResponse(
-    undefined,
-    SERVICE_ENDPOINTS.cli.axonSafehouseBootstrap,
-    options,
-  );
-  return result.config?.axonSafehouse;
-}
-
-async function fetchConfigResponse(
-  encryptedSession: string | undefined,
-  endpoint: ServiceEndpointPath,
-  options: ClientConfigFetchOptions,
 ): Promise<ClientConfigResult> {
   let response: Response | undefined;
   const startedAt = Date.now();
   const signal = AbortSignal.timeout(options.timeoutMs ?? CLIENT_CONFIG_TIMEOUT_MS);
   try {
     response = await (options.fetcher ?? fetch)(
-      resolveServiceUrl(options.serviceOrigin ?? BUILD_INFO.serviceOrigin, endpoint),
+      resolveServiceUrl(
+        options.serviceOrigin ?? BUILD_INFO.serviceOrigin,
+        SERVICE_ENDPOINTS.cli.config,
+      ),
       {
-        headers: {
-          accept: "application/json",
-          ...(encryptedSession === undefined
-            ? {}
-            : { authorization: `Bearer ${encryptedSession}` }),
-        },
+        headers: { accept: "application/json", authorization: `Bearer ${encryptedSession}` },
         redirect: "error",
         cache: "no-store",
         signal,
@@ -285,10 +254,7 @@ async function fetchConfigResponse(
     }
     const refreshed = response.headers.get("x-session-refresh-token");
     const sessionRefreshToken =
-      encryptedSession !== undefined &&
-      refreshed &&
-      refreshed.length <= 8192 &&
-      /^[\x21-\x7e]+$/.test(refreshed)
+      refreshed && refreshed.length <= 8192 && /^[\x21-\x7e]+$/.test(refreshed)
         ? refreshed
         : undefined;
     const rotation = sessionRefreshToken ? { sessionRefreshToken } : {};

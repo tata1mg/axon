@@ -14,13 +14,12 @@ import {
   toggleYoloPreference,
   watchYoloPreference,
 } from "../../terminal-permissions/preferences.ts";
-import { createAxonSafehouseShellOperations, reviewAxonSafehouseAccessRequest } from "./axon.ts";
 
 /**
  * Standard auto-runs supported commands unless the model or policy requests review.
  * YOLO skips review, including for wrappers and complex shell syntax. Backend
  * yoloMode only grants eligibility; /yolo toggles a saved preference shared by local sessions.
- * Literal-prefix blocklists are best-effort, not OS isolation: scripts, wrappers,
+ * Literal-prefix blocklists are best-effort, not an OS sandbox: scripts, wrappers,
  * and other extensions can perform arbitrary work.
  *
  * PI_TERMINAL_REQUIRE_APPROVAL_COMMANDS='["rm","sudo"]'
@@ -234,7 +233,7 @@ function decide(
     return { action: "block", reason: "blocked_command" };
   }
   // YOLO deliberately allows unknown syntax and wrappers, even when blocked
-  // work could be hidden behind them. This check is best-effort, not OS isolation.
+  // work could be hidden behind them. This check is best-effort, not a sandbox.
   if (yoloMode) return { action: "allow", reason: "yolo_mode" };
   if (shell !== "bash" || commands === undefined) {
     return config.blockedCommands.length > 0
@@ -293,13 +292,9 @@ function registerShellTools(pi: ExtensionAPI): void {
         const shellPath = configuredPath?.startsWith("~/")
           ? join(homedir(), configuredPath.slice(2))
           : configuredPath;
-        const operations = createAxonSafehouseShellOperations(shellPath, (id) =>
-          reviewAxonSafehouseAccessRequest(pi, id, ctx, signal),
-        );
         const executionTool =
           shell === "bash"
             ? createBashToolDefinition(ctx.cwd, {
-                ...(operations ? { operations } : {}),
                 ...(shellPath ? { shellPath } : {}),
                 ...(settings.shellCommandPrefix
                   ? { commandPrefix: settings.shellCommandPrefix }
@@ -583,14 +578,7 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
     const reason = await authorize(event.command, "bash", event.cwd, ctx, "user_bash");
     // Throwing blocks user-bash instead of falling through to Pi's native execution.
     if (reason !== undefined) throw new Error(reason);
-    const configuredPath = pi.getSettings().shellPath;
-    const shellPath = configuredPath?.startsWith("~/")
-      ? join(homedir(), configuredPath.slice(2))
-      : configuredPath;
-    const operations = createAxonSafehouseShellOperations(shellPath, (id) =>
-      reviewAxonSafehouseAccessRequest(pi, id, ctx),
-    );
-    return operations ? { operations } : undefined;
+    return undefined;
   });
 
   pi.on("session_shutdown", () => {
@@ -600,11 +588,11 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
 
   pi.registerCommand("yolo", {
     description:
-      "Toggle saved autonomous terminal execution for this project's sessions (if backend permits)",
+      "Toggle saved autonomous terminal execution for all local sessions (if backend permits)",
     handler: async (args, ctx) => {
       if (args.trim()) {
         ctx.ui.notify(
-          "Usage: /yolo (toggles the saved on/off preference for this project)",
+          "Usage: /yolo (toggles saved on/off preference for all local sessions)",
           "warning",
         );
         return;
@@ -654,8 +642,8 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
       });
       ctx.ui.notify(
         savedEnabled
-          ? "YOLO on for this project's current and future sessions: terminal commands run without approval where policy permits. Blocklists are best-effort, not OS isolation. Run /yolo to turn off."
-          : "YOLO off for this project: Standard mode restored for subsequent commands.",
+          ? "YOLO on for all local sessions, including future sessions: terminal commands run without approval where policy permits. Blocklists are best-effort, not a sandbox. Run /yolo to turn off."
+          : "YOLO off for all local sessions: Standard mode restored for subsequent commands.",
         savedEnabled ? "warning" : "info",
       );
     },

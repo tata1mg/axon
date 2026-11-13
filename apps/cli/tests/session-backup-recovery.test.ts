@@ -8,7 +8,6 @@ import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-c
 
 import { saveEncryptedSession } from "../src/cli/auth/session.ts";
 import sessionBackupExtension, { backupWarning } from "../src/harnesses/pi/session-backup/index.ts";
-import { BackupRelayClient } from "../src/harnesses/pi/session-backup/relay-client.ts";
 import { withFileLock } from "../src/launcher/file-lock.ts";
 import { type AxonPaths, resolveAxonPaths } from "../src/product/paths.ts";
 import { BackupApi, BackupApiError } from "../src/sessions/api.ts";
@@ -360,13 +359,15 @@ describe("backup diagnostics", () => {
   test("slash status reports a local queue warning rather than blaming login/storage", async () => {
     const item = await queue();
     await writeFile(item.path, "{broken");
-    const oldOrigin = process.env["PI_AXON_AUTH_RELAY_URL"];
-    const oldCapability = process.env["PI_AXON_AUTH_RELAY_KEY"];
-    process.env["PI_AXON_AUTH_RELAY_URL"] = "http://127.0.0.1:43210";
-    process.env["PI_AXON_AUTH_RELAY_KEY"] = "backup-recovery-fixture-capability";
-    const status = spyOn(BackupRelayClient.prototype, "status").mockImplementation(() =>
-      backups.status(),
-    );
+    const oldOrigin = process.env["PI_AXON_BACKUP_SERVICE_ORIGIN"];
+    const oldHome = process.env["PI_AXON_BACKUP_HOME"];
+    const oldUserHome = process.env["HOME"];
+    process.env["HOME"] = root;
+    process.env["PI_AXON_BACKUP_SERVICE_ORIGIN"] = origin;
+    process.env["PI_AXON_BACKUP_HOME"] = root;
+    const fetcher = spyOn(globalThis, "fetch").mockImplementation((async (
+      _input: string | URL | Request,
+    ) => Response.json({ enabled: true, owner_user_id: "1" })) as typeof fetch);
     const notices: { message: string; level: string }[] = [];
     let handler: ((args: string, ctx: ExtensionCommandContext) => Promise<void>) | undefined;
     try {
@@ -391,11 +392,13 @@ describe("backup diagnostics", () => {
       expect(notices[0]?.message).not.toContain("check login");
       expect(calls.every((path) => path === "/api/v1/sessions/status")).toBe(true); // Policy checks only; no uploads.
     } finally {
-      status.mockRestore();
-      if (oldOrigin === undefined) delete process.env["PI_AXON_AUTH_RELAY_URL"];
-      else process.env["PI_AXON_AUTH_RELAY_URL"] = oldOrigin;
-      if (oldCapability === undefined) delete process.env["PI_AXON_AUTH_RELAY_KEY"];
-      else process.env["PI_AXON_AUTH_RELAY_KEY"] = oldCapability;
+      fetcher.mockRestore();
+      if (oldUserHome === undefined) delete process.env["HOME"];
+      else process.env["HOME"] = oldUserHome;
+      if (oldOrigin === undefined) delete process.env["PI_AXON_BACKUP_SERVICE_ORIGIN"];
+      else process.env["PI_AXON_BACKUP_SERVICE_ORIGIN"] = oldOrigin;
+      if (oldHome === undefined) delete process.env["PI_AXON_BACKUP_HOME"];
+      else process.env["PI_AXON_BACKUP_HOME"] = oldHome;
     }
   });
 
@@ -405,56 +408,38 @@ describe("backup diagnostics", () => {
       import.meta.dir,
       "../src/harnesses/pi/resources/extensions/session-backup.mjs",
     );
-    const capability = "native-backup-recovery-fixture-capability";
-    const relay = Bun.serve({
-      hostname: "127.0.0.1",
-      port: 0,
-      async fetch(request) {
-        if (
-          new URL(request.url).pathname !== "/_axon/backups/status" ||
-          request.method !== "POST" ||
-          request.headers.get("authorization") !== `Bearer ${capability}`
-        ) {
-          return new Response(null, { status: 404 });
-        }
-        return Response.json({ status: await backups.status() });
-      },
-    });
     const script = `
+      globalThis.fetch = async () => Response.json({ enabled: true, owner_user_id: "1" });
       const { default: factory } = await import(${JSON.stringify(bundle)});
       const commands = new Map(); const notices = [];
       factory({ on() {}, events: { emit() {} }, registerCommand(name, command) { commands.set(name, command); } });
       await commands.get("axon-backups").handler("status", { hasUI: true, ui: { notify(message, level) { notices.push({ message, level }); }, setStatus() {} } });
       console.log(JSON.stringify(notices));
     `;
-    try {
-      const child = Bun.spawn(["node", "--input-type=module", "-e", script], {
-        env: {
-          ...process.env,
-          HOME: root,
-          PI_AXON_AUTH_RELAY_URL: relay.url.origin,
-          PI_AXON_AUTH_RELAY_KEY: capability,
-        },
-        stdout: "pipe",
-        stderr: "pipe",
-      });
-      const [stdout, stderr, code] = await Promise.all([
-        new Response(child.stdout).text(),
-        new Response(child.stderr).text(),
-        child.exited,
-      ]);
-      expect(stderr).toBe("");
-      expect(code).toBe(0);
-      expect(JSON.parse(stdout)[0]).toEqual({
-        message: "Backups enabled; last confirmed: none; pending streams: 1; paused: 0",
-        level: "info",
-      });
-      expect(JSON.parse(await readFile(item.path, "utf8")).next.snapshot.display_name).toBe(
-        "Archive title",
-      );
-      expect(await readFile(item.file)).toEqual(item.compressed);
-    } finally {
-      await relay.stop(true);
-    }
+    const child = Bun.spawn(["node", "--input-type=module", "-e", script], {
+      env: {
+        ...process.env,
+        HOME: root,
+        PI_AXON_BACKUP_SERVICE_ORIGIN: origin,
+        PI_AXON_BACKUP_HOME: root,
+      },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const [stdout, stderr, code] = await Promise.all([
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+      child.exited,
+    ]);
+    expect(stderr).toBe("");
+    expect(code).toBe(0);
+    expect(JSON.parse(stdout)[0]).toEqual({
+      message: "Backups enabled; last confirmed: none; pending streams: 1; paused: 0",
+      level: "info",
+    });
+    expect(JSON.parse(await readFile(item.path, "utf8")).next.snapshot.display_name).toBe(
+      "Archive title",
+    );
+    expect(await readFile(item.file)).toEqual(item.compressed);
   });
 });

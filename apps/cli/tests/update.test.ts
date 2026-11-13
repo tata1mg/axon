@@ -122,24 +122,20 @@ async function startup(
   f: Fixture,
   args: readonly string[] = [],
   environment: NodeJS.ProcessEnv = {},
-  safehouseDisabled = false,
 ) {
-  const messages: string[] = [];
   const warnings: string[] = [];
   const restarts: (readonly string[])[] = [];
   await runStartupUpdate(args, {
     context: f.context,
     invocation: interactive,
     environment,
-    info: (message) => messages.push(message),
     warn: (message) => warnings.push(message),
     restart: async (_context, argumentsVector) => {
       restarts.push(argumentsVector);
     },
     progress: silent,
-    safehouseDisabled,
   });
-  return { messages, warnings, restarts };
+  return { warnings, restarts };
 }
 
 describe("startup updates", () => {
@@ -150,25 +146,14 @@ describe("startup updates", () => {
     const result = await startup(f, args);
     expect(await Bun.file(f.paths.managedBinary).text()).toContain(version);
     expect(result.restarts).toEqual([["pi", ...args]]);
-    expect(result.messages).toEqual([
-      `axon: updated to ${version}; continuing with the new version.`,
-    ]);
-    expect(result.warnings).toEqual([]);
-  });
-
-  test("restarts the updated launcher with --no-safehouse when the launch opted out", async () => {
-    const f = await fixture();
-    const args = ["--resume", "session-id"];
-    const result = await startup(f, args, {}, true);
-    expect(result.restarts).toEqual([["pi", "--no-safehouse", ...args]]);
-    expect(result.warnings).toEqual([]);
+    expect(result.warnings[0]).toContain(`updated to ${version}`);
   });
 
   test("checks every launch without restarting an up-to-date or newer binary", async () => {
     const f = await fixture();
     for (const latest of ["0.1.0", "0.0.9", "0.1.0"]) {
       f.setVersion(latest);
-      expect(await startup(f)).toEqual({ messages: [], warnings: [], restarts: [] });
+      expect(await startup(f)).toEqual({ warnings: [], restarts: [] });
     }
     expect(f.requests).toHaveLength(3);
     expect(await Bun.file(f.paths.managedBinary).text()).toBe(oldBinary);
@@ -185,7 +170,6 @@ describe("startup updates", () => {
           : f,
       );
       expect(result.restarts).toEqual([]);
-      expect(result.messages).toEqual([]);
       expect(result.warnings).toHaveLength(1);
       expect(result.warnings[0]).toContain("continuing with the current version");
       expect(await Bun.file(f.paths.managedBinary).text()).toBe(oldBinary);
@@ -210,7 +194,7 @@ describe("startup updates", () => {
     await ready;
     try {
       const startedAt = Date.now();
-      expect(await startup(f)).toEqual({ messages: [], warnings: [], restarts: [] });
+      expect(await startup(f)).toEqual({ warnings: [], restarts: [] });
       expect(Date.now() - startedAt).toBeLessThan(5_000);
       expect(await Bun.file(f.paths.managedBinary).text()).toBe(oldBinary);
     } finally {
@@ -229,28 +213,12 @@ describe("startup updates", () => {
     const args = ["hello"];
     const result = await startup(f, args);
     expect(result.restarts).toEqual([["pi", ...args]]);
-    expect(result.messages).toEqual([
+    expect(result.warnings).toEqual([
       `axon: updated to ${version}; continuing with the new version.`,
     ]);
-    expect(result.warnings).toEqual([]);
     expect(f.requests.some((path) => path.endsWith(assets.archive) || path === "/archive")).toBe(
       false,
     );
-  });
-
-  test("never replaces a newer release another process installed with an older one", async () => {
-    const f = await fixture();
-    const newer = "99.0.0";
-    const replacement = join(f.paths.bin, "replacement");
-    await Bun.write(replacement, `#!/bin/sh\nprintf '%s\\n' '${newer}'\n`);
-    await chmod(replacement, 0o700);
-    await rename(replacement, f.paths.managedBinary);
-    await startup(f, ["hello"]);
-    expect(f.requests.some((path) => path.endsWith(assets.archive) || path === "/archive")).toBe(
-      false,
-    );
-    const probe = Bun.spawnSync([f.paths.managedBinary]);
-    expect(probe.stdout.toString().trim()).toBe(newer);
   });
 
   test("shows check, download, and verify progress, clearing it before the outcome", async () => {
@@ -266,26 +234,17 @@ describe("startup updates", () => {
         context: f.context,
         invocation: interactive,
         environment: {},
-        info: (message) => events.push(`info: ${message}`),
         warn: (message) => events.push(`warn: ${message}`),
         restart: async () => {},
         progress: recordingProgress(events),
       });
       expect(events.slice(0, expected.length)).toEqual([...expected]);
       expect(events.length - expected.length).toBe(latest === "0.1.0" ? 0 : 1);
-      if (latest === version) {
-        expect(events.at(-1)).toBe(
-          `info: axon: updated to ${version}; continuing with the new version.`,
-        );
-      } else if (latest === "invalid") {
-        expect(events.at(-1)).toStartWith("warn:");
-      }
     }
   });
 
   test("warns and continues if the updated launcher cannot start", async () => {
     const f = await fixture();
-    const messages: string[] = [];
     const warnings: string[] = [];
     await runStartupUpdate([], {
       context: f.context,
@@ -294,13 +253,10 @@ describe("startup updates", () => {
       restart: async () => {
         throw new Error("spawn failed");
       },
-      info: (message) => messages.push(message),
       warn: (message) => warnings.push(message),
       progress: silent,
     });
-    expect(messages).toHaveLength(1);
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain("could not start the updated launcher");
+    expect(warnings.at(-1)).toContain("could not start the updated launcher");
   });
 
   test("skips offline, opted-out, administrative, scripted, CI, and source launches", async () => {
@@ -314,7 +270,7 @@ describe("startup updates", () => {
       ["-p", "hi"],
       ["--mode", "rpc"],
     ]) {
-      expect(await startup(f, args)).toEqual({ messages: [], warnings: [], restarts: [] });
+      expect(await startup(f, args)).toEqual({ warnings: [], restarts: [] });
     }
     await startup(f, [], { AXON_NO_UPDATE: "1" });
     await startup(f, [], { PI_OFFLINE: "true" });
@@ -333,7 +289,7 @@ describe("startup updates", () => {
     expect(f.requests).toEqual([]);
   });
 
-  test("real relaunch writes success only to stdout and preserves arguments, cwd, environment, and child exit/signal", async () => {
+  test("real relaunch preserves arguments, cwd, environment, and child exit/signal", async () => {
     for (const signal of [false, true]) {
       const f = await fixture(
         version,
@@ -364,15 +320,12 @@ describe("startup updates", () => {
         new Response(child.stderr).text(),
         child.exited,
       ]);
-      expect(error).toBe("");
-      expect(output.split("\n")[0]).toBe(
-        `axon: updated to ${version}; continuing with the new version.`,
-      );
+      expect(error).toContain(`updated to ${version}`);
       if (signal) {
         expect(child.signalCode).toBe("SIGTERM");
       } else {
         expect(child.exitCode).toBe(42);
-        expect(output.trim().split("\n").slice(1)).toEqual([
+        expect(output.trim().split("\n")).toEqual([
           await realpath(f.paths.home),
           "inherited",
           "pi",

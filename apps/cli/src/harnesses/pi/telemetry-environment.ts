@@ -4,7 +4,6 @@ import { BUILD_INFO } from "../../build-info.ts";
 import type { TelemetryConfig } from "../../cli/client-config.ts";
 import type { EnvironmentOverrides } from "../../launcher/environment.ts";
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../../product/endpoints.ts";
-import { releaseChannelForVersion } from "../../product/release-channel.ts";
 import { createTelemetryBatchEnvironment } from "../../telemetry/batching.ts";
 
 export function isTelemetryDisabled(environment: NodeJS.ProcessEnv): boolean {
@@ -56,7 +55,6 @@ export function createTelemetryOverrides(
     OTEL_TRACES_SAMPLER: "parentbased_traceidratio",
     OTEL_TRACES_SAMPLER_ARG: String(telemetry.traceSampleRatio),
     OTEL_METRIC_EXPORT_INTERVAL: String(telemetry.metricExportIntervalMs),
-    OTEL_RESOURCE_ATTRIBUTES: `axon.cli.version=${encodeURIComponent(BUILD_INFO.version)},axon.release.channel=${releaseChannelForVersion(BUILD_INFO.version)}`,
     ...createTelemetryBatchEnvironment(telemetry),
   };
   const transportFields = [

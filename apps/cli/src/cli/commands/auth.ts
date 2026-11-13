@@ -6,13 +6,11 @@ import { isCancel, select } from "@clack/prompts";
 import { BUILD_INFO } from "../../build-info.ts";
 import { LauncherError } from "../../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
-import { withFileLock } from "../../launcher/file-lock.ts";
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../../product/endpoints.ts";
 import type { AxonPaths } from "../../product/paths.ts";
 import { emitProductEvent } from "../../telemetry/product-events.ts";
 import {
   clearEncryptedSession,
-  InvalidSessionContentError,
   loadEncryptedSession,
   saveEncryptedSession,
 } from "../auth/session.ts";
@@ -27,8 +25,6 @@ export interface AuthLoginOptions {
   readonly browser?: boolean;
   /** Pi owns the terminal during in-chat login; report progress through its UI instead. */
   readonly quiet?: boolean;
-  /** Recovery rechecks under the shared browser lock before opening another tab. */
-  readonly reuseExistingSession?: boolean;
   readonly signal?: AbortSignal;
 }
 
@@ -133,18 +129,7 @@ async function openBrowser(url: string): Promise<void> {
   });
 }
 
-async function loadLoginSession(paths: AxonPaths): Promise<string | undefined> {
-  try {
-    return await loadEncryptedSession(paths);
-  } catch (error) {
-    // Selected login can repair invalid contents, but must not bypass unsafe storage.
-    if (!(error instanceof InvalidSessionContentError)) throw error;
-    return undefined;
-  }
-}
-
 async function runAuthLoginInternal(paths: AxonPaths, options: AuthLoginOptions): Promise<boolean> {
-  const previousSession = await loadLoginSession(paths);
   if (!options.browser) {
     if (!process.stdin.isTTY || !process.stdout.isTTY) {
       throw new LauncherError(
@@ -162,54 +147,29 @@ async function runAuthLoginInternal(paths: AxonPaths, options: AuthLoginOptions)
 
   const endpoint = loginEndpoint();
   try {
-    // All Axon homes/chats for this OS user share one browser transaction. Do not
-    // hold the credential write lock while waiting for browser approval.
-    return await withFileLock(
-      `${paths.sharedAuthLock}.browser`,
-      async () => {
-        const currentSession = await loadLoginSession(paths);
-        if (
-          currentSession !== undefined &&
-          (options.reuseExistingSession || currentSession !== previousSession) &&
-          (await verifyEncryptedSession(
-            currentSession,
-            paths,
-            options.signal === undefined ? {} : { signal: options.signal },
-          )) === "VERIFIED"
-        ) {
-          options.signal?.throwIfAborted();
-          return true;
-        }
-        const login = await startBrowserLogin(endpoint, options.signal);
-        const controller = new AbortController();
-        const signal = AbortSignal.any([
-          controller.signal,
-          ...(options.signal === undefined ? [] : [options.signal]),
-        ]);
-        const timeout = setTimeout(() => controller.abort(), LOGIN_TIMEOUT_MS);
-        try {
-          // Start the CLI-side polling before asking the OS to open the browser.
-          const polling = pollEncryptedSession(endpoint, login.session_id, signal);
-          void polling.catch(() => {});
-          signal.throwIfAborted();
-          await openBrowser(login.browser_url);
-          if (!options.quiet)
-            console.log("Complete login in your browser; waiting for approval...");
-          const encryptedSession = await polling;
-          signal.throwIfAborted();
-          await saveEncryptedSession(paths, encryptedSession, undefined, signal);
-          if (!options.quiet) console.log("Axon encrypted session saved locally.");
-          return true;
-        } finally {
-          clearTimeout(timeout);
-          controller.abort();
-        }
-      },
-      {
-        timeoutMs: LOGIN_TIMEOUT_MS + REQUEST_TIMEOUT_MS,
-        ...(options.signal === undefined ? {} : { signal: options.signal }),
-      },
-    );
+    const login = await startBrowserLogin(endpoint, options.signal);
+    const controller = new AbortController();
+    const signal = AbortSignal.any([
+      controller.signal,
+      ...(options.signal === undefined ? [] : [options.signal]),
+    ]);
+    const timeout = setTimeout(() => controller.abort(), LOGIN_TIMEOUT_MS);
+    try {
+      // Start the CLI-side polling before asking the OS to open the browser.
+      const polling = pollEncryptedSession(endpoint, login.session_id, signal);
+      void polling.catch(() => {});
+      signal.throwIfAborted();
+      await openBrowser(login.browser_url);
+      if (!options.quiet) console.log("Complete login in your browser; waiting for approval...");
+      const encryptedSession = await polling;
+      signal.throwIfAborted();
+      await saveEncryptedSession(paths, encryptedSession);
+      if (!options.quiet) console.log("Axon encrypted session saved locally.");
+      return true;
+    } finally {
+      clearTimeout(timeout);
+      controller.abort();
+    }
   } catch {
     // Never include upstream responses, browser URLs, or session data in CLI errors.
     throw new LauncherError(

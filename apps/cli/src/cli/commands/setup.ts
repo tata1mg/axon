@@ -1,22 +1,15 @@
-import { isBlockedProjectDirectory } from "../../axon-safehouse/filesystem.ts";
-import { withAxonSafehouseSession } from "../../axon-safehouse/session.ts";
 import { synchronizePiMcpConfig } from "../../harnesses/pi/setup/mcp-config.ts";
 import { synchronizePiPackages } from "../../harnesses/pi/setup/packages/sync.ts";
 import { materializePiResources } from "../../harnesses/pi/setup/resources.ts";
 import { loadHarnessAdapter, resolveHarnessRegistration } from "../../harnesses/registry.ts";
 import type { PaseoSetupOptions } from "../../integrations/paseo.ts";
-import type {
-  HarnessLaunchContext,
-  HarnessRegistration,
-  LaunchContext,
-} from "../../launcher/contracts.ts";
+import type { HarnessLaunchContext, LaunchContext } from "../../launcher/contracts.ts";
 import { LauncherError } from "../../launcher/errors.ts";
 import { resolveExecutablePath } from "../../launcher/executable.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
 import { PRODUCT_IDENTITY } from "../../product/identity.ts";
 import { AXON_MANIFEST, EMBEDDED_PI_RESOURCES } from "../../product/manifest.ts";
 import { resolveAxonPaths } from "../../product/paths.ts";
-import { resolveProjectAxonPaths } from "../../product/project-paths.ts";
 import { runPaseoSetup } from "./setup-paseo.ts";
 
 export interface SetupOptions extends PaseoSetupOptions {
@@ -60,20 +53,11 @@ export async function runSetup(
     );
   }
 
-  const sharedPaths = resolveAxonPaths(environment);
-  const paths = (await isBlockedProjectDirectory(sharedPaths, cwd))
-    ? sharedPaths
-    : await resolveProjectAxonPaths(sharedPaths, cwd);
-  return withAxonSafehouseSession({ cwd, environment, paths }, (context) =>
-    runAxonSafehouseSetup(registration, context),
-  );
-}
-
-async function runAxonSafehouseSetup(
-  registration: HarnessRegistration,
-  launchContext: LaunchContext,
-): Promise<void> {
-  const { cwd, environment } = launchContext;
+  const launchContext: LaunchContext = Object.freeze({
+    cwd,
+    environment,
+    paths: resolveAxonPaths(environment),
+  });
   const adapter = await loadHarnessAdapter(registration.id);
   // Explicit setup installs the isolated exact-version Pi runtime when absent.
   const executable =

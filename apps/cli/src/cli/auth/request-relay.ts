@@ -1,12 +1,9 @@
 import { timingSafeEqual } from "node:crypto";
-import { createAxonSafehouseConfigurationRelay } from "../../axon-safehouse/configuration-relay.ts";
-import type { AxonSafehousePolicy } from "../../axon-safehouse/policy.ts";
+
 import { BUILD_INFO } from "../../build-info.ts";
 import { applyPiDefaults } from "../../harnesses/pi/settings-defaults.ts";
-import type { AxonSafehouseResumeSession } from "../../launcher/contracts.ts";
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../../product/endpoints.ts";
 import type { AxonPaths } from "../../product/paths.ts";
-import { createBackupRelay } from "../../sessions/relay.ts";
 import { emitProductEvent } from "../../telemetry/product-events.ts";
 import { fetchClientConfig } from "../client-config.ts";
 import {
@@ -464,15 +461,6 @@ export function startAuthenticatedRequestRelay(
   paths: AxonPaths,
   options: {
     readonly allowPiConfigRefresh?: boolean;
-    readonly allowTelemetry?: boolean;
-    readonly allowAxonSafehouseConfiguration?: boolean;
-    /** Required for /safehouse saves: validates against the invocation's compiled policy. */
-    readonly axonSafehouseConfigurationPolicy?: () => Promise<AxonSafehousePolicy>;
-    /** Display only: lets /safehouse show administrator grants without refetching. */
-    readonly axonSafehouseStartupPolicy?: AxonSafehousePolicy;
-    readonly prepareAxonSafehouseRestart?: (session: AxonSafehouseResumeSession) => () => void;
-    readonly axonSafehouseOperation?: (request: Request) => Promise<Response>;
-    readonly cwd?: string;
     readonly signedOut?: SessionRecoveryOptions["signedOut"];
   } = {},
 ): AuthenticatedRequestRelay {
@@ -484,18 +472,6 @@ export function startAuthenticatedRequestRelay(
   const diagnostics = createRelayDiagnostics(paths);
   diagnostics.protectSecret(capability);
   const session = createRelaySession(paths, diagnostics.protectSecret);
-  const backupRelay = createBackupRelay(paths);
-  // Without the invocation's policy check the editor fails closed instead of using a fresh policy.
-  const axonSafehouseConfiguration =
-    options.allowAxonSafehouseConfiguration && options.axonSafehouseConfigurationPolicy
-      ? createAxonSafehouseConfigurationRelay(
-          paths,
-          options.cwd ?? process.cwd(),
-          options.axonSafehouseConfigurationPolicy,
-          options.prepareAxonSafehouseRestart,
-          options.axonSafehouseStartupPolicy,
-        )
-      : undefined;
   const server = Bun.serve({
     hostname: "127.0.0.1",
     port: 0,
@@ -516,15 +492,6 @@ export function startAuthenticatedRequestRelay(
         // Control calls never wait for authentication work so Pi can approve a pending login.
         const controlResponse = await recovery.handle(request, url);
         if (controlResponse !== undefined) return controlResponse;
-        if (url.pathname === "/_axon/axon-safehouse/execute") {
-          if (!options.axonSafehouseOperation || request.method !== "POST" || url.search !== "")
-            return relayError(404, "Axon endpoint is not available");
-          return await options.axonSafehouseOperation(request);
-        }
-        if (url.pathname.startsWith("/_axon/axon-safehouse/")) {
-          if (!axonSafehouseConfiguration) return relayError(404, "Axon endpoint is not available");
-          return await axonSafehouseConfiguration.handle(request, url);
-        }
         if (url.pathname === "/_axon/pi-defaults/refresh") {
           if (!options.allowPiConfigRefresh || request.method !== "POST" || url.search !== "") {
             return relayError(404, "Axon endpoint is not available");
@@ -539,15 +506,7 @@ export function startAuthenticatedRequestRelay(
             );
           }
         }
-        const backupResponse = await backupRelay(request, url);
-        if (backupResponse !== undefined) return backupResponse;
-        const telemetryAllowed =
-          options.allowTelemetry === true &&
-          request.method === "POST" &&
-          url.search === "" &&
-          /^\/api\/v1\/otel\/v1\/(traces|metrics|logs)$/.test(url.pathname);
         const allowed =
-          telemetryAllowed ||
           url.pathname.startsWith("/litellm/") ||
           (url.pathname === SERVICE_ENDPOINTS.models.recommendations && request.method === "POST");
         if (!allowed) return relayError(404, "Axon endpoint is not available");
@@ -574,7 +533,6 @@ export function startAuthenticatedRequestRelay(
     diagnosticsLogFile: diagnostics.logFile,
     diagnosticsLogLabel: diagnostics.logLabel,
     dispose: () => {
-      axonSafehouseConfiguration?.dispose();
       recovery.dispose();
       void server.stop(true);
     },

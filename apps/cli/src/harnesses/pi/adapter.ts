@@ -1,6 +1,3 @@
-import { createAxonSafehouseOperations } from "../../axon-safehouse/operations.ts";
-import { axonSafehouseFailure } from "../../axon-safehouse/policy.ts";
-import { skipWithoutAxonSafehouse } from "../../axon-safehouse/tooling.ts";
 import {
   type AuthenticatedRequestRelay,
   startAuthenticatedRequestRelay,
@@ -77,8 +74,7 @@ export function createPiAdapter(): HarnessAdapter {
             context.paths,
             resolveConfiguredPiVersion(context.environment),
           );
-          if (context.paths.projectDirectory === undefined)
-            await applyPiProviderDefaults(context.paths);
+          await applyPiProviderDefaults(context.paths);
         } catch (error) {
           // Lock timeouts in `cause` are rendered with owner details by the top-level handler.
           throw new LauncherError(
@@ -98,19 +94,15 @@ export function createPiAdapter(): HarnessAdapter {
           );
         }
         let config: ClientConfig | undefined;
-        // The mandatory Axon Safehouse fetch already contains these preferences. Reuse it only
-        // for the same verified credential; identity changes require fresh authorization.
-        if (encryptedSession && !setup.offline && !context.authenticationDeferred) {
-          const authorizedConfig = context.axonSafehouse?.clientConfig(encryptedSession);
-          const result = authorizedConfig
-            ? { config: authorizedConfig, sessionRefreshToken: undefined }
-            : await fetchClientConfig(encryptedSession, {
-                // Startup precedes the TUI, so stderr diagnostics are safe here.
-                onInvalidSection: (section) =>
-                  console.error(
-                    `${PRODUCT_IDENTITY.command}: ignored invalid client config section: ${section}`,
-                  ),
-              });
+        // All startup preferences share this one bounded fetch, regardless of local switches.
+        if (encryptedSession && !setup.offline) {
+          const result = await fetchClientConfig(encryptedSession, {
+            // Startup precedes the TUI, so this is the one place stderr diagnostics are safe.
+            onInvalidSection: (section) =>
+              console.error(
+                `${PRODUCT_IDENTITY.command}: ignored invalid client config section: ${section}`,
+              ),
+          });
           // Persist rotation before passing the credential to the child. Config is
           // optional, so a failed local rotation must not prevent Pi launch.
           config = result.config;
@@ -163,45 +155,11 @@ export function createPiAdapter(): HarnessAdapter {
             }
           }
         }
-        // Initialize provider fallbacks after first-run defaults so they cannot mask them.
-        if (context.paths.projectDirectory !== undefined)
-          await applyPiProviderDefaults(context.paths);
-        const axonSafehouse = context.axonSafehouse;
-        if (!axonSafehouse) throw axonSafehouseFailure("Axon Safehouse is required");
-        relay = startAuthenticatedRequestRelay(context.paths, {
-          ...(axonSafehouse.disabled
-            ? {}
-            : {
-                axonSafehouseOperation: createAxonSafehouseOperations(
-                  axonSafehouse,
-                  {
-                    executable: context.executable,
-                    arguments: [],
-                    environment: context.environment,
-                    cwd: context.cwd,
-                  },
-                  context.paths,
-                ),
-              }),
-          allowPiConfigRefresh: !setup.offline,
-          ...(context.authenticationDeferred ? { signedOut: { session: encryptedSession } } : {}),
-          allowTelemetry: config?.telemetry?.enabled === true,
-          allowAxonSafehouseConfiguration:
-            !axonSafehouse.disabled && setup.invocationKind === "interactive",
-          axonSafehouseConfigurationPolicy: () => axonSafehouse.configurationPolicy(),
-          ...(axonSafehouse.startupPolicy
-            ? { axonSafehouseStartupPolicy: axonSafehouse.startupPolicy }
-            : {}),
-          ...(context.prepareAxonSafehouseRestart
-            ? { prepareAxonSafehouseRestart: context.prepareAxonSafehouseRestart }
-            : {}),
-          cwd: context.cwd,
-        });
         telemetryOverrides = createTelemetryOverrides(
           context.environment,
           config?.telemetry,
           setup.offline,
-          { home: context.paths.home, serviceOrigin: relay.origin },
+          { home: context.paths.home },
         );
         await initializeProductTelemetry(context.paths, undefined, {
           decision: { offline: setup.offline, policy: config?.telemetry },
@@ -214,13 +172,15 @@ export function createPiAdapter(): HarnessAdapter {
         const effectiveProviderEnvironment = { ...context.environment, ...featureOverrides };
         // Pi receives only a per-launch loopback capability. The relay reads the
         // live session for each request and owns refresh persistence and recovery.
-        // The relay above also owns backup and telemetry credentials outside Safehouse.
+        relay = startAuthenticatedRequestRelay(context.paths, {
+          allowPiConfigRefresh: !setup.offline,
+          ...(context.authenticationDeferred ? { signedOut: { session: encryptedSession } } : {}),
+        });
         // Startup discovery seeds fresh models, but Pi restores its cached catalog over
         // them. Old per-launch relay URLs would then hide otherwise available models.
         // Keep the cache intact whenever the provider will not discover replacements.
         if (
           encryptedSession &&
-          !context.authenticationDeferred &&
           !setup.offline &&
           effectiveProviderEnvironment["PI_OFFLINE"] === undefined &&
           effectiveProviderEnvironment["LITELLM_OFFLINE"] !== "1" &&
@@ -259,7 +219,6 @@ export function createPiAdapter(): HarnessAdapter {
           // Display label only: Pi persists error text in session history.
           PI_AXON_RELAY_LOG_FILE: relay.diagnosticsLogLabel,
           PI_AXON_CONFIG_REFRESH_ENABLED: String(!setup.offline),
-          PI_AXON_SAFEHOUSE_OPERATIONS: axonSafehouse.disabled ? undefined : "1",
         };
       } else {
         // Administration is exempt even if spawning it produces startup observations.
@@ -267,33 +226,6 @@ export function createPiAdapter(): HarnessAdapter {
         await initializeProductTelemetry(context.paths, undefined, {
           decision: { offline: setup.offline },
         });
-      }
-      // Administrative invocations never receive a relay capability: package install
-      // scripts and other third-party code must not reach LiteLLM or backend APIs.
-      if (relay === undefined) {
-        litellmOverrides = {
-          ...litellmOverrides,
-          LITELLM_API_KEY: undefined,
-          LITELLM_BASE_URL: undefined,
-          PI_MODEL_RECOMMENDER_API_KEY: undefined,
-          PI_MODEL_RECOMMENDER_URL: undefined,
-          PI_WEB_SEARCH_API_KEY: undefined,
-          PI_WEB_SEARCH_URL: undefined,
-          PI_WEB_SEARCH_ENABLED: "false",
-          PI_ORG_OTEL_ENABLED: "false",
-          PI_ORG_OTEL_MANAGED_ENDPOINT: undefined,
-          PI_ORG_OTEL_MANAGED_HOME: undefined,
-        };
-        // Safehouse runs non-package administration (mcp, config, list, --help) with the
-        // session profile, which requires a loopback relay origin. Package commands use the
-        // administration profile, which strips relay variables, so they need no relay.
-        const packageAdministration = ["install", "remove", "uninstall", "update"].includes(
-          userArguments[0] ?? "",
-        );
-        if (context.axonSafehouse?.disabled !== true && !packageAdministration) {
-          relay = startAuthenticatedRequestRelay(context.paths, { cwd: context.cwd });
-          litellmOverrides = { ...litellmOverrides, PI_AXON_AUTH_RELAY_URL: relay.origin };
-        }
       }
       const themeArguments =
         setup.invocationKind === "interactive"
@@ -324,10 +256,8 @@ export function createPiAdapter(): HarnessAdapter {
       });
     },
     doctor: async (context) => [
-      ...(await skipWithoutAxonSafehouse("pi: managed runtime check", () =>
-        inspectPiRuntime(context),
-      )),
-      ...(await skipWithoutAxonSafehouse("pi: package check", () => inspectPiPackages(context))),
+      ...(await inspectPiRuntime(context)),
+      ...(await inspectPiPackages(context)),
     ],
   };
 

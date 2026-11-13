@@ -7,7 +7,6 @@ import {
   subscribeProductEvents,
   takeProductEvents,
 } from "../../../../telemetry/product-events.ts";
-import { PRODUCT_HISTOGRAMS } from "../src/otel/product-instruments.ts";
 import { recordProductEvent } from "../src/product.ts";
 import { createTestRuntime } from "./helpers.ts";
 
@@ -107,34 +106,4 @@ test("launcher event buffering is bounded and observer failures cannot change bu
   );
   stop();
   takeProductEvents();
-});
-
-test("Safehouse source and change kind are labels on events and durations", async () => {
-  const fixture = createTestRuntime();
-  recordProductEvent(fixture.runtime, {
-    category: "safehouse",
-    stage: "access_decision",
-    outcome: "selected",
-    reason: "allow_write",
-    safehouseSource: "tui",
-    durationMs: 4000,
-  });
-  recordProductEvent(fixture.runtime, {
-    category: "safehouse",
-    stage: "config_change",
-    outcome: "success",
-    safehouseSource: "menu",
-    safehouseChange: "rule_deny",
-  });
-  const [decision, change] = fixture.metrics.filter(
-    (metric) => metric.name === "axon.safehouse.events",
-  );
-  assert.equal(decision?.attributes["safehouse_source"], "tui");
-  assert.equal(decision?.attributes["reason"], "allow_write");
-  assert.equal(change?.attributes["safehouse_change"], "rule_deny");
-  // The real histogram view keeps only declared dimensions.
-  const dimensions = PRODUCT_HISTOGRAMS["axon.safehouse.duration"]?.dimensions ?? [];
-  assert.ok(dimensions.includes("safehouse_source"));
-  assert.ok(dimensions.includes("safehouse_change"));
-  await fixture.runtime.shutdown();
 });

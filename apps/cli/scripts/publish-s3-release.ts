@@ -26,9 +26,8 @@ async function hashStream(response: Response): Promise<string> {
   return hasher.digest("hex");
 }
 
-async function fetchCloudFrontArchive(url: string, token: string): Promise<Response> {
+async function fetchCloudFrontArchive(url: string): Promise<Response> {
   const redirect = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
     redirect: "manual",
     signal: AbortSignal.timeout(30_000),
@@ -44,17 +43,13 @@ async function fetchCloudFrontArchive(url: string, token: string): Promise<Respo
   });
 }
 
-async function verifyCloudFrontArchive(
-  url: string,
-  expected: string,
-  token: string,
-): Promise<void> {
+async function verifyCloudFrontArchive(url: string, expected: string): Promise<void> {
   // A guessed exact-version URL could have cached a 404 before publication.
   // Retry that error briefly, without repeating the non-overwriting S3 PUT.
   for (let attempt = 0; attempt < 12; attempt++) {
     let download: Response | undefined;
     try {
-      download = await fetchCloudFrontArchive(url, token);
+      download = await fetchCloudFrontArchive(url);
     } catch {
       // Retry transient CDN/network failures. Never log the signed redirect URL.
     }
@@ -70,16 +65,8 @@ async function verifyCloudFrontArchive(
   throw new Error("CloudFront download could not be verified; do not promote latest");
 }
 
-async function assertBackendChecksums(
-  url: string,
-  localPath: string,
-  token: string,
-): Promise<void> {
-  const configured = await fetch(url, {
-    cache: "no-store",
-    redirect: "error",
-    headers: { Authorization: `Bearer ${token}` },
-  });
+async function assertBackendChecksums(url: string, localPath: string): Promise<void> {
+  const configured = await fetch(url, { cache: "no-store" });
   const localChecksums = await Bun.file(localPath).text();
   if (!configured.ok || (await configured.text()) !== localChecksums) {
     throw new Error(
@@ -187,14 +174,12 @@ export async function publishS3Release(): Promise<void> {
     await assertBackendChecksums(
       `${versionRoot}/${names.checksums}`,
       join(releaseDirectory, names.checksums),
-      token,
     );
     prepared.push({ target, archive, expected });
   }
   await assertBackendChecksums(
     `${versionRoot}/${LEGACY_CHECKSUMS_NAME}`,
     join(releaseDirectory, LEGACY_CHECKSUMS_NAME),
-    token,
   );
 
   for (const upload of prepared) {
@@ -203,11 +188,10 @@ export async function publishS3Release(): Promise<void> {
     await verifyCloudFrontArchive(
       `${versionRoot}/${releaseAssetNames(upload.target).archive}`,
       upload.expected,
-      token,
     );
   }
   console.log(
-    `Published and verified axon ${version} for ${targets.join(" and ")}. After approval, set CLI_RELEASES.CHANNELS.${version.split("+", 1)[0]?.includes("-") ? "beta" : "stable"}.VERSION in backend config.json and restart it. Stable is never advanced by publishing a beta.`,
+    `Published and verified axon ${version} for ${targets.join(" and ")}. Now set CLI_RELEASES.LATEST_VERSION in backend config.json and restart it.`,
   );
 }
 

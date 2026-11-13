@@ -1,7 +1,7 @@
-import { afterAll, beforeAll, describe, expect, mock, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { chmod, mkdir, mkdtemp, readlink, rm, symlink, utimes } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { NPM_MIRROR_REGISTRY, NPM_PUBLIC_REGISTRY } from "../src/harnesses/pi/npm-registry.ts";
 import { inspectPiPackages } from "../src/harnesses/pi/setup/packages/doctor.ts";
 import {
@@ -21,7 +21,7 @@ import { readPiPackageState } from "../src/harnesses/pi/setup/packages/state.ts"
 import { synchronizePiPackages } from "../src/harnesses/pi/setup/packages/sync.ts";
 import { materializePiResources } from "../src/harnesses/pi/setup/resources.ts";
 import { resolveHarnessRegistration } from "../src/harnesses/registry.ts";
-import type { AxonSafehouseSession, HarnessLaunchContext } from "../src/launcher/contracts.ts";
+import type { HarnessLaunchContext } from "../src/launcher/contracts.ts";
 import { withFileLock } from "../src/launcher/file-lock.ts";
 import { AXON_MANIFEST, EMBEDDED_PI_RESOURCES } from "../src/product/manifest.ts";
 import { resolveAxonPaths } from "../src/product/paths.ts";
@@ -171,32 +171,6 @@ await Bun.write(path + "/package.json", JSON.stringify({ name, version: "1.0.0" 
       npm_config_registry: primary,
       FAKE_PRIMARY: primary,
       FAKE_RECORD: record,
-    },
-    // Package actions require Axon Safehouse; this fixture runs the fake Pi directly.
-    axonSafehouse: {
-      async configurationPolicy() {
-        throw new Error("Unexpected Axon Safehouse configuration in a registry fixture");
-      },
-      clientConfig: () => undefined,
-      async wrap() {
-        throw new Error("Unexpected interactive launch in a registry fixture");
-      },
-      async run(specification) {
-        const child = Bun.spawn([specification.executable, ...specification.arguments], {
-          cwd: specification.cwd,
-          env: specification.environment,
-          stdin: "ignore",
-          stdout: "pipe",
-          stderr: "pipe",
-        });
-        const [exitCode, stdout, stderr] = await Promise.all([
-          child.exited,
-          new Response(child.stdout).text(),
-          new Response(child.stderr).text(),
-        ]);
-        return { exitCode, signalCode: child.signalCode, stdout, stderr };
-      },
-      dispose() {},
     },
   };
   const attempts = async () =>
@@ -918,68 +892,56 @@ describe("Pi package synchronization", () => {
     expect(await attempts()).toHaveLength(1);
   });
 
-  test("routes Pi package actions through Axon Safehouse with isolated environment and strict argv", async () => {
-    const contextBase = createContext("axon-safehouse-subprocess");
+  test("runs the real Pi subprocess with isolated environment and strict argv", async () => {
+    const contextBase = createContext("direct-subprocess");
     const fakePi = join(contextBase.paths.home, "fake-pi");
-    const packageManifest = manifest([exactPackage("1.0.0")]);
-    // Simulate the install result at the Axon Safehouse boundary; never spawn an unwrapped fixture.
-    const runAction = mock<AxonSafehouseSession["run"]>(async () => {
-      await writeNpmPackage(contextBase, packageManifest, "1.0.0");
-      return { exitCode: 0, signalCode: null, stdout: "", stderr: "" };
-    });
+    const recordPath = join(contextBase.paths.home, "record.json");
+    await mkdir(dirname(fakePi), { recursive: true });
+    await Bun.write(
+      fakePi,
+      `#!/usr/bin/env -S bun --no-env-file
+import { mkdir } from "node:fs/promises";
+const [action, source] = process.argv.slice(2);
+await Bun.write(process.env.FAKE_RECORD, JSON.stringify({
+  action,
+  source,
+  piDir: process.env.PI_CODING_AGENT_DIR,
+  sessionDir: process.env.PI_CODING_AGENT_SESSION_DIR,
+  skipVersion: process.env.PI_SKIP_VERSION_CHECK,
+  anthropic: process.env.ANTHROPIC_API_KEY,
+  openai: process.env.OPENAI_API_KEY,
+}));
+const name = source.replace(/^npm:/, "").replace(/@[^@]+$/, "");
+const packagePath = process.env.PI_CODING_AGENT_DIR + "/npm/node_modules/" + name;
+await mkdir(packagePath, { recursive: true });
+await Bun.write(packagePath + "/package.json", JSON.stringify({ name, version: "1.0.0" }));
+`,
+    );
+    await chmod(fakePi, 0o755);
     const context: HarnessLaunchContext = {
       ...contextBase,
       executable: fakePi,
       environment: {
         ...contextBase.environment,
+        FAKE_RECORD: recordPath,
         ANTHROPIC_API_KEY: "secret",
         OPENAI_API_KEY: "secret",
-      },
-      axonSafehouse: {
-        async configurationPolicy() {
-          throw new Error("Unexpected Axon Safehouse configuration in a package-action fixture");
-        },
-        clientConfig: () => undefined,
-        async wrap() {
-          throw new Error("Unexpected interactive launch in a package-action fixture");
-        },
-        run: runAction,
-        dispose() {},
       },
     };
 
     await synchronizePiPackages({
       allowInstall: true,
       context,
-      manifest: packageManifest,
+      manifest: manifest([exactPackage("1.0.0")]),
     });
 
-    expect(runAction).toHaveBeenCalledTimes(1);
-    expect(runAction).toHaveBeenCalledWith(
-      {
-        executable: fakePi,
-        arguments: ["install", "npm:@example/pi-tools@1.0.0"],
-        cwd: context.cwd,
-        environment: expect.objectContaining({
-          PI_CODING_AGENT_DIR: context.paths.pi,
-          PI_CODING_AGENT_SESSION_DIR: context.paths.piSessions,
-          PI_SKIP_VERSION_CHECK: "1",
-        }),
-      },
-      {
-        purpose: "provision",
-        writePaths: [
-          `${context.paths.pi}/npm`,
-          `${context.paths.pi}/git`,
-          `${context.paths.pi}/settings.json`,
-          `${context.paths.pi}/settings.json.lock`,
-        ],
-        inheritOutput: false,
-      },
-    );
-    const specification = runAction.mock.calls[0]?.[0];
-    expect(specification?.environment["ANTHROPIC_API_KEY"]).toBeUndefined();
-    expect(specification?.environment["OPENAI_API_KEY"]).toBeUndefined();
+    expect(await Bun.file(recordPath).json()).toEqual({
+      action: "install",
+      source: "npm:@example/pi-tools@1.0.0",
+      piDir: context.paths.pi,
+      sessionDir: context.paths.piSessions,
+      skipVersion: "1",
+    });
   });
 });
 

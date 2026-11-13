@@ -1,9 +1,13 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { BackupApiError } from "../../../sessions/api.ts";
-import { BackupLocalSettingsError, BackupPolicyError } from "../../../sessions/backup.ts";
+import { resolveAxonPaths } from "../../../product/paths.ts";
+import { BackupApi, BackupApiError } from "../../../sessions/api.ts";
+import {
+  BackupLocalSettingsError,
+  BackupPolicyError,
+  SessionBackups,
+} from "../../../sessions/backup.ts";
 import type { CaptureReason } from "../../../sessions/contracts.ts";
 import { PRODUCT_EVENT_CHANNEL } from "../../../telemetry/product-events.ts";
-import { BackupRelayClient } from "./relay-client.ts";
 
 export function backupWarning(error: unknown): string {
   if (error instanceof BackupLocalSettingsError || error instanceof BackupPolicyError)
@@ -51,10 +55,13 @@ export function backupHeaderState(status: string): BackupHeaderState {
 }
 
 export default function sessionBackupExtension(pi: ExtensionAPI): void {
-  const origin = process.env["PI_AXON_AUTH_RELAY_URL"];
-  const capability = process.env["PI_AXON_AUTH_RELAY_KEY"];
-  if (!origin || !capability) return;
-  const backups = new BackupRelayClient(origin, capability);
+  const origin = process.env["PI_AXON_BACKUP_SERVICE_ORIGIN"];
+  const home = process.env["PI_AXON_BACKUP_HOME"];
+  if (!origin || !home) return; // Managed launches supply both values, not ambient overrides.
+  const paths = resolveAxonPaths({ AXON_HOME: home });
+  const backups = new SessionBackups(paths, new BackupApi(paths, origin), (event) =>
+    pi.events.emit(PRODUCT_EVENT_CHANNEL, event),
+  );
   let work: Promise<unknown> = Promise.resolve();
   const requests = new Set<AbortController>();
   let lastStatus = "Checking administrator backup policy";

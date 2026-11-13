@@ -17,7 +17,7 @@ import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import type { ExtensionAPI, ExtensionContext, SessionEntry } from "@earendil-works/pi-coding-agent";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
-import { axonSafehouseEnvironment } from "../src/axon-safehouse/environment.ts";
+
 import { BUILD_INFO } from "../src/build-info.ts";
 import { saveEncryptedSession } from "../src/cli/auth/session.ts";
 import { runSessions } from "../src/cli/commands/sessions.ts";
@@ -503,51 +503,28 @@ class FakeBackend {
   }) as typeof fetch;
 }
 
-test("native backup bundle captures through the parent relay after final environment filtering", async () => {
+test("native backup bundle captures after final environment filtering using the managed home", async () => {
   const { paths, file } = await source();
   await writeFile(file, namedRaw(["Bundle\u2028title"]));
   await saveEncryptedSession(paths, "synthetic-token");
-  const calls: string[] = [];
-  const fetcher = (async (input: string | URL | Request) => {
-    const path = new URL(String(input)).pathname;
-    calls.push(path);
-    return path.endsWith("/status")
-      ? Response.json({ enabled: true, owner_user_id: "1" })
-      : Response.json({}, { status: 503 });
-  }) as typeof fetch;
   const controller = new SessionBackups(
     paths,
-    new BackupApi(paths, BUILD_INFO.serviceOrigin, fetcher),
+    new BackupApi(paths, BUILD_INFO.serviceOrigin, new FakeBackend().fetcher),
   );
   await controller.prepare();
-  calls.length = 0;
-  const capability = "native-backup-fixture-capability";
-  const relay = Bun.serve({
-    hostname: "127.0.0.1",
-    port: 0,
-    async fetch(request) {
-      if (
-        new URL(request.url).pathname !== "/_axon/backups/capture" ||
-        request.method !== "POST" ||
-        request.headers.get("authorization") !== `Bearer ${capability}`
-      ) {
-        return new Response(null, { status: 404 });
-      }
-      expect(await request.json()).toEqual({
-        source: file,
-        nativeId,
-        resume: { leaf_known: true, selected_leaf_id: resume.selected_leaf_id },
-        reason: "session_shutdown",
-      });
-      const status = await controller.boundary(file, nativeId, resume, "session_shutdown");
-      return Response.json({ status });
-    },
-  });
   const url = new URL(
     "../src/harnesses/pi/resources/extensions/session-backup.mjs",
     import.meta.url,
   ).href;
   const script = `
+    const calls = [];
+    globalThis.fetch = async (input) => {
+      const path = new URL(input).pathname;
+      calls.push(path);
+      return path.endsWith('/status')
+        ? Response.json({ enabled: true, owner_user_id: '1' })
+        : Response.json({}, { status: 503 });
+    };
     const { default: extension } = await import(${JSON.stringify(url)});
     const events = new Map();
     const commands = [];
@@ -561,53 +538,41 @@ test("native backup bundle captures through the parent relay after final environ
       },
     };
     await events.get('session_shutdown')({}, ctx);
-    console.log(JSON.stringify({ events: [...events.keys()], commands }));
+    console.log(JSON.stringify({ events: [...events.keys()], commands, calls }));
   `;
-  const environment = axonSafehouseEnvironment(
-    createHarnessEnvironment(
-      createPiEnvironment(
-        {
-          ...process.env,
-          AXON_HOME: directory,
-          HOME: directory,
-          PI_AXON_BACKUP_SERVICE_ORIGIN: "https://untrusted.example.test",
-          PI_AXON_BACKUP_HOME: "/wrong/backup-home",
-        },
-        paths,
-      ),
-      { PI_AXON_AUTH_RELAY_URL: relay.url.origin, PI_AXON_AUTH_RELAY_KEY: capability },
+  const environment = createHarnessEnvironment(
+    createPiEnvironment(
+      {
+        ...process.env,
+        AXON_HOME: directory,
+        HOME: directory,
+        PI_AXON_BACKUP_SERVICE_ORIGIN: "https://untrusted.example.test",
+        PI_AXON_BACKUP_HOME: "/wrong/backup-home",
+      },
+      paths,
     ),
-    directory,
-    directory,
-    "http://127.0.0.1:9",
   );
   expect(environment["AXON_HOME"]).toBeUndefined();
-  expect(environment["PI_AXON_BACKUP_SERVICE_ORIGIN"]).toBeUndefined();
-  expect(environment["PI_AXON_BACKUP_HOME"]).toBeUndefined();
-  let stdout: string;
-  try {
-    const child = Bun.spawn(["node", "--input-type=module", "-e", script], {
-      env: environment,
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    const [output, stderr, exitCode] = await Promise.all([
-      new Response(child.stdout).text(),
-      new Response(child.stderr).text(),
-      child.exited,
-    ]);
-    expect(stderr).toBe("");
-    expect(exitCode).toBe(0);
-    stdout = output;
-  } finally {
-    await relay.stop(true);
-  }
-  const output = JSON.parse(stdout) as { events: string[]; commands: string[] };
+  expect(environment["PI_AXON_BACKUP_SERVICE_ORIGIN"]).toBe(BUILD_INFO.serviceOrigin);
+  expect(environment["PI_AXON_BACKUP_HOME"]).toBe(paths.home);
+  const child = Bun.spawn(["node", "--input-type=module", "-e", script], {
+    env: environment,
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+    child.exited,
+  ]);
+  expect(stderr).toBe("");
+  expect(exitCode).toBe(0);
+  const output = JSON.parse(stdout) as { events: string[]; commands: string[]; calls: string[] };
   expect(output.events).toEqual(["session_start", "session_shutdown", "session_tree"]);
   expect(output.commands).toEqual(["axon-backup-now", "axon-backups"]);
   // The source test runner may use a deployment mount (e.g. an exported production
   // build URL). The native bundle must retain it, not fall back to domain-root paths.
-  expect(calls).toEqual(
+  expect(output.calls).toEqual(
     [
       SERVICE_ENDPOINTS.sessions.status,
       SERVICE_ENDPOINTS.sessions.status,
@@ -934,10 +899,10 @@ describe("Owner-bound extension queue", () => {
     expect(backend.calls).toHaveLength(1);
   });
   test("extension has lifecycle hooks but rejects user backup policy toggles", async () => {
-    const previousOrigin = process.env["PI_AXON_AUTH_RELAY_URL"];
-    const previousCapability = process.env["PI_AXON_AUTH_RELAY_KEY"];
-    process.env["PI_AXON_AUTH_RELAY_URL"] = "http://127.0.0.1:43210";
-    process.env["PI_AXON_AUTH_RELAY_KEY"] = "backup-lifecycle-fixture-capability";
+    const previousOrigin = process.env["PI_AXON_BACKUP_SERVICE_ORIGIN"];
+    const previousHome = process.env["PI_AXON_BACKUP_HOME"];
+    process.env["PI_AXON_BACKUP_SERVICE_ORIGIN"] = "https://backend.example.test";
+    process.env["PI_AXON_BACKUP_HOME"] = directory;
     const events: string[] = [];
     const commands: string[] = [];
     let backupHandler: ((args: string, ctx: ExtensionContext) => Promise<void>) | undefined;
@@ -950,10 +915,10 @@ describe("Owner-bound extension queue", () => {
         if (name === "axon-backups") backupHandler = command.handler;
       },
     } as unknown as ExtensionAPI);
-    if (previousOrigin === undefined) delete process.env["PI_AXON_AUTH_RELAY_URL"];
-    else process.env["PI_AXON_AUTH_RELAY_URL"] = previousOrigin;
-    if (previousCapability === undefined) delete process.env["PI_AXON_AUTH_RELAY_KEY"];
-    else process.env["PI_AXON_AUTH_RELAY_KEY"] = previousCapability;
+    if (previousOrigin === undefined) delete process.env["PI_AXON_BACKUP_SERVICE_ORIGIN"];
+    else process.env["PI_AXON_BACKUP_SERVICE_ORIGIN"] = previousOrigin;
+    if (previousHome === undefined) delete process.env["PI_AXON_BACKUP_HOME"];
+    else process.env["PI_AXON_BACKUP_HOME"] = previousHome;
     expect(events).toEqual(["session_start", "session_shutdown", "session_tree"]);
     expect(commands).toEqual(["axon-backup-now", "axon-backups"]);
     if (!backupHandler) throw new Error("Missing backup command");

@@ -1,10 +1,5 @@
-import { confirm, isCancel } from "@clack/prompts";
 import { Command, CommanderError } from "commander";
-import {
-  canonicalPath,
-  isBlockedProjectDirectory,
-  readFilesystemPreferences,
-} from "../axon-safehouse/filesystem.ts";
+
 import { BUILD_INFO } from "../build-info.ts";
 import { currentPiInvocationEnvironment } from "../harnesses/pi/setup/packages/invocation.ts";
 import { resolveHarnessRegistration } from "../harnesses/registry.ts";
@@ -12,15 +7,7 @@ import { LauncherError } from "../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../launcher/exit-status.ts";
 import { PRODUCT_IDENTITY } from "../product/identity.ts";
 import { resolveAxonPaths } from "../product/paths.ts";
-import { resolveProjectAxonPaths } from "../product/project-paths.ts";
-import {
-  describeReleaseChannel,
-  isReleaseChannel,
-  readReleaseChannel,
-  releaseChannelForVersion,
-} from "../product/release-channel.ts";
 import { withUpdateProgress } from "../updater/progress.ts";
-import { ReleaseAccessError } from "../updater/release.ts";
 import { checkForUpdate, installUpdate, updateContext } from "../updater/update.ts";
 import { ensureAxonSession } from "./auth/preflight.ts";
 import {
@@ -29,20 +16,12 @@ import {
   runAuthLogout,
   runAuthStatus,
 } from "./commands/auth.ts";
-import { formatFilesystemPermissions } from "./commands/axon-safehouse.ts";
 import { runDoctor } from "./commands/doctor.ts";
 import { printHarnesses } from "./commands/harnesses.ts";
 import { printPaths } from "./commands/paths.ts";
 import { runSessions, runSessionsInteractive } from "./commands/sessions.ts";
 import { runSetup, type SetupOptions } from "./commands/setup.ts";
 import { runUninstall, type UninstallOptions } from "./commands/uninstall.ts";
-
-async function resolveCurrentProjectPaths(environment: NodeJS.ProcessEnv = process.env) {
-  const paths = resolveAxonPaths(environment);
-  return (await isBlockedProjectDirectory(paths, process.cwd()))
-    ? paths
-    : resolveProjectAxonPaths(paths, process.cwd());
-}
 
 function setExitStatus(status: number): void {
   if (status !== 0) {
@@ -57,11 +36,7 @@ function createLauncherProgram(): Command {
     .description(`${PRODUCT_IDENTITY.displayName} Pi launcher by DeputyDev`)
     .usage("<harness> [harness arguments...] | <command> [options]")
     .helpOption("-h, --help", "display launcher help")
-    .version(
-      `${BUILD_INFO.version} (channel: ${describeReleaseChannel(resolveAxonPaths().home)})`,
-      "-V, --version",
-      "display launcher version and update channel",
-    )
+    .version(BUILD_INFO.version, "-V, --version", "display launcher version")
     .showHelpAfterError()
     .exitOverride();
 
@@ -75,59 +50,9 @@ function createLauncherProgram(): Command {
   program
     .command("paths")
     .description("show managed Axon paths")
-    .action(async () => {
-      printPaths(await resolveCurrentProjectPaths());
+    .action(() => {
+      printPaths(resolveAxonPaths());
     });
-
-  const configureSafehouse = (): never => {
-    throw new LauncherError(
-      "Axon Safehouse permissions must be reviewed and saved in the active Axon process",
-      LAUNCHER_EXIT_STATUS.usage,
-      {
-        remediation: "Start axon pi, then use /safehouse. Changes apply immediately after saving.",
-      },
-    );
-  };
-  const safehouse = program
-    .command("safehouse")
-    .description("inspect saved project permissions; use /safehouse in Pi to edit them")
-    .option("--project <directory>", "project whose saved permissions to inspect", process.cwd())
-    .action(configureSafehouse);
-  safehouse
-    .command("configure")
-    .alias("config")
-    .description("use /safehouse inside Pi to save project filesystem rules and blocked hosts")
-    .action(configureSafehouse);
-  safehouse
-    .command("show")
-    .description(
-      "show this project's saved filesystem rules and blocked hosts (defaults for a new project)",
-    )
-    .option("--json", "print only the local preference JSON for scripts")
-    .action(async (options: { json?: boolean }) => {
-      const paths = resolveAxonPaths();
-      const project = await canonicalPath(safehouse.opts<{ project: string }>().project);
-      const preferences = await readFilesystemPreferences(paths, project);
-      if (options.json) {
-        console.log(JSON.stringify(preferences, null, 2));
-        return;
-      }
-      console.log(
-        "Saved project permissions (defaults if not configured). Backend restrictions are revalidated on launch. Use /safehouse inside Pi to edit.",
-      );
-      console.log(formatFilesystemPermissions(project, preferences));
-    });
-  for (const operation of ["allow-read", "allow-write", "deny", "revoke", "mode"] as const) {
-    safehouse
-      .command(operation)
-      .description(
-        operation === "mode"
-          ? "set project read-only or read-write mode"
-          : `${operation} a filesystem path`,
-      )
-      .argument(operation === "mode" ? "<read-only|read-write>" : "<paths...>")
-      .action(configureSafehouse);
-  }
 
   const auth = program.command("auth").description("manage the local Axon session");
   auth
@@ -191,7 +116,7 @@ function createLauncherProgram(): Command {
         {
           cwd: process.cwd(),
           environment,
-          paths: await resolveCurrentProjectPaths(environment),
+          paths: resolveAxonPaths(environment),
         },
         harness,
       );
@@ -213,57 +138,16 @@ function createLauncherProgram(): Command {
     .command("update")
     .description("download and install the latest verified macOS release")
     .option("--check", "report whether a newer release is available without installing")
-    .option("--channel <channel>", "select stable or beta")
-    .option("--yes", "confirm returning to stable without prompting")
-    .action(async (options: { check?: boolean; channel?: string; yes?: boolean }) => {
-      if (options.channel !== undefined && !isReleaseChannel(options.channel)) {
-        throw new LauncherError(
-          "Update channel must be stable or beta",
-          LAUNCHER_EXIT_STATUS.usage,
-        );
-      }
-      const context = {
-        ...updateContext(),
-        ...(options.channel === undefined ? {} : { channel: options.channel }),
-      };
-      const channel = context.channel ?? readReleaseChannel(context.paths.home);
-      if (
-        options.channel === "stable" &&
-        !options.check &&
-        (describeReleaseChannel(context.paths.home) !== "stable" ||
-          releaseChannelForVersion(BUILD_INFO.version) === "beta") &&
-        !options.yes
-      ) {
-        if (!process.stdin.isTTY || !process.stdout.isTTY) {
-          throw new LauncherError(
-            "Returning to stable requires confirmation",
-            LAUNCHER_EXIT_STATUS.usage,
-            {
-              remediation: "Run axon update --channel stable interactively, or add --yes.",
-            },
-          );
-        }
-        const accepted = await confirm({
-          message:
-            "Return to stable? This may downgrade Axon. Stable settings are preserved separately from beta; chats are shared.",
-        });
-        if (isCancel(accepted) || !accepted) return;
-      }
+    .action(async (options: { check?: boolean }) => {
       if (options.check) {
         try {
           const available = await withUpdateProgress((onProgress) =>
-            checkForUpdate({ ...context, onProgress }),
+            checkForUpdate({ ...updateContext(), onProgress }),
           );
-          console.log(
-            available
-              ? `axon ${available} is available (${channel})`
-              : `axon is up to date (${channel})`,
-          );
+          console.log(available ? `axon ${available} is available` : "axon is up to date");
         } catch (error) {
           throw new LauncherError(
-            error instanceof ReleaseAccessError
-              ? error.message
-              : "could not check for axon updates",
+            "could not check for axon updates",
             LAUNCHER_EXIT_STATUS.updateFailure,
             {
               cause: error,
@@ -273,10 +157,9 @@ function createLauncherProgram(): Command {
         }
       } else {
         const installed = await withUpdateProgress((onProgress) =>
-          installUpdate({ ...context, onProgress }),
+          installUpdate({ ...updateContext(), onProgress }),
         );
         console.log(installed ? `Updated axon to ${installed}` : "axon is up to date");
-        console.log(`Update channel: ${channel}`);
       }
     });
 
@@ -312,7 +195,7 @@ function createLauncherProgram(): Command {
 
   program.addHelpText(
     "after",
-    `\nHarnesses:\n  ${PRODUCT_IDENTITY.command} pi [pi arguments...]\n  ${PRODUCT_IDENTITY.command} --no-safehouse [pi arguments...]\n  ${PRODUCT_IDENTITY.command} pi --no-safehouse [pi arguments...]\n\nSafehouse is enabled by default. When the backend allows local opt-out (AXON_SAFEHOUSE.ALLOW_LOCAL_OPT_OUT=true), disable it for an invocation with the leading --no-safehouse flag, or set AXON_DISABLE_SAFEHOUSE=1 (also accepts true or yes); otherwise both are ignored. Administrators can set AXON_SAFEHOUSE.ENABLED=false in backend config to disable it for everyone.\n\nExcept for a leading --no-safehouse, everything after a harness ID is passed to that harness without launcher parsing.`,
+    `\nHarnesses:\n  ${PRODUCT_IDENTITY.command} pi [pi arguments...]\n\nEverything after a harness ID is passed to that harness without launcher parsing.`,
   );
 
   return program;

@@ -28,11 +28,8 @@ interface StartupUpdateOptions {
   readonly environment?: NodeJS.ProcessEnv;
   readonly invocation?: PiInvocationEnvironment;
   readonly restart?: (context: UpdateContext, argumentsVector: readonly string[]) => Promise<void>;
-  readonly info?: (message: string) => void;
   readonly warn?: (message: string) => void;
   readonly progress?: UpdateProgressView;
-  /** The launch opted out with --no-safehouse; the restarted launcher must too. */
-  readonly safehouseDisabled?: boolean;
 }
 
 /** Check every eligible launch, independently of the old background-check throttle. */
@@ -52,7 +49,6 @@ export async function runStartupUpdate(
   }
 
   const context = options.context ?? updateContext();
-  const info = options.info ?? console.log;
   const warn = options.warn ?? console.error;
   try {
     // Metadata must fail quickly on an unavailable service. Downloads retain their
@@ -68,7 +64,7 @@ export async function runStartupUpdate(
       options.progress ?? updateProgressView(),
     );
     if (!installed) return;
-    info(`axon: updated to ${installed}; continuing with the new version.`);
+    warn(`axon: updated to ${installed}; continuing with the new version.`);
   } catch (error) {
     // Another updater holds the lock and will finish on its own; this is not a failure.
     if (error instanceof Error && error.cause instanceof FileLockTimeoutError) return;
@@ -80,12 +76,7 @@ export async function runStartupUpdate(
 
   try {
     const restart = options.restart ?? restartUpdatedLauncher;
-    // dispatch() strips --no-safehouse from the Pi arguments, so restore it here.
-    await restart(context, [
-      "pi",
-      ...(options.safehouseDisabled ? ["--no-safehouse"] : []),
-      ...argumentsVector,
-    ]);
+    await restart(context, ["pi", ...argumentsVector]);
   } catch {
     warn(
       "axon: could not start the updated launcher; continuing with the current version. Restart axon to retry.",

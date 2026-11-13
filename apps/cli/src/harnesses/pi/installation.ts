@@ -2,7 +2,6 @@ import { chmod, lstat, mkdir, realpath, rename, rm } from "node:fs/promises";
 import { isAbsolute, join, relative } from "node:path";
 
 import piVersion from "../../../pi-version.json";
-import { runAxonSafehouseCommand } from "../../axon-safehouse/session.ts";
 import { BUILD_INFO } from "../../build-info.ts";
 import type {
   DoctorFinding,
@@ -42,7 +41,6 @@ export interface PiToolchain {
 }
 
 export interface PiNpmCiRequest {
-  readonly context: LaunchContext;
   readonly cwd: string;
   readonly environment: NodeJS.ProcessEnv;
   readonly npmPath: string;
@@ -277,18 +275,22 @@ async function fetchReleaseArtifact(url: string): Promise<string> {
 async function captureVersion(
   executable: string,
   environment: NodeJS.ProcessEnv,
-  context: LaunchContext,
 ): Promise<string | undefined> {
   try {
-    const result = await runAxonSafehouseCommand(
-      context,
-      { executable, arguments: ["--version"], environment, cwd: context.cwd },
-      { purpose: "probe", timeoutMs: TOOLCHAIN_PROBE_TIMEOUT_MS },
-    );
-    return result.exitCode === 0 ? parseFirstSemVer(result.stdout) : undefined;
-  } catch (error) {
-    // Denial by Axon Safehouse is not evidence that Node.js is missing or incompatible.
-    if (error instanceof LauncherError) throw error;
+    const subprocess = Bun.spawn([executable, "--version"], {
+      env: environment,
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "ignore",
+      timeout: TOOLCHAIN_PROBE_TIMEOUT_MS,
+      killSignal: "SIGKILL",
+    });
+    const [stdout, exitCode] = await Promise.all([
+      new Response(subprocess.stdout).text(),
+      subprocess.exited,
+    ]);
+    return exitCode === 0 ? parseFirstSemVer(stdout) : undefined;
+  } catch {
     return undefined;
   }
 }
@@ -300,7 +302,7 @@ async function probeInstalledToolchain(context: LaunchContext): Promise<PiToolch
     resolveCommandOnPath("npm", context.environment, context.cwd),
   ]);
   const nodeVersion =
-    nodePath === undefined ? undefined : await captureVersion(nodePath, environment, context);
+    nodePath === undefined ? undefined : await captureVersion(nodePath, environment);
   return {
     ...(nodePath === undefined ? {} : { nodePath }),
     ...(nodeVersion === undefined ? {} : { nodeVersion }),
@@ -309,34 +311,39 @@ async function probeInstalledToolchain(context: LaunchContext): Promise<PiToolch
 }
 
 async function runNpmCi(request: PiNpmCiRequest): Promise<void> {
-  const result = await runAxonSafehouseCommand(
-    request.context,
+  const subprocess = Bun.spawn(
+    [
+      request.npmPath,
+      "ci",
+      "--ignore-scripts",
+      "--min-release-age=0",
+      "--omit=dev",
+      "--include=optional",
+      "--no-fund",
+      "--no-audit",
+      "--progress=false",
+      "--loglevel=error",
+    ],
     {
-      executable: request.npmPath,
-      arguments: [
-        "ci",
-        "--ignore-scripts",
-        "--min-release-age=0",
-        "--omit=dev",
-        "--include=optional",
-        "--no-fund",
-        "--no-audit",
-        "--progress=false",
-        "--loglevel=error",
-      ],
       cwd: request.cwd,
-      environment: request.environment,
+      env: request.environment,
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "pipe",
     },
-    // Captured, not inherited, so the registry fallback can classify npm failures.
-    { purpose: "provision", writePaths: [request.cwd] },
   );
-  process.stdout.write(result.stdout);
-  process.stderr.write(result.stderr);
-  if (result.signalCode !== null) {
-    throw new Error(`npm ci terminated by signal ${result.signalCode}`);
+  const [exitCode, stdout, stderr] = await Promise.all([
+    subprocess.exited,
+    new Response(subprocess.stdout).text(),
+    new Response(subprocess.stderr).text(),
+  ]);
+  process.stdout.write(stdout);
+  process.stderr.write(stderr);
+  if (subprocess.signalCode !== null) {
+    throw new Error(`npm ci terminated by signal ${subprocess.signalCode}`);
   }
-  if (result.exitCode !== 0) {
-    throw new NpmInstallFailure(result.exitCode, result.stdout + result.stderr);
+  if (exitCode !== 0) {
+    throw new NpmInstallFailure(exitCode, stdout + stderr);
   }
 }
 
@@ -444,7 +451,6 @@ async function installManagedPi(
     await Bun.write(join(stageDirectory, "package.json"), packageJson);
     await Bun.write(join(stageDirectory, "package-lock.json"), completedLock);
     const npmRequest: PiNpmCiRequest = {
-      context,
       cwd: stageDirectory,
       environment: createHarnessEnvironment(context.environment),
       npmPath: toolchain.npmPath,
@@ -466,7 +472,6 @@ async function installManagedPi(
       (await (dependencies.probeVersion ?? probePiVersion)(
         launcher,
         createPiEnvironment(context.environment, context.paths, { PI_OFFLINE: "1" }),
-        { ...context, cwd: stageDirectory },
       )) !== version
     ) {
       throw new Error(`installed Pi executable does not report ${version}`);

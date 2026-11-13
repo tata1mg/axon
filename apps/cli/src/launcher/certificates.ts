@@ -58,7 +58,7 @@ function parseCertificates(pem: string): string[] {
   });
 }
 
-export async function readCertificates(path: string): Promise<string[]> {
+async function readCertificates(path: string): Promise<string[]> {
   // CA paths may legitimately be symlinks to an administrator-managed bundle;
   // inspect the target so oversized bundles and non-regular files are rejected.
   const info = await stat(path);

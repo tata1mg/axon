@@ -20,13 +20,6 @@ import { FileLockTimeoutError, withFileLock } from "../launcher/file-lock.ts";
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../product/endpoints.ts";
 import { type AxonPaths, resolveAxonPaths } from "../product/paths.ts";
 import {
-  describeReleaseChannel,
-  type ReleaseChannel,
-  readReleaseChannel,
-  releaseChannelForVersion,
-  saveReleaseChannel,
-} from "../product/release-channel.ts";
-import {
   hostReleaseTarget,
   isReleaseTarget,
   type ReleaseTarget,
@@ -36,7 +29,6 @@ import {
   assertReleaseVersion,
   downloadVerifiedRelease,
   latestReleaseVersion,
-  ReleaseAccessError,
   type ReleaseClient,
 } from "./release.ts";
 
@@ -71,8 +63,6 @@ export interface UpdateContext {
   readonly client: ReleaseClient;
   readonly verifySignature?: (path: string) => Promise<void>;
   readonly onProgress?: ((progress: UpdateProgress) => void) | undefined;
-  /** Only explicit channel selection may move to an older release. */
-  readonly channel?: ReleaseChannel;
   /** How long to wait for another updater; the file-lock default when unset. */
   readonly lockTimeoutMs?: number;
 }
@@ -159,40 +149,29 @@ async function probeVersion(binary: string): Promise<string | undefined> {
       timeout: 10_000,
     });
     const output = await new Response(probe.stdout).text();
-    // --version includes the persisted update channel, not just the binary version.
-    const reported = output.trim().replace(/ \(channel: (?:stable|beta|unknown)\)$/, "");
-    return (await probe.exited) === 0 ? reported : undefined;
+    return (await probe.exited) === 0 ? output.trim() : undefined;
   } catch {
     return undefined;
   }
 }
 
 /**
- * Recheck under the update lock: another Axon process (usually the background worker) may
- * already have installed `version` or something newer. Never replace a newer binary, except
- * when the user explicitly switches channels (e.g. beta to stable), which may move backwards.
- * An unknown version is a failure, not "older": guessing could overwrite another install.
+ * Another Axon process (usually the detached background worker) may already have installed
+ * `version` since this launcher started. The executable path then resolves to the new file, so
+ * only the managed binary's own version can tell. Avoids downloading the same release twice,
+ * and never replaces a binary newer than `version`. An unknown version is a failure, not
+ * "older": guessing would let a stale launcher overwrite whatever another process installed.
  */
 async function alreadyInstalled(context: UpdateContext, version: string): Promise<boolean> {
   const installed = await probeVersion(context.paths.managedBinary);
   if (installed === undefined) throw new Error("could not determine the installed axon version");
   assertReleaseVersion(installed);
-  const switchingChannel =
-    context.channel !== undefined && context.channel !== releaseChannelForVersion(installed);
-  const order = Bun.semver.order(installed, version);
-  return switchingChannel ? order === 0 : order >= 0;
-}
-
-function selectedClient(context: UpdateContext): ReleaseClient {
-  return {
-    ...context.client,
-    channel: context.channel ?? readReleaseChannel(context.paths.home),
-  };
+  return Bun.semver.order(installed, version) >= 0;
 }
 
 async function latest(context: UpdateContext): Promise<string> {
   supportedTarget(context);
-  return latestReleaseVersion(selectedClient(context));
+  return latestReleaseVersion(context.client);
 }
 
 export async function checkForUpdate(
@@ -202,12 +181,7 @@ export async function checkForUpdate(
   context.onProgress?.({ stage: "check" });
   try {
     const version = await latest(context);
-    const order = Bun.semver.order(version, context.build.version);
-    const switching =
-      context.channel !== undefined &&
-      (context.channel !== describeReleaseChannel(context.paths.home) ||
-        context.channel !== releaseChannelForVersion(context.build.version));
-    const available = order > 0 || (switching && order !== 0);
+    const available = Bun.semver.order(version, context.build.version) > 0;
     emitProductEvent({
       category: "update",
       stage: "check",
@@ -241,22 +215,14 @@ async function performUpdate(context: UpdateContext): Promise<UpdateOutcome> {
   const target = supportedTarget(context);
   await assertManagedInstallation(context);
   const version = await checkForUpdate(context);
-  if (!version) {
-    if (context.channel !== undefined)
-      await saveReleaseChannel(context.paths.home, context.channel);
-    return { version: undefined, installedHere: false };
-  }
-  if (await alreadyInstalled(context, version)) {
-    if (context.channel !== undefined)
-      await saveReleaseChannel(context.paths.home, context.channel);
-    return { version, installedHere: false };
-  }
+  if (!version) return { version: undefined, installedHere: false };
+  if (await alreadyInstalled(context, version)) return { version, installedHere: false };
   context.onProgress?.({ stage: "download", version });
 
   // The staging directory lives on the same filesystem as the installed binary.
   const staging = await mkdtemp(join(context.paths.bin, ".axon-update-"));
   try {
-    const binary = await downloadVerifiedRelease(selectedClient(context), version, staging, target);
+    const binary = await downloadVerifiedRelease(context.client, version, staging, target);
     context.onProgress?.({ stage: "verify", version });
     await verifyStagedBinary(context, binary, version);
     // Recheck the inode immediately before activation: a different updater or user may
@@ -272,17 +238,6 @@ async function performUpdate(context: UpdateContext): Promise<UpdateOutcome> {
     } catch (error) {
       await rename(backup, context.paths.managedBinary);
       throw error;
-    }
-    if (context.channel !== undefined) {
-      try {
-        // Commit opt-in only after verification and activation. On a persistence
-        // failure restore the executable; do not leave a beta binary on stable.
-        await saveReleaseChannel(context.paths.home, context.channel);
-      } catch (error) {
-        await copyFile(context.paths.previousBinary, backup);
-        await rename(backup, context.paths.managedBinary);
-        throw error;
-      }
     }
     return { version, installedHere: true };
   } finally {
@@ -321,18 +276,16 @@ export async function installUpdate(
       version: context.build.version,
       durationMs: Date.now() - startedAt,
     });
-    let message = "could not update axon";
-    if (error instanceof ReleaseAccessError) {
-      message = error.message;
-    } else if (busy) {
-      message = "another axon update is already in progress";
-    }
-    throw new LauncherError(message, LAUNCHER_EXIT_STATUS.updateFailure, {
-      cause: error,
-      remediation: busy
-        ? "Retry axon update after the other update finishes."
-        : "Keep using the current installation and retry axon update. Beta may be unavailable or paused. To leave beta, run axon update --channel stable.",
-    });
+    throw new LauncherError(
+      busy ? "another axon update is already in progress" : "could not update axon",
+      LAUNCHER_EXIT_STATUS.updateFailure,
+      {
+        cause: error,
+        remediation: busy
+          ? "Retry axon update after the other update finishes."
+          : "Keep using the current installation and retry axon update.",
+      },
+    );
   }
 }
 

@@ -1,7 +1,6 @@
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
 
-import { type ReleaseChannel, releaseChannelForVersion } from "../product/release-channel.ts";
 import { type ReleaseTarget, releaseAssetNames } from "../product/release-targets.ts";
 
 const VERSION_PATTERN =
@@ -14,11 +13,7 @@ export interface ReleaseClient {
   readonly baseUrl: string;
   readonly fetcher?: typeof fetch;
   readonly metadataTimeoutMs?: number;
-  readonly channel?: ReleaseChannel;
 }
-
-/** Safe, locally authored messages that may be shown without leaking download URLs. */
-export class ReleaseAccessError extends Error {}
 
 export function assertReleaseVersion(version: string): void {
   if (!VERSION_PATTERN.test(version)) {
@@ -35,7 +30,6 @@ async function request(
   const fetcher = client.fetcher ?? fetch;
   let current = url;
   for (let redirects = 0; redirects <= 3; redirects++) {
-    // Both release channels are public; no session credentials are sent to the API or CDN.
     const response = await fetcher(current, {
       cache: "no-store",
       redirect: "manual",
@@ -65,10 +59,6 @@ async function request(
     }
     if (!response.ok) {
       await response.body?.cancel();
-      if (client.channel === "beta" && response.status === 503)
-        throw new ReleaseAccessError(
-          "Beta is currently unavailable or paused. Your current installation is unchanged.",
-        );
       throw new Error(`release request failed (HTTP ${response.status})`);
     }
     return response;
@@ -108,22 +98,12 @@ async function smallText(client: ReleaseClient, path: string): Promise<string> {
 }
 
 export async function latestReleaseVersion(client: ReleaseClient): Promise<string> {
-  const value = await smallText(
-    client,
-    client.channel === "beta" ? "latest/VERSION?channel=beta" : "latest/VERSION",
-  );
+  const value = await smallText(client, "latest/VERSION");
   if (!value.endsWith("\n") || value.includes("\r") || value.indexOf("\n") !== value.length - 1) {
     throw new Error("release VERSION must contain exactly one line");
   }
   const version = value.slice(0, -1);
   assertReleaseVersion(version);
-  const releaseChannel = releaseChannelForVersion(version);
-  if (client.channel !== "beta" && releaseChannel === "beta") {
-    throw new Error("stable channel cannot install a prerelease");
-  }
-  if (client.channel === "beta" && releaseChannel !== "beta") {
-    throw new Error("beta channel cannot install a stable release");
-  }
   return version;
 }
 
