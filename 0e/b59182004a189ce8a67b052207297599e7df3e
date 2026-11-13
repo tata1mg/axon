@@ -1,0 +1,63 @@
+apps/cli/src/harnesses/pi/adapter.ts
+  s_3f0dfc4623c0e5::t_f90e2f72717205 192-194
+apps/cli/tests/axon-safehouse-launch.test.ts
+  s_3f0dfc4623c0e5::t_87b3bbf0119dbc 202-204,222-226
+  s_3f0dfc4623c0e5::t_c3b53fe8c8e23c 44-45
+  s_3f0dfc4623c0e5::t_21af4e69056283 4,109-201,205-221,227-229
+  s_3f0dfc4623c0e5::t_5b195fdb79885a 230
+apps/cli/tests/safehouse-telemetry.test.ts
+  s_3f0dfc4623c0e5::t_c3b53fe8c8e23c 32-33
+apps/backend/tests/test_cli_config.py
+  s_3f0dfc4623c0e5::t_1a8c7c63bebf71 147-183
+apps/backend/config_template.json
+  s_3f0dfc4623c0e5::t_69b4f52d3ed180 131-133
+apps/cli/src/axon-safehouse/session.ts
+  s_3f0dfc4623c0e5::t_083b7f9140f383 185
+apps/cli/tests/axon-safehouse-opt-out.test.ts
+  s_3f0dfc4623c0e5::t_c3b53fe8c8e23c 57-58
+apps/cli/src/axon-safehouse/contracts.ts
+  s_3f0dfc4623c0e5::t_eb9305fe32656e 3-15,23-26
+apps/cli/tests/launcher.test.ts
+  s_3f0dfc4623c0e5::t_c3b53fe8c8e23c 49-50
+apps/cli/src/axon-safehouse/launch.ts
+  s_3f0dfc4623c0e5::t_757bc1c241758e 472-474,476-480
+  s_3f0dfc4623c0e5::t_ad1691218fb800 94-101
+  s_3f0dfc4623c0e5::t_16b4018b053734 611-613
+  s_3f0dfc4623c0e5::t_0d584742bd3aed 494-502,511
+apps/cli/src/cli/auth/request-relay.ts
+  s_3f0dfc4623c0e5::t_f90e2f72717205 471-472,496
+apps/backend/app/core/axon_safehouse.py
+  s_3f0dfc4623c0e5::t_69b4f52d3ed180 3-4,6,8-9,15-16,21-27,37-39,54-63,65-71,80-81
+  s_3f0dfc4623c0e5::t_9efdae4ba23d8c 17-20,64
+apps/cli/src/axon-safehouse/configuration-relay.ts
+  s_3f0dfc4623c0e5::t_f90e2f72717205 60-61,126
+apps/cli/src/cli/commands/axon-safehouse.ts
+  s_3f0dfc4623c0e5::t_083b7f9140f383 162-163
+  s_3f0dfc4623c0e5::t_2762de2676ec90 56,63-71,204,206-207
+  s_3f0dfc4623c0e5::t_f90e2f72717205 205
+apps/cli/src/launcher/contracts.ts
+  s_3f0dfc4623c0e5::t_083b7f9140f383 70-71
+apps/cli/src/axon-safehouse/rpc-configuration.ts
+  s_3f0dfc4623c0e5::t_f90e2f72717205 287-289
+apps/cli/tests/compiled-pi-resources.test.ts
+  s_3f0dfc4623c0e5::t_c3b53fe8c8e23c 59-60
+apps/cli/tests/axon-safehouse-menu.test.ts
+  s_3f0dfc4623c0e5::t_2f9182fa9a3ab1 51-53,67,69-71,73-76,82-84,86-90,92-98,100-103
+  s_3f0dfc4623c0e5::t_f90e2f72717205 68,72,77-81,85,91,99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0eb59182004a189ce8a67b052207297599e7df3e",
+  "prompts": {},
+  "sessions": {
+    "s_3f0dfc4623c0e5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3ef96a92-c958-4aa3-b66a-81d3a38ecf2b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
