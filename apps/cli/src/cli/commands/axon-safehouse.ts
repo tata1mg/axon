@@ -53,12 +53,22 @@ function formatFilesystemAccess(access: string | undefined): string {
 export function formatFilesystemPermissions(
   project: string,
   preferences: FilesystemPreferences,
+  policy?: Pick<AxonSafehousePolicy, "readPaths" | "writePaths">,
 ): string {
   const lines = [
     `${colors.bold("Project")}      ${colors.cyan(formatHomePath(project))} (${formatFilesystemAccess(preferences.projectMode)})`,
     colors.dim("Required runtime access is not listed."),
     "",
   ];
+  if (policy && (policy.readPaths.length > 0 || policy.writePaths.length > 0)) {
+    lines.push(
+      colors.bold(colors.cyan("Managed by your administrator")),
+      ...policy.readPaths.map((path) => `  ${colors.green(path)} ${colors.dim("(read-only)")}`),
+      ...policy.writePaths.map((path) => `  ${colors.yellow(path)} ${colors.dim("(read/write)")}`),
+      colors.dim("  Your blocked directories/files still apply to these grants."),
+      "",
+    );
+  }
   for (const [label, entries, color] of [
     ["Additional read-only directories/files", preferences.readPaths, colors.green],
     ["Additional read/write directories/files", preferences.writePaths, colors.yellow],
@@ -149,6 +159,8 @@ export async function runAxonSafehouseMenu(
     /** Only the parent-owned RPC transport may provide a nonterminal UI. */
     readonly requireTerminal?: boolean;
     readonly authorize?: () => Promise<AxonSafehousePolicy>;
+    /** Already-fetched startup policy, shown as administrator grants; never used to save. */
+    readonly displayPolicy?: Pick<AxonSafehousePolicy, "readPaths" | "writePaths">;
     readonly beforeSave?: () => Promise<void>;
   } = {},
 ): Promise<boolean> {
@@ -189,7 +201,10 @@ export async function runAxonSafehouseMenu(
     return true;
   }
   ui.intro("Axon Safehouse · settings");
-  ui.note(formatFilesystemPermissions(project, original), "Current Safehouse settings");
+  ui.note(
+    formatFilesystemPermissions(project, original, options.displayPolicy),
+    "Current Safehouse settings",
+  );
   while (!signal?.aborted) {
     const action = await ui.select<MenuAction>({
       ...cancellation,

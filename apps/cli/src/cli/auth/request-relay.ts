@@ -468,6 +468,8 @@ export function startAuthenticatedRequestRelay(
     readonly allowAxonSafehouseConfiguration?: boolean;
     /** Required for /safehouse saves: validates against the invocation's compiled policy. */
     readonly axonSafehouseConfigurationPolicy?: () => Promise<AxonSafehousePolicy>;
+    /** Display only: lets /safehouse show administrator grants without refetching. */
+    readonly axonSafehouseStartupPolicy?: AxonSafehousePolicy;
     readonly prepareAxonSafehouseRestart?: (session: AxonSafehouseResumeSession) => () => void;
     readonly axonSafehouseOperation?: (request: Request) => Promise<Response>;
     readonly cwd?: string;
@@ -491,6 +493,7 @@ export function startAuthenticatedRequestRelay(
           options.cwd ?? process.cwd(),
           options.axonSafehouseConfigurationPolicy,
           options.prepareAxonSafehouseRestart,
+          options.axonSafehouseStartupPolicy,
         )
       : undefined;
   const server = Bun.serve({

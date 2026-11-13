@@ -54,6 +54,8 @@ function authorization(
       allowAdditionalReadPaths: true,
       allowAdditionalWritePaths: true,
       protectedPaths: [],
+      readPaths: [],
+      writePaths: [],
       ...overrides,
     },
   };

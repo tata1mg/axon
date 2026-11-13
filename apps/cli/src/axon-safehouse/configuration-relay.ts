@@ -57,6 +57,8 @@ export function createAxonSafehouseConfigurationRelay(
   /** The invocation's compiled boundary; saves must never validate against a newer policy. */
   authorize: () => Promise<AxonSafehousePolicy>,
   prepareRestart?: (session: AxonSafehouseResumeSession) => () => void,
+  /** The startup policy, shown in the editor without another backend request. */
+  displayPolicy?: AxonSafehousePolicy,
 ) {
   const shutdown = new AbortController();
   const access = createFilesystemAccessRelay(paths, cwd, authorize);
@@ -121,6 +123,7 @@ export function createAxonSafehouseConfigurationRelay(
         const saved = await runAxonSafehouseMenu(paths, cwd, prompts, {
           signal,
           authorize,
+          ...(displayPolicy ? { displayPolicy } : {}),
           beforeSave,
         });
         return reply({ opened: true, saved });

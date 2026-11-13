@@ -189,6 +189,9 @@ export function createPiAdapter(): HarnessAdapter {
           allowAxonSafehouseConfiguration:
             !axonSafehouse.disabled && setup.invocationKind === "interactive",
           axonSafehouseConfigurationPolicy: () => axonSafehouse.configurationPolicy(),
+          ...(axonSafehouse.startupPolicy
+            ? { axonSafehouseStartupPolicy: axonSafehouse.startupPolicy }
+            : {}),
           ...(context.prepareAxonSafehouseRestart
             ? { prepareAxonSafehouseRestart: context.prepareAxonSafehouseRestart }
             : {}),

@@ -48,7 +48,9 @@ test("relative menu paths resolve from the launch directory, not the checkout ro
   const policy = {
     allowAdditionalReadPaths: true,
     allowAdditionalWritePaths: true,
-  } as AxonSafehousePolicy;
+    readPaths: [],
+    writePaths: [],
+  } as unknown as AxonSafehousePolicy;
 
   const { ui, notes } = scriptedUI(["deny", "enter", ".env", "back", "save", "save"]);
   const saved = await runAxonSafehouseMenu(paths, launch, ui, {
@@ -61,4 +63,41 @@ test("relative menu paths resolve from the launch directory, not the checkout ro
   expect(preferences.denyPaths).toEqual([join(launch, ".env")]);
   expect(preferences.denyPaths).not.toContain(join(repository, ".env"));
   expect(notes.some((note) => note.includes(join("packages", "api", ".env")))).toBe(true);
+});
+
+test("the menu lists startup backend grants without another policy request", async () => {
+  const paths = resolveAxonPaths({ HOME: join(root, "home") });
+  const project = join(root, "project");
+  await mkdir(project, { recursive: true });
+  let authorizations = 0;
+
+  const { ui, notes } = scriptedUI(["discard"]);
+  await runAxonSafehouseMenu(paths, project, ui, {
+    requireTerminal: false,
+    authorize: async () => {
+      authorizations++;
+      throw new Error("opening the editor must not refetch policy");
+    },
+    displayPolicy: { readPaths: ["~/shared-libs"], writePaths: ["/opt/axon-output"] },
+  });
+
+  const shown = Bun.stripANSI(notes[0] ?? "");
+  expect(authorizations).toBe(0);
+  expect(shown).toContain("Managed by your administrator");
+  expect(shown).toContain("~/shared-libs (read-only)");
+  expect(shown).toContain("/opt/axon-output (read/write)");
+});
+
+test("the menu omits the administrator section without backend grants", async () => {
+  const paths = resolveAxonPaths({ HOME: join(root, "home") });
+  const project = join(root, "project");
+  await mkdir(project, { recursive: true });
+
+  const { ui, notes } = scriptedUI(["discard"]);
+  await runAxonSafehouseMenu(paths, project, ui, {
+    requireTerminal: false,
+    displayPolicy: { readPaths: [], writePaths: [] },
+  });
+
+  expect(notes[0]).not.toContain("Managed by your administrator");
 });

@@ -144,6 +144,43 @@ def test_bootstrap_sends_local_opt_out_only_when_allowed(allow_local_opt_out: bo
     assert policy["required"] is True
 
 
+def test_policy_grants_default_empty_and_are_always_sent() -> None:
+    policy = AxonSafehouseSettings().cli_config().model_dump(by_alias=True, mode="json", exclude_none=True)
+    assert policy["readPaths"] == []
+    assert policy["writePaths"] == []
+    configured = AxonSafehouseSettings.model_validate(
+        {"READ_PATHS": ["~/shared-libs", "/opt/docs"], "WRITE_PATHS": ["~/.cache/tool"]}
+    ).cli_config()
+    assert configured.model_dump(by_alias=True, mode="json")["readPaths"] == ["~/shared-libs", "/opt/docs"]
+    assert configured.model_dump(by_alias=True, mode="json")["writePaths"] == ["~/.cache/tool"]
+
+
+@pytest.mark.parametrize(
+    "section",
+    [
+        {"READ_PATHS": ["/"]},
+        {"WRITE_PATHS": ["~/"]},
+        {"WRITE_PATHS": ["~/work/.."]},
+        {"READ_PATHS": ["relative/path"]},
+        {"READ_PATHS": ["~/bad\npath"]},
+        {"READ_PATHS": ["~/shared"], "WRITE_PATHS": ["~/shared/"]},
+        {"WRITE_PATHS": ["~/.aws/cli"], "PROTECTED_PATHS": ["~/.aws"]},
+        {"READ_PATHS": ["/opt"], "PROTECTED_PATHS": ["/opt/secrets"]},
+        {"READ_PATHS": ["/x"] * 65},
+    ],
+)
+def test_policy_grants_reject_unsafe_paths(section: dict) -> None:
+    with pytest.raises(ValueError):
+        AxonSafehouseSettings.model_validate(section)
+
+
+def test_policy_grants_allow_siblings_of_protected_paths() -> None:
+    settings = AxonSafehouseSettings.model_validate(
+        {"READ_PATHS": ["~/.aws-docs", "/opt/docs"], "WRITE_PATHS": ["~/shared/out"], "PROTECTED_PATHS": ["~/.aws"]}
+    )
+    assert settings.read_paths == ["~/.aws-docs", "/opt/docs"]
+
+
 @pytest.mark.parametrize("status", [401, 403, 503])
 def test_auth_errors_are_safe_and_uncached(monkeypatch: pytest.MonkeyPatch, status: int) -> None:
     class AuthClient:

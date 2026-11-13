@@ -91,6 +91,14 @@ function ancestorRules(
   }
 }
 
+/** Canonical backend grants; the backend validates too, but never trust a grant of "/" or home. */
+async function policyGrantPaths(entries: readonly string[], home: string): Promise<string[]> {
+  const grants = await Promise.all(entries.map((entry) => canonicalPath(entry)));
+  if (grants.some((path) => path === parse(path).root || isWithin(path, home)))
+    throw axonSafehouseFailure("Backend policy grants the filesystem root or home directory");
+  return [...new Set(grants)];
+}
+
 async function readGrant(path: string): Promise<string[]> {
   const canonical = await canonicalPath(path);
   return [...ancestorRules(canonical), pathRule("allow file-read*", canonical)];
@@ -461,9 +469,15 @@ export async function createAxonSafehouseLaunchSpec(
     // Shared agent configuration and user tools are session defaults, not
     // provisioning grants. Explicit denials and brokered write restrictions still win.
     const userWritePaths = projectAccess ? USER_WRITE_PATHS.map((path) => join(home, path)) : [];
+    // Backend grants share that scope and downgrade; they never revoke other access.
+    const policyReadPaths = projectAccess ? await policyGrantPaths(policy.readPaths, home) : [];
+    const policyWritePaths = projectAccess ? await policyGrantPaths(policy.writePaths, home) : [];
     for (const [entries, operation] of [
-      [preferences.readPaths, "allow file-read*"],
-      [[...userWritePaths, ...preferences.writePaths], "allow file-read* file-write*"],
+      [[...policyReadPaths, ...preferences.readPaths], "allow file-read*"],
+      [
+        [...userWritePaths, ...policyWritePaths, ...preferences.writePaths],
+        "allow file-read* file-write*",
+      ],
     ] as const) {
       for (const entry of entries) {
         const path = await canonicalPath(entry);
@@ -477,7 +491,15 @@ export async function createAxonSafehouseLaunchSpec(
       }
     }
     const repositories = projectAccess
-      ? [project, ...preferences.readPaths, ...preferences.writePaths]
+      ? [
+          ...new Set([
+            project,
+            ...policyReadPaths,
+            ...policyWritePaths,
+            ...preferences.readPaths,
+            ...preferences.writePaths,
+          ]),
+        ]
       : [];
     const metadataEntries = (
       await Promise.all(
@@ -486,7 +508,7 @@ export async function createAxonSafehouseLaunchSpec(
             const writable =
               path === project
                 ? preferences.projectMode === "read-write"
-                : preferences.writePaths.includes(path);
+                : policyWritePaths.includes(path) || preferences.writePaths.includes(path);
             return (await stat(path)).isDirectory()
               ? (await gitMetadata(path)).map((metadataPath) => ({ path: metadataPath, writable }))
               : [];
@@ -586,7 +608,9 @@ export async function createAxonSafehouseLaunchSpec(
     const deniedWritePaths = [
       ...deniedReadPaths,
       ...preferences.readPaths,
-      ...(brokeredSession ? [project, ...preferences.writePaths, ...metadata] : []),
+      ...(brokeredSession
+        ? [project, ...policyWritePaths, ...preferences.writePaths, ...metadata]
+        : []),
       ...(projectAccess && preferences.projectMode === "read-only" ? [project] : []),
       ...managedWriteDenials,
       ...metadataWriteDenials,
