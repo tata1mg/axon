@@ -1,0 +1,201 @@
+apps/cli/tests/pi-package-setup.test.ts
+  s_74962d9283fbd9::t_3e485edf8ca33e 210,212
+apps/cli/src/cli/dispatch.ts
+  s_dff616909b857a::t_94c47bb3c508bd 61
+  s_c07770699f135e::t_8b52f937e6b04d 15,58-59
+apps/cli/src/harnesses/pi/telemetry/src/otel/runtime.ts
+  s_dff616909b857a::t_0e336cc24e4cca 51
+  s_dff616909b857a::t_3478fa29159767 337-338,358
+apps/cli/.env.example
+  s_dff616909b857a::t_e461facd2b04d9 57-58
+apps/cli/src/harnesses/pi/telemetry/docs/limitations.md
+  s_74962d9283fbd9::t_4dc6ed5ca28181 14-15
+apps/cli/tests/axon-changelog.test.ts
+  s_74962d9283fbd9::t_77318fc5bd5aec 41,232,241,248,323-329
+apps/cli/tests/file-lock.test.ts
+  s_fefe06d85fb7d7::t_6ad96d6608fa7b 3,284-304
+  s_dff616909b857a::t_d3827da3026a7a 28-32,34,36-38,41-47,249-283,305-309
+  s_dc37c176f3b949::t_3e48839ca48ee9 361-366
+  s_dc37c176f3b949::t_b39c74fedc7210 96
+  s_dc37c176f3b949::t_731f7b81042757 1-2,8-12,48,55,64-66,69-71,73-78,80-95,97-98,100-137,177-248,322,324-325,328,330,336,340-360
+  s_dc37c176f3b949::t_1656392ea510e2 35
+  s_dc37c176f3b949::t_68eb1bdff58d40 367-368,370,372-375
+  s_dff616909b857a::t_78fbcf3c3343de 4,310-320
+  s_dc37c176f3b949::t_38ec4a355bd4d6 5-7,13-26,49-54,56-63,67-68,79,321,323,326-327,329,331-335,337-339,369,371,376-377
+  s_dc37c176f3b949::t_ce212e8261ed85 27,33,39-40,72,99
+  s_dc37c176f3b949::t_ae20c8226fe9ed 138-176
+apps/cli/tests/launcher.test.ts
+  s_dff616909b857a::t_f7dfd54d56c8bb 184-193
+  s_dc37c176f3b949::t_2d3307f7e51700 354,370,375-389,399-401,405
+  s_dc37c176f3b949::t_fc7baca24641e3 91-98,366,395
+  s_dc37c176f3b949::t_68eb1bdff58d40 355-365,367-369,371-374,390-394,396-398,402-404,406
+  s_dff616909b857a::t_12fd4007d698f8 407
+apps/cli/src/harnesses/pi/telemetry/tests/grafana.test.ts
+  s_dff616909b857a::t_75e93bd2d4b161 53,79,86-104,306,322
+  s_dff616909b857a::t_2ac9d5debfeda1 54-55,222,229
+apps/cli/src/updater/startup.ts
+  s_dff616909b857a::t_94c47bb3c508bd 8,10,12-24,44,61,68-70,90,99-100,102,105,110,118
+  s_c07770699f135e::t_540697e5313708 1,87-89,91-98,101,103-104,106-109,111-117,119-136
+  s_dff616909b857a::t_a6a6d2a4da2d56 137
+apps/cli/src/harnesses/pi/telemetry/grafana-metrics-only.json
+  s_dff616909b857a::t_868042474834cc 53,98,143,188,233,278,323,369,414,459,504,549,607,613,619,665,670,716,773,826,834,842,850,858,866,874,1065,1112,1159,1219,1269,1316,1321,1326,1331,1381,1388,1395,1402,1449,1457,1465,1473,1481,1489,1497,1701,1748,1795,1842,1892,1939,1982,2030,2077,2124,2171,2176,2221,2226,2271,2276,2321,2326,2371,2378,2425,2479,2533,2538,2543,2548,2592,2597,2602,2607,2652,2657,2662,2667,2712,2757,2804,2851,2898,2903,2961,2966,2971,3017,3063,3068,3073,3107,3112,3117,3170,3217,3256,3291,3296,3331,3374,3414,3419,3424,3469,3474,3532,3567,3602,3607,3642,3647,3696,3731,3736,3771,3821,3868,3915,3962,3967,4012,4059,4120,4167,4214,4219,4264,4311,4316,4361,4408,4465-4479,4488-4489
+apps/cli/src/harnesses/pi/telemetry/tests/helpers.ts
+  s_dff616909b857a::t_e9be63b2ee04b1 15-17
+apps/cli/src/launcher/errors.ts
+  s_dff616909b857a::t_1aa083edfe5f39 2,19-43
+apps/cli/src/harnesses/pi/telemetry/src/attributes.ts
+  s_dff616909b857a::t_3478fa29159767 12
+apps/cli/pi-version.json
+  s_74962d9283fbd9::t_1a5ddb2063468c 2
+apps/cli/package.json
+  s_74962d9283fbd9::t_92aeb27270eea7 3,45-46,65
+apps/cli/tests/pi-model-cache.test.ts
+  s_74962d9283fbd9::t_f55805f9fe6539 31,104-105
+apps/cli/src/harnesses/pi/resources/extensions/terminal-permissions.mjs
+  s_dff616909b857a::t_6b55e3cc922121 2-3,5-7,11-12
+  s_fefe06d85fb7d7::t_eb8a05117c2238 4
+  s_dc37c176f3b949::t_b39c74fedc7210 8-9
+apps/cli/tests/litellm-client-provider.test.ts
+  s_74962d9283fbd9::t_47be9004eb48d1 43
+apps/cli/src/harnesses/pi/resources/extensions/axon-changelog.ts
+  s_e5b17b0b42dd57::t_e4b4bc2028c484 25-29
+  s_e5b17b0b42dd57::t_52229cc42f61e3 30
+  s_74962d9283fbd9::t_ed50ab76b3a49d 21-24,31
+  s_74962d9283fbd9::t_31846d447bb59c 20
+docs/session-backup-and-restore.md
+  s_74962d9283fbd9::t_7b03578a094764 12
+apps/cli/src/harnesses/pi/telemetry/docs/telemetry-schema.md
+  s_dff616909b857a::t_e461facd2b04d9 28,36,119
+  s_74962d9283fbd9::t_30eec3237297e1 3
+apps/cli/src/harnesses/pi/telemetry/src/environment.ts
+  s_dff616909b857a::t_3478fa29159767 7,53-67,77,85
+apps/cli/src/harnesses/pi/telemetry/tests/runtime.test.ts
+  s_dff616909b857a::t_e9be63b2ee04b1 5,100-116
+  s_dff616909b857a::t_71871e2175cb9d 117
+apps/cli/src/harnesses/pi/telemetry/grafana.json
+  s_dff616909b857a::t_868042474834cc 61,106,151,196,241,286,331,377,422,467,512,557,615,621,627,673,678,724,781,834,842,850,858,866,874,882,1073,1120,1167,1255,1305,1352,1357,1362,1367,1417,1424,1431,1438,1485,1493,1501,1509,1517,1525,1533,1737,1784,1831,1878,1928,1975,2018,2066,2113,2160,2207,2212,2257,2262,2307,2312,2357,2362,2407,2414,2461,2515,2595,2600,2605,2610,2654,2659,2664,2669,2714,2719,2724,2729,2774,2819,2866,2913,2960,2965,3023,3028,3033,3079,3125,3130,3135,3169,3174,3179,3232,3279,3318,3353,3358,3393,3436,3476,3481,3486,3531,3536,3620,3655,3690,3695,3730,3735,3784,3819,3824,3859,3909,3956,4003,4050,4055,4100,4147,4234,4281,4328,4333,4378,4425,4430,4475,4522,4605-4619,4628-4629
+apps/cli/src/launcher/file-lock.ts
+  s_dc37c176f3b949::t_e304c12cdc5115 4,9,26,66-73,76-79,81-84,92-95,98,100-105,107-109,136,138-139,141,144-158,163,165,171-174,185,203-204,214-217,222-223,227-231,233,235,264,267,269,274,288,291-296,299-301,319,323,326
+  s_dc37c176f3b949::t_216e6ffa04ffdc 35-41,43-47,53-54,59-60,328,330,333
+  s_dc37c176f3b949::t_ad03e6e4583783 42,48-52,55-58,119,124-125,175,207,209,211-213,218
+  s_dc37c176f3b949::t_6dfa552d399319 140,142-143,232,234,265-266,273,298
+  s_dc37c176f3b949::t_647cf4355e95a5 329,331
+  s_dff616909b857a::t_09b6922a36df9d 1-3,19-20,27-33,74-75,80,86-91,106,110-113,126-135,137,178-182,186-202,221,224-226,236-248,263,268,270-272,275-281,302,304,309-310,318,322,332,345,348-355,357-358
+  s_dc37c176f3b949::t_bec78ada068e14 85
+  s_dff616909b857a::t_85da3a43d5d84e 303
+  s_dc37c176f3b949::t_383d2c1eb4f89c 312-317
+  s_fefe06d85fb7d7::t_30525afc25cd63 305-308
+  s_fefe06d85fb7d7::t_7e3062ba83343f 34
+apps/cli/src/harnesses/pi/telemetry/tests/grafana-counters.promql.json
+  s_dff616909b857a::t_75e93bd2d4b161 15,37,59,80,102,124
+apps/cli/src/harnesses/pi/setup/packages/invocation.ts
+  s_dff616909b857a::t_eb61ba30d8915b 38-43,48
+apps/cli/tests/update.test.ts
+  s_dff616909b857a::t_fe4dad0f54d753 216-218
+  s_dff616909b857a::t_e42e4cab3ea0d9 385
+  s_c07770699f135e::t_8806daa78cb3be 6,557
+  s_c07770699f135e::t_7bb00d485e2d9e 18,552-556,558,560-563,566,568-570,572-576,580,582-583,586,588,603-604,606,608-610,612-616
+  s_fefe06d85fb7d7::t_6ad96d6608fa7b 465-476,505-549
+  s_dff616909b857a::t_9ddf08d48288aa 2,8,20,179-198,200-215,219-223,463,551,559,564-565,567,571,577,579,581,584-585,587,589-602,605,607,611,617-633
+  s_fefe06d85fb7d7::t_def3e6b3298b9f 33-34,59,159,175,199,386,408,433,440,449,462,486
+  s_c07770699f135e::t_a6e099a656cee6 578
+  s_fefe06d85fb7d7::t_7bb1d576ab0be5 464,550
+apps/cli/src/index.ts
+  s_dff616909b857a::t_1aa083edfe5f39 7,34-37,46-51
+  s_dff616909b857a::t_fe4dad0f54d753 9
+apps/cli/src/harnesses/pi/telemetry/tests/environment.test.ts
+  s_dff616909b857a::t_445623d790e72b 58
+  s_dff616909b857a::t_e9be63b2ee04b1 5,40-57,59-62
+  s_dff616909b857a::t_1690b6d010413a 63
+apps/cli/src/launcher/environment.ts
+  s_dff616909b857a::t_5fcba35e29719d 41-46
+apps/cli/src/harnesses/pi/adapter.ts
+  s_dff616909b857a::t_1aa083edfe5f39 79,83
+  s_dc37c176f3b949::t_327914f5f100c4 78
+apps/cli/src/harnesses/pi/resources/extensions/session-backup.mjs
+  s_fefe06d85fb7d7::t_eb8a05117c2238 59
+  s_dff616909b857a::t_6b55e3cc922121 2,6,17,23,28,56,58,60-65
+  s_dc37c176f3b949::t_b39c74fedc7210 49
+  s_dc37c176f3b949::t_221ec2d979818f 18,29,52-53
+apps/cli/README.md
+  s_74962d9283fbd9::t_10072a83514a12 314
+  s_fefe06d85fb7d7::t_839be02f69b7da 102
+  s_74962d9283fbd9::t_aef5171d18eb1b 23,45,222,360-361,419,459
+  s_dff616909b857a::t_31d866887cdca3 69
+  s_dff616909b857a::t_e461facd2b04d9 103
+apps/cli/src/harnesses/pi/resources/extensions/pi-org-telemetry.mjs
+  s_dc37c176f3b949::t_221ec2d979818f 241,243-244
+  s_fefe06d85fb7d7::t_eb8a05117c2238 266
+  s_dff616909b857a::t_6b55e3cc922121 231,233,235,238-240,242,245,247,249,251-252,256,258,260-261,263-265,267-269
+apps/cli/src/updater/update.ts
+  s_dff616909b857a::t_fe4dad0f54d753 16
+  s_fefe06d85fb7d7::t_7419a1d698a223 376-377
+  s_fefe06d85fb7d7::t_839be02f69b7da 37-38,363,365,369-374,379
+  s_fefe06d85fb7d7::t_bd19b93a3181bd 161-163,167-168
+  s_dff616909b857a::t_b1b6d7e68e40d6 19,41-52,66-67,138,143-158,164,170-171,255-256,258,263-265,268,270,274-275,279-288,292-296,328
+  s_dff616909b857a::t_43fd425f10c687 339,343-345
+  s_dff616909b857a::t_0c7ffa7982aca4 159-160,165-166,169,207-214,218-219,242,257
+  s_fefe06d85fb7d7::t_a28d09cea6c4bf 40
+apps/cli/src/product/manifest.ts
+  s_74962d9283fbd9::t_b7c7af88efccb0 125,139
+apps/cli/src/harnesses/pi/telemetry/README.md
+  s_dff616909b857a::t_76c4e6db6c5a0b 116-122
+bun.lock
+  s_74962d9283fbd9::t_73a12da395b34c 13,27-28,47,117,119,121,123,125,127,129,131,365-366,389
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4273bc069dd198a0d7b883b1822f67a253fe38a5",
+  "prompts": {},
+  "sessions": {
+    "s_74962d9283fbd9": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a1c68b-c375-71af-96f2-537e20c3ea26",
+        "model": "gemini-4-carbon"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_c07770699f135e": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a1ce59-eb41-73cb-9f7f-d1cec32c6b62",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_dc37c176f3b949": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a1ce56-db72-7568-8103-4a3e79d1ffa5",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_dff616909b857a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3b3850bd-189e-4147-a5be-bfcff70af02f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_e5b17b0b42dd57": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a1ce70-cb93-7685-a9d3-5998038bcef2",
+        "model": "gpt-6.1-terra"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_fefe06d85fb7d7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cedbe53b-7385-48dd-8095-e1033fed3c5b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}

@@ -1,0 +1,59 @@
+apps/cli/src/cli/commands/axon-safehouse.ts
+  s_6952b50896fcf1::t_1b35f6219180c6 11,34,57,74-78,82-83,91-92,129,132-136,162,176,180,184,207-211,326-348
+  s_6952b50896fcf1::t_355d622c74fbd5 23-31,79-81,130-131
+apps/backend/app/core/axon_safehouse.py
+  s_6952b50896fcf1::t_542d554532a207 31,47
+apps/cli/src/cli/launcher-program.ts
+  s_6952b50896fcf1::t_7a2f492499f8c1 77
+  s_6952b50896fcf1::t_4e765667ee62ea 81-83
+apps/cli/src/axon-safehouse/package-proxy.ts
+  s_6952b50896fcf1::t_ff364025e3b617 2-3,5,7,13-14,18-40,45,49-62,65-92,94,96,102-105,108-117,121-135,139,156
+  s_6952b50896fcf1::t_fb3d60a662cac2 15-17,63-64,98,106-107,153-154
+apps/cli/tests/axon-safehouse-filesystem.test.ts
+  s_6952b50896fcf1::t_a30d364906e7cd 31
+apps/cli/src/axon-safehouse/network.ts
+  s_6952b50896fcf1::t_280fae38d4bee3 50
+  s_6952b50896fcf1::t_005bc74350337d 1-10,12-22,38-49
+  s_6952b50896fcf1::t_52314f9de891d2 11,23-37
+apps/cli/src/axon-safehouse/filesystem.ts
+  s_6952b50896fcf1::t_da69e3582b2c2e 35-38,40
+  s_6952b50896fcf1::t_b1f57c5b977949 8,22-26,28,30-33,60-61,151,348
+  s_6952b50896fcf1::t_51e4f349867c70 27,29
+  s_6952b50896fcf1::t_769784f0476404 34
+apps/cli/src/axon-safehouse/profile.ts
+  s_6952b50896fcf1::t_6c43c1a6af4da6 35-37,76,79,83-85,97
+apps/cli/tests/axon-safehouse-launch.test.ts
+  s_6952b50896fcf1::t_7b3d2e3873261a 2,25
+apps/cli/src/launcher/launch-harness.ts
+  s_6952b50896fcf1::t_97a6ab417012f2 96,101,105
+apps/cli/src/axon-safehouse/session.ts
+  s_6952b50896fcf1::t_559f0cdd13eed7 60,142,245,251-252
+apps/cli/src/axon-safehouse/environment.ts
+  s_6952b50896fcf1::t_3cd61a977dad96 13-14,16-23,136-140
+  s_6952b50896fcf1::t_dd540e8b38a242 110-113,129-130
+  s_6952b50896fcf1::t_8200421c76ec7b 3-4,94,100,102-106,127-128
+apps/cli/src/harnesses/pi/resources/extensions/axon.ts
+  s_6952b50896fcf1::t_0db8a14110e802 367,377,455-460,941,1053
+apps/cli/src/axon-safehouse/launch.ts
+  s_6952b50896fcf1::t_974558ee20bf5d 2,14,27,102,131,147,159,185,191,196,260-264,336,338-350,356-359,369-376,512-515,520-533,537-546,634,649-650,685
+  s_6952b50896fcf1::t_1bb1d49820620d 13,245,252-259
+  s_6952b50896fcf1::t_ebd3daaf5967b4 192-195,378-379,516-519,534-536,620
+  s_6952b50896fcf1::t_964ca58b58bbc5 51
+  s_6952b50896fcf1::t_4be6ee70a23b86 17-18,221-222,224-225,230,383-393,486-493,496,565-570,572-573,635,686
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dda9b11e80404aaa1cc1eac4196a2c12b95396c1",
+  "prompts": {},
+  "sessions": {
+    "s_6952b50896fcf1": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "504043",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  }
+}
