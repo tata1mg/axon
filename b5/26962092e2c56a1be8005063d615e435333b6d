@@ -1,0 +1,19 @@
+apps/cli/src/harnesses/pi/resources/extensions/axon-changelog.ts
+  s_7eccb9358f3483::t_31a6f2f5bd42c4 25-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b526962092e2c56a1be8005063d615e435333b6d",
+  "prompts": {},
+  "sessions": {
+    "s_7eccb9358f3483": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b0daeed8-f34a-4771-a2c8-f544d2e31836",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
