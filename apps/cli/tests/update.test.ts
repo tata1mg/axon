@@ -200,7 +200,7 @@ describe("startup updates", () => {
     await ready;
     try {
       const startedAt = Date.now();
-      expect(await startup(f)).toEqual({ warnings: [], restarts: [] });
+      expect(await startup(f)).toEqual({ messages: [], warnings: [], restarts: [] });
       expect(Date.now() - startedAt).toBeLessThan(5_000);
       expect(await Bun.file(f.paths.managedBinary).text()).toBe(oldBinary);
     } finally {
@@ -219,9 +219,10 @@ describe("startup updates", () => {
     const args = ["hello"];
     const result = await startup(f, args);
     expect(result.restarts).toEqual([["pi", ...args]]);
-    expect(result.warnings).toEqual([
+    expect(result.messages).toEqual([
       `axon: updated to ${version}; continuing with the new version.`,
     ]);
+    expect(result.warnings).toEqual([]);
     expect(f.requests.some((path) => path.endsWith(assets.archive) || path === "/archive")).toBe(
       false,
     );

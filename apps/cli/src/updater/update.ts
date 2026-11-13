@@ -145,7 +145,7 @@ async function verifyStagedBinary(
     if ((await signature.exited) !== 0)
       throw new Error("downloaded binary has an invalid code signature");
   }
-    if ((await probeVersion(binary)) !== version) {
+  if ((await probeVersion(binary)) !== version) {
     throw new Error("downloaded binary reports the wrong version");
   }
 }
@@ -159,11 +159,20 @@ async function probeVersion(binary: string): Promise<string | undefined> {
       timeout: 10_000,
     });
     const output = await new Response(probe.stdout).text();
-    const reported = output.trim();
-    return (await probe.exited) === 0 ? output.trim() : undefined;
+    // --version includes the persisted update channel, not just the binary version.
+    const reported = output.trim().replace(/ \(channel: (?:stable|beta|unknown)\)$/, "");
+    return (await probe.exited) === 0 ? reported : undefined;
   } catch {
     return undefined;
   }
+}
+
+/** Recheck under the update lock before downloading a release another updater installed. */
+async function alreadyInstalled(context: UpdateContext, version: string): Promise<boolean> {
+  const installed = await probeVersion(context.paths.managedBinary);
+  if (installed === undefined) throw new Error("could not determine the installed axon version");
+  assertReleaseVersion(installed);
+  return installed === version;
 }
 
 function selectedClient(context: UpdateContext): ReleaseClient {
@@ -228,7 +237,11 @@ async function performUpdate(context: UpdateContext): Promise<UpdateOutcome> {
     if (context.channel !== undefined)
       await saveReleaseChannel(context.paths.home, context.channel);
     return { version: undefined, installedHere: false };
-  if (await alreadyInstalled(context, version)) return { version, installedHere: false };
+  }
+  if (await alreadyInstalled(context, version)) {
+    if (context.channel !== undefined)
+      await saveReleaseChannel(context.paths.home, context.channel);
+    return { version, installedHere: false };
   }
   context.onProgress?.({ stage: "download", version });
 
@@ -300,27 +313,19 @@ export async function installUpdate(
       version: context.build.version,
       durationMs: Date.now() - startedAt,
     });
-    throw new LauncherError(
-      error instanceof ReleaseAccessError ? error.message :
-      busy ? "another axon update is already in progress" : "could not update axon",
-
-      LAUNCHER_EXIT_STATUS.updateFailure,
-
-      {
-          cause: error,
-          remediation:
-          busy
-          ? "Retry axon update after the other update finishes."
-          : "Keep using the current installation and retry axon update. Beta may be unavailable or paused. To leave beta, run axon update --channel stable.",
-        },
-    ,
-    );
+    let message = "could not update axon";
+    if (error instanceof ReleaseAccessError) {
+      message = error.message;
+    } else if (busy) {
+      message = "another axon update is already in progress";
+    }
+    throw new LauncherError(message, LAUNCHER_EXIT_STATUS.updateFailure, {
+      cause: error,
+      remediation: busy
+        ? "Retry axon update after the other update finishes."
+        : "Keep using the current installation and retry axon update. Beta may be unavailable or paused. To leave beta, run axon update --channel stable.",
+    });
   }
-}
-
-/** Cheap pre-spawn throttle; the worker rechecks under the update lock. */
-export async function backgroundCheckDue(paths: AxonPaths): Promise<boolean> {
-  return Date.now() >= (await nextCheckAt(paths.updateState));
 }
 
 /** Cheap pre-spawn throttle; the worker rechecks under the update lock. */

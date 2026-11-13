@@ -66,7 +66,7 @@ export async function runStartupUpdate(
       options.progress ?? updateProgressView(),
     );
     if (!installed) return;
-    warn(`axon: updated to ${installed}; continuing with the new version.`);
+    info(`axon: updated to ${installed}; continuing with the new version.`);
   } catch (error) {
     // Another updater holds the lock and will finish on its own; this is not a failure.
     if (error instanceof Error && error.cause instanceof FileLockTimeoutError) return;
