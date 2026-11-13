@@ -1,0 +1,40 @@
+apps/backend/app/core/axon_safehouse.py
+  s_e2f56600b3a689::t_6d885469d7d235 23-24,31-32,46
+apps/cli/src/axon-safehouse/session.ts
+  s_e2f56600b3a689::t_5b8be877d7bab8 74-84,86-99,101
+apps/cli/src/axon-safehouse/contracts.ts
+  s_e2f56600b3a689::t_5b8be877d7bab8 25-26
+apps/cli/src/axon-safehouse/policy.ts
+  s_e2f56600b3a689::t_5b8be877d7bab8 26
+apps/cli/src/launcher/contracts.ts
+  s_e2f56600b3a689::t_5b8be877d7bab8 11-15
+apps/cli/src/launcher/launch-harness.ts
+  s_e2f56600b3a689::t_5b8be877d7bab8 49-50,52,57-59,74
+apps/backend/app/routers/cli_config.py
+  s_e2f56600b3a689::t_6d885469d7d235 41-45
+apps/cli/tests/axon-safehouse-opt-out.test.ts
+  s_e2f56600b3a689::t_9bbf06c1a3e945 1-107
+apps/backend/config_template.json
+  s_e2f56600b3a689::t_6d885469d7d235 127
+apps/cli/src/cli/launcher-program.ts
+  s_e2f56600b3a689::t_5b8be877d7bab8 315
+apps/backend/tests/test_cli_config.py
+  s_e2f56600b3a689::t_eca5fc51f707a5 63-64,129-144
+  s_e2f56600b3a689::t_a72d3aff9ff9b0 145-146
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f03bdfd0ecb9454d0a5bea62b024be91bfc01a8a",
+  "prompts": {},
+  "sessions": {
+    "s_e2f56600b3a689": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c71b09f2-85fa-4eeb-b045-77629c503951",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
