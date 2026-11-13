@@ -1,0 +1,128 @@
+apps/cli/.env.example
+  h_dc688f708c4675 144
+apps/cli/install.sh
+  h_dc688f708c4675 254-255,295
+apps/cli/package.json
+  h_dc688f708c4675 3,17-18,30,35
+apps/cli/scripts/build-terminal-permissions.ts
+  h_dc688f708c4675 16
+apps/cli/scripts/prepare-s3-release.ts
+  h_dc688f708c4675 54
+apps/cli/scripts/publish-s3-release.ts
+  h_dc688f708c4675 29,46,52,68-69,194
+apps/cli/src/cli/auth/request-relay.ts
+  h_dc688f708c4675 2
+apps/cli/src/cli/auth/session-recovery.ts
+  h_dc688f708c4675 70,77,91,93,97,112,226-249
+apps/cli/src/cli/auth/session.ts
+  h_dc688f708c4675 143
+apps/cli/src/cli/auth/verification.ts
+  h_dc688f708c4675 16,26,41
+apps/cli/src/cli/client-config.ts
+  h_dc688f708c4675 4,225,234-237,239,257
+apps/cli/src/cli/commands/auth.ts
+  h_dc688f708c4675 150-172
+apps/cli/src/cli/commands/doctor.ts
+  h_dc688f708c4675 3,172,175-188,196,261-285,289-291,370,388-389
+apps/cli/src/cli/commands/setup.ts
+  h_dc688f708c4675 6,56-60
+apps/cli/src/cli/dispatch.ts
+  h_dc688f708c4675 35-36,48,54,60
+apps/cli/src/cli/launcher-program.ts
+  h_dc688f708c4675 2,39,53-54,119,141,145,147,150,160,198
+apps/cli/src/harnesses/pi/adapter.ts
+  h_dc688f708c4675 77,97-105,162,175-178,259-260
+apps/cli/src/harnesses/pi/environment.ts
+  h_dc688f708c4675 13-14,74-75
+apps/cli/src/harnesses/pi/installation.ts
+  h_dc688f708c4675 280-293,305,314-326,329-332,335-343,345-346
+apps/cli/src/harnesses/pi/resources/extensions/axon-auth.ts
+  h_dc688f708c4675 359
+apps/cli/src/harnesses/pi/resources/extensions/axon.ts
+  h_dc688f708c4675 9,137,143,148-153,289,294-296,338,340,394
+apps/cli/src/harnesses/pi/resources/extensions/pi-org-telemetry.mjs
+  h_dc688f708c4675 231,233,235,238-245,247,249,251-252,256,258,261,264-269
+apps/cli/src/harnesses/pi/resources/extensions/session-backup.mjs
+  h_dc688f708c4675 2,6-10,12,14,17-20,23-24,28-30,32,37,45-46,50,52-54,56,58-65
+apps/cli/src/harnesses/pi/resources/extensions/terminal-permissions.mjs
+  h_dc688f708c4675 2-9,11-12
+apps/cli/src/harnesses/pi/resources/extensions/terminal-permissions.ts
+  h_dc688f708c4675 22,236,581,591,595,645-646
+apps/cli/src/harnesses/pi/session-backup/index.ts
+  h_dc688f708c4675 2-8,58-64
+apps/cli/src/harnesses/pi/settings-defaults.ts
+  h_dc688f708c4675 50,86-90
+apps/cli/src/harnesses/pi/setup/packages/sync.ts
+  h_dc688f708c4675 3,99-120,122-139
+apps/cli/src/harnesses/pi/telemetry/src/environment.ts
+  h_dc688f708c4675 69-72
+apps/cli/src/harnesses/pi/telemetry/src/otel/managed-exporter.ts
+  h_dc688f708c4675 116,131
+apps/cli/src/harnesses/pi/telemetry/tests/grafana.test.ts
+  h_dc688f708c4675 54-55
+apps/cli/src/harnesses/pi/terminal-permissions/preferences.ts
+  h_dc688f708c4675 8
+apps/cli/src/harnesses/pi/version.ts
+  h_dc688f708c4675 5,75-88
+apps/cli/src/launcher/certificates.ts
+  h_dc688f708c4675 61
+apps/cli/src/launcher/contracts.ts
+  h_dc688f708c4675 25-26
+apps/cli/src/launcher/launch-harness.ts
+  h_dc688f708c4675 4,17,19,22,27-31,109-114
+apps/cli/src/launcher/spawn-harness.ts
+  h_dc688f708c4675 10-11,19-20,48-52,58,69,73-74,85,88
+apps/cli/src/product/paths.ts
+  h_dc688f708c4675 43-44,59-60,63-65
+apps/cli/src/sessions/backup.ts
+  h_dc688f708c4675 1,49,88,249,254,260,311-312,318,522
+apps/cli/src/telemetry/client.ts
+  h_dc688f708c4675 69,87,90-93
+apps/cli/src/updater/release.ts
+  h_dc688f708c4675 101
+apps/cli/src/updater/startup.ts
+  h_dc688f708c4675 67,79
+apps/cli/src/updater/update.ts
+  h_dc688f708c4675 152,159-163,169,174,184,218-219,225,279-288
+apps/cli/tests/axon-auth.test.ts
+  h_dc688f708c4675 170
+apps/cli/tests/axon-header.test.ts
+  h_dc688f708c4675 143,247
+apps/cli/tests/compiled-pi-resources.test.ts
+  h_dc688f708c4675 67-94,177,185
+apps/cli/tests/git-ai.test.ts
+  h_dc688f708c4675 176-185,187-200
+apps/cli/tests/launcher.test.ts
+  h_dc688f708c4675 126,144-150,152-155,284-285,287-290,293-294,351-353,369,438-442,444-445,495,500,502
+apps/cli/tests/pi-client-config.test.ts
+  h_dc688f708c4675 138,224,299-300
+apps/cli/tests/pi-installation.test.ts
+  h_dc688f708c4675 1,24,26,267,430-433,486
+apps/cli/tests/pi-package-setup.test.ts
+  h_dc688f708c4675 1,4,24,895-896,898-920,926,935,938-944
+apps/cli/tests/request-relay.test.ts
+  h_dc688f708c4675 530
+apps/cli/tests/session-backup-header.test.ts
+  h_dc688f708c4675 7,9,14-15,103,124
+apps/cli/tests/session-backup-recovery.test.ts
+  h_dc688f708c4675 362-370,395-401,412,419-443
+apps/cli/tests/session-backups.test.ts
+  h_dc688f708c4675 20,506,512,520-527,541,543-552,556-570,575,902-905,918-921
+apps/cli/tests/terminal-permissions.test.ts
+  h_dc688f708c4675 316
+apps/cli/tests/update.test.ts
+  h_dc688f708c4675 138,149,156,197,216,259,273,292,323,328
+bun.lock
+  h_dc688f708c4675 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f167532c11c95296510bb208bed647b8d96be6c0",
+  "prompts": {},
+  "humans": {
+    "h_dc688f708c4675": {
+      "author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  }
+}
