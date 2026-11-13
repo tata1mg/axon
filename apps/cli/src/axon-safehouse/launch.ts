@@ -14,9 +14,7 @@ import {
   GIT_USER_PATHS,
   isBlockedProjectDirectory,
   isWithin,
-  MCP_STATE_FILES,
   MCP_USER_PATHS,
-  PI_STATE_DIRECTORIES,
   PI_STATE_FILES,
   protectedFilesystemPaths,
   readFilesystemPreferences,
@@ -286,6 +284,7 @@ export async function createAxonSafehouseLaunchSpec(
   const writePaths = requestedWritePaths.filter(
     (path) => !blockedLocalRoot || !isWithin(blockedLocalRoot, path),
   );
+  const axonHome = await canonicalPath(paths.home);
   const piRoot = await canonicalPath(paths.pi);
   const runtimeRoot = await canonicalPath(paths.piRuntime);
   const provisionTargets = new Set([
@@ -379,11 +378,6 @@ export async function createAxonSafehouseLaunchSpec(
         const path = await canonicalPath(join(home, entry));
         rules.push(...ancestorRules(path), pathRule("allow file-read* file-write*", path));
       }
-      // Pi serializes each MCP server's OAuth refresh with a hashed lock directory.
-      // Grant those locks without making the managed agent/runtime directory writable.
-      const escapedRoot = piRoot.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const refreshLockPattern = `^${escapedRoot}/mcp-auth-refresh-[0-9a-f]{16}\\.lock(/|$)`;
-      rules.push(`(allow file-read* file-write* (regex #${quoted(refreshLockPattern)}))`);
     }
     // Discover optional user-installed git-ai outside Seatbelt, then expose only
     // its executable, never the rest of ~/.git-ai or another PATH directory.
@@ -403,17 +397,26 @@ export async function createAxonSafehouseLaunchSpec(
     }
     for (const path of DEVICE_WRITE_PATHS) rules.push(pathRule("allow file-write*", path));
     rules.push('(allow file-write* (regex #"^/dev/(ttys|pty)[^/]*$"))');
-    // Persistent Pi state is writable; executable packages remain read-only.
+    // Managed Axon storage is writable below; external runtime locations need reads too.
     for (const path of [paths.piRuntime, paths.runtime, paths.pi])
       rules.push(...(await readGrant(path)));
     const runtimePackagePaths: string[] = [];
-    for (const binary of ["node", "bun", "python3", "uv"]) {
+    // Git can resolve to a user-installed shim (for example ~/.git-ai/bin/git).
+    // Grant the executable and its symlink, never its whole PATH directory.
+    for (const binary of ["node", "bun", "python3", "uv", "git"]) {
       const executable = Bun.which(binary, {
         PATH: specification.environment["PATH"] ?? "/usr/bin:/bin",
       });
       if (executable) {
         const actual = await canonicalPath(executable);
         runtimePackagePaths.push(actual);
+        if (executable !== actual) {
+          // Seatbelt checks the symlink before resolving its already-granted target.
+          rules.push(
+            ...ancestorRules(executable),
+            `(allow file-read* (literal ${quoted(executable)}))`,
+          );
+        }
         // Version-managed runtimes need their adjacent libraries as well as bin/.
         const root = binary === "node" || binary === "python3" ? dirname(dirname(actual)) : actual;
         if (!isWithin(root, home) && root !== parse(root).root && !isWithin(project, root)) {
@@ -424,18 +427,11 @@ export async function createAxonSafehouseLaunchSpec(
     }
     // Resolve macOS's /tmp and /var aliases to their canonical /private/... paths,
     // and include the user's configured temporary directory as well.
-    const writableDirectories = [temporary, ...SYSTEM_WRITE_PATHS, tmpdir()];
-    if (purpose === "session") {
-      if (!catalogOnly) await privateDirectory(projectSessionDirectory(paths, project));
-      // Keep Pi's normal persistent session picker/resume behavior across projects.
-      writableDirectories.push(
-        ...PI_STATE_DIRECTORIES.map((directory) =>
-          directory === "sessions" ? paths.piSessions : join(piRoot, directory),
-        ),
-      );
-    } else {
-      rules.push(pathRule("deny file-read* file-write*", await canonicalPath(paths.piSessions)));
-    }
+    // Every launch purpose can read/write the entire managed home, including
+    // shared helpers, project Pi state, atomic-write siblings and runtime packages.
+    const writableDirectories = [axonHome, temporary, ...SYSTEM_WRITE_PATHS, tmpdir()];
+    if (purpose === "session" && !catalogOnly)
+      await privateDirectory(projectSessionDirectory(paths, project));
     for (const path of new Set(
       await Promise.all(writableDirectories.map((path) => canonicalPath(path))),
     )) {
@@ -472,37 +468,6 @@ export async function createAxonSafehouseLaunchSpec(
           ),
         );
       }
-    }
-    // Pi 1.5 also locks the trust store when only reading saved decisions during
-    // package setup. Allow that lock without letting installers change decisions.
-    if (provisioning) {
-      const trustPath = await canonicalPath(join(piRoot, "trust.json"));
-      if (dirname(trustPath) !== piRoot)
-        throw axonSafehouseFailure("Pi state files must remain inside the managed Pi directory");
-      rules.push(pathRule("allow file-read* file-write*", `${trustPath}.lock`));
-    }
-    // MCP management through a shell worker needs its config/OAuth state too, but
-    // workers must not inherit writes to Pi's provider authentication or settings.
-    const writableStateFiles =
-      purpose === "session"
-        ? stateFiles
-        : purpose === "operation"
-          ? stateFiles.filter((path) => MCP_STATE_FILES.some((name) => basename(path) === name))
-          : [];
-    // Pi and Axon require writable state files and their lock directories.
-    // This is Pi's own state, never the shared Axon/DeputyDev login credential.
-    for (const path of writableStateFiles) {
-      if (dirname(path) !== piRoot)
-        throw axonSafehouseFailure("Pi state files must remain inside the managed Pi directory");
-      rules.push(`(allow file-read* file-write* (literal ${quoted(path)}))`);
-      rules.push(pathRule("allow file-read* file-write*", `${path}.lock`));
-      // The provider uses <file>.<pid>.<timestamp>.tmp; Axon's changelog uses a UUID.
-      // Permit only those sibling files, not writes to the whole agent directory.
-      const escapedPath = path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const temporaryIdPattern =
-        "([0-9]+|[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})";
-      const temporaryPattern = `^${escapedPath}\\.([0-9]+\\.)?${temporaryIdPattern}\\.tmp$`;
-      rules.push(`(allow file-read* file-write* (regex #${quoted(temporaryPattern)}))`);
     }
     const repositories = projectAccess
       ? [project, ...preferences.readPaths, ...preferences.writePaths]
@@ -546,6 +511,7 @@ export async function createAxonSafehouseLaunchSpec(
     for (const path of protectedPaths) {
       rules.push(pathRule("deny file-read* file-write*", await canonicalPath(path)));
     }
+    // Installed dependencies outside Axon's managed home remain read-only.
     const dependencyPaths = [
       ...runtimePackagePaths,
       ...(await installedPackagePaths(
@@ -553,16 +519,17 @@ export async function createAxonSafehouseLaunchSpec(
         [...repositories, ...userWritePaths],
         resources.packageScans,
       )),
-    ];
+    ].filter((path) => !isWithin(axonHome, path));
     for (const path of dependencyPaths) rules.push(...(await readGrant(path)));
     // Match existing trees by canonical path and future trees by path component.
     // Every broad grant, including /var, must exclude these installed dependencies.
     const packageWriteDenials = dependencyPaths.filter(
       (path) => !provisioning || !writePaths.some((target) => isWithin(path, target)),
     );
-    // npx/uvx MCP servers install ephemeral dependencies in the private session cache.
-    // Persistent dependency trees and the managed runtime remain read-only.
+    // Do not let generic package-name filters make any part of Axon storage read-only.
+    // npx/uvx MCP servers can also use the private session cache.
     const packageFilterExclusions = [
+      axonHome,
       ...writePaths,
       ...(purpose === "session" || purpose === "operation" ? [temporary] : []),
     ];
@@ -573,18 +540,20 @@ export async function createAxonSafehouseLaunchSpec(
     );
     for (const path of packageWriteDenials) rules.push(pathRule("deny file-write*", path));
     for (const filter of provisioningPackageFilters) rules.push(`(deny file-write* ${filter})`);
-    const managedCodePaths = await Promise.all(
-      [
-        paths.piRuntime,
-        paths.runtime,
-        join(paths.pi, "npm"),
-        join(paths.pi, "git"),
-        join(paths.pi, "bin"),
-        join(paths.pi, "extensions"),
-        join(paths.home, "axon-safehouse", "runtime"),
-        ...(gitAiBinary ? [gitAiBinary] : []),
-      ].map((path) => canonicalPath(path)),
-    );
+    const managedCodePaths = (
+      await Promise.all(
+        [
+          paths.piRuntime,
+          paths.runtime,
+          join(paths.pi, "npm"),
+          join(paths.pi, "git"),
+          join(paths.pi, "bin"),
+          join(paths.pi, "extensions"),
+          join(paths.home, "axon-safehouse", "runtime"),
+          ...(gitAiBinary ? [gitAiBinary] : []),
+        ].map((path) => canonicalPath(path)),
+      )
+    ).filter((path) => !isWithin(axonHome, path));
     for (const path of managedCodePaths) {
       const canonical = await canonicalPath(path);
       if (!writePaths.includes(canonical)) rules.push(pathRule("deny file-write*", canonical));
@@ -602,16 +571,7 @@ export async function createAxonSafehouseLaunchSpec(
     }
     for (const path of preferences.denyPaths)
       rules.push(pathRule("deny file-read* file-write*", await canonicalPath(path)));
-    const deniedReadPaths = [
-      ...protectedPaths,
-      ...preferences.denyPaths,
-      ...(purpose === "session"
-        ? []
-        : [
-            await canonicalPath(paths.piSessions),
-            ...stateFiles.filter((path) => basename(path) === "auth.json"),
-          ]),
-    ];
+    const deniedReadPaths = [...protectedPaths, ...preferences.denyPaths];
     const managedWriteDenials = provisioning
       ? managedCodePaths.filter((path) => !writePaths.some((target) => isWithin(path, target)))
       : managedCodePaths;

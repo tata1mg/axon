@@ -1,3 +1,5 @@
+import { delimiter, dirname, join } from "node:path";
+
 import { BUILD_INFO } from "../../build-info.ts";
 import { createHarnessEnvironment, type EnvironmentOverrides } from "../../launcher/environment.ts";
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../../product/endpoints.ts";
@@ -81,11 +83,18 @@ export function createPiEnvironment(
   paths: AxonPaths,
   ...additionalOverrides: readonly EnvironmentOverrides[]
 ): NodeJS.ProcessEnv {
+  // Project Pi roots share the runtime's global helper binaries, including fd.
+  // Derive the selected release's Pi root without using the project-scoped paths.pi.
+  const sharedBin = join(dirname(paths.piRuntime), "pi", "bin");
+  const inheritedPath = inheritedEnvironment["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin";
   return createHarnessEnvironment(
     inheritedEnvironment,
     createPiDirectoryOverrides(paths),
     PI_PROCESS_OVERRIDES,
     {
+      PATH: [...new Set([sharedBin, ...inheritedPath.split(delimiter).filter(Boolean)])].join(
+        delimiter,
+      ),
       // Select once per launch; header renders and status updates keep the same tip.
       PI_AXON_STARTUP_TIP: randomStartupTip(),
       // The provider extension gives settings.json displayName precedence.

@@ -192,11 +192,8 @@ export async function protectedFilesystemPaths(
   });
   return Promise.all(
     [
+      // Axon's managed home is writable; the shared DeputyDev login stays protected.
       paths.sharedAuthDirectory,
-      paths.bin,
-      paths.staged,
-      paths.locks,
-      join(paths.home, "axon-safehouse", "filesystem"),
       ...PROTECTED_HOME_PATHS.map((path) => join(homedir(), path)),
       ...backendPaths,
     ].map((path) => canonicalPath(path)),
