@@ -1,0 +1,28 @@
+apps/cli/src/updater/update.ts
+  s_2c4803120b4d51::t_64d4228f729e34 148,162-164,170-177,240-244,316-327
+apps/cli/src/updater/startup.ts
+  s_2c4803120b4d51::t_dba691d3c765a1 69
+apps/cli/tests/update.test.ts
+  s_2c4803120b4d51::t_841f535ba3a8d1 203,222,225
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "116858ffa20f326691971f51e5eea3267715e8d0",
+  "prompts": {},
+  "humans": {
+    "h_dc688f708c4675": {
+      "author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_2c4803120b4d51": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "505302",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  }
+}
