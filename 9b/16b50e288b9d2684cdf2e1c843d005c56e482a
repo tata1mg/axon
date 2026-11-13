@@ -1,0 +1,229 @@
+apps/cli/src/product/manifest.ts
+  h_dc688f708c4675 26-28,121-124,152,166,169,201,264-266
+  h_dc688f708c4675 125-126,267
+apps/cli/src/harnesses/pi/resources/extensions/session-backup.mjs
+  h_dc688f708c4675 2,6,56,58
+apps/cli/package.json
+  h_dc688f708c4675 3,17-18,28-29,32,37,49-50,69
+apps/backend/README.md
+  h_dc688f708c4675 702-747,804
+apps/backend/app/core/axon_safehouse.py
+  h_dc688f708c4675 1,17,28,30,37,46
+apps/backend/app/core/config.py
+  h_dc688f708c4675 13,151-156,170-184,209,247-265,466-493,509,527,529,800
+apps/backend/app/listeners/__init__.py
+  h_dc688f708c4675 13,21-23
+apps/backend/app/main.py
+  h_dc688f708c4675 11,18,24
+apps/backend/app/observability/sentry.py
+  h_dc688f708c4675 1-210
+apps/backend/app/routers/cli_releases.py
+  h_dc688f708c4675 1,4,6,23-52,85-88,92-96
+apps/backend/config_template.json
+  h_dc688f708c4675 36-39,126,186-188
+apps/backend/deployment/generate_session_schema.py
+  h_dc688f708c4675 51-57
+apps/backend/pyproject.toml
+  h_dc688f708c4675 3,16
+apps/backend/tests/test_build_backend_image.py
+  h_dc688f708c4675 14
+apps/backend/tests/test_litellm_streaming.py
+  h_dc688f708c4675 55,156
+apps/backend/tests/test_sentry.py
+  h_dc688f708c4675 1-666
+apps/backend/uv.lock
+  h_dc688f708c4675 64,78,103,908-920
+apps/cli/.env.example
+  h_dc688f708c4675 57-58
+apps/cli/README.md
+  h_dc688f708c4675 23,45,69,102-105,224,316,362-363,421,461
+apps/cli/install.sh
+  h_dc688f708c4675 17-18,39,45-59,263-286,295,297-302,315-319,347-350,352-355,357,368-378,380
+apps/cli/pi-version.json
+  h_dc688f708c4675 2
+apps/cli/scripts/build-request-context.ts
+  h_dc688f708c4675 1-41
+apps/cli/scripts/prepare-s3-release.ts
+  h_dc688f708c4675 54
+apps/cli/scripts/publish-s3-release.ts
+  h_dc688f708c4675 29,31,47-51,57,73-82,190,197,206,210
+apps/cli/src/axon-safehouse/access-relay.ts
+  h_dc688f708c4675 1-187
+apps/cli/src/axon-safehouse/access-requests.ts
+  h_dc688f708c4675 1-295
+apps/cli/src/axon-safehouse/configuration-relay.ts
+  h_dc688f708c4675 11,58,65,79-87,99-100,109-110,114-121,135,137
+apps/cli/src/axon-safehouse/contracts.ts
+  h_dc688f708c4675 5
+apps/cli/src/axon-safehouse/environment.ts
+  h_dc688f708c4675 3-4,13-14,16-23,94,99-100,102-106,110-113,127-141
+apps/cli/src/axon-safehouse/filesystem.ts
+  h_dc688f708c4675 6,8-10,24-40,42,50,63-64,68-69,71,78-81,98,100-101,138-139,143-163,168-181,195,246-248,340,347,349,351-405
+apps/cli/src/axon-safehouse/launch.ts
+  h_dc688f708c4675 2,13-14,17,25,49,100,129,145,154,180,186-191,208,216-217,219-220,225,238,245-257,287,328-329,331-343,349-352,362-369,371-372,376-381,400,404-406,413-419,430-434,475-509,514,522,529-535,537-538,543-556,574,578,592-593,607-608,641-642
+apps/cli/src/axon-safehouse/network.ts
+  h_dc688f708c4675 1-50
+apps/cli/src/axon-safehouse/operations.ts
+  h_dc688f708c4675 7-8,12,16-23,60,80-97,135-143,145-148,150-156
+apps/cli/src/axon-safehouse/package-proxy.ts
+  h_dc688f708c4675 2-3,5,7,13-40,45,49-92,94,96,98,102-117,121-135,139,153-154,156
+apps/cli/src/axon-safehouse/packages.ts
+  h_dc688f708c4675 16-20
+apps/cli/src/axon-safehouse/policy.ts
+  h_dc688f708c4675 25,38
+apps/cli/src/axon-safehouse/profile.ts
+  h_dc688f708c4675 35-37,76,79,83-85,97
+apps/cli/src/axon-safehouse/rpc-configuration.ts
+  h_dc688f708c4675 11-12,103,234-256,282,300-301,355-356,552,562
+apps/cli/src/axon-safehouse/session.ts
+  h_dc688f708c4675 12-13,62,67-81,85-92,100,123,128,136,140,144-147,152,167,171,175-191,221-225,253-277,279-313,315-325,345,396
+apps/cli/src/cli/commands/axon-safehouse.ts
+  h_dc688f708c4675 11,23-31,34,57,74-83,91-92,129-136,162,166,176,180,184,207-211,326-348,373,392
+apps/cli/src/cli/commands/doctor.ts
+  h_dc688f708c4675 22,393
+apps/cli/src/cli/commands/setup.ts
+  h_dc688f708c4675 1,19,63-68
+apps/cli/src/cli/dispatch.ts
+  h_dc688f708c4675 17,37-56,92-93,95,109
+apps/cli/src/cli/launcher-program.ts
+  h_dc688f708c4675 1,3-7,15-21,23,40-46,60-64,78-79,84,93-94,99,103-105,116,194,216-251,255-260,264-266,276,279,315
+apps/cli/src/harnesses/pi/adapter.ts
+  h_dc688f708c4675 79-82,86,165-167,171-184,188-189,258
+apps/cli/src/harnesses/pi/environment.ts
+  h_dc688f708c4675 1-2,77,86-89,95-97
+apps/cli/src/harnesses/pi/resources/extensions/axon-changelog.ts
+  h_dc688f708c4675 20-32
+apps/cli/src/harnesses/pi/resources/extensions/axon.ts
+  h_dc688f708c4675 367,377,416-417,455-460,542-647,653,668-686,688-690,692-693,698-701,714,737,759,761-764,770-835,931-980,982-1005,1007-1027,1029,1032,1034-1054
+apps/cli/src/harnesses/pi/resources/extensions/compaction.ts
+  h_dc688f708c4675 34-62,144,170,222-223,226-232,253,322-327,335,342-343,442
+apps/cli/src/harnesses/pi/resources/extensions/pi-org-telemetry.mjs
+  h_dc688f708c4675 231,233,235,238-240,242,245,247,249,251-252,256,258,260-261,263-269
+apps/cli/src/harnesses/pi/resources/extensions/request-context.mjs
+  h_dc688f708c4675 1-2
+apps/cli/src/harnesses/pi/resources/extensions/request-context.ts
+  h_dc688f708c4675 1-273
+apps/cli/src/harnesses/pi/resources/extensions/terminal-permissions.mjs
+  h_dc688f708c4675 2-11,13-14
+apps/cli/src/harnesses/pi/resources/extensions/terminal-permissions.ts
+  h_dc688f708c4675 17,296-298,590-592,603,607,657-658
+apps/cli/src/harnesses/pi/resources/extensions/web-search.ts
+  h_dc688f708c4675 102-119,284-289,302,500,513-515,531-535,561-564,590
+apps/cli/src/harnesses/pi/settings-defaults.ts
+  h_dc688f708c4675 50,61,87-107
+apps/cli/src/harnesses/pi/setup/packages/invocation.ts
+  h_dc688f708c4675 60-65,70
+apps/cli/src/harnesses/pi/telemetry-environment.ts
+  h_dc688f708c4675 7,59
+apps/cli/src/harnesses/pi/telemetry/README.md
+  h_dc688f708c4675 116-122
+apps/cli/src/harnesses/pi/telemetry/docs/limitations.md
+  h_dc688f708c4675 14-15
+apps/cli/src/harnesses/pi/telemetry/docs/telemetry-schema.md
+  h_dc688f708c4675 3,28,36,119
+apps/cli/src/harnesses/pi/telemetry/grafana-metrics-only.json
+  h_dc688f708c4675 53,98,143,188,233,278,323,369,414,459,504,549,607,613,619,665,670,716,773,826,834,842,850,858,866,874,1065,1112,1159,1219,1269,1316,1321,1326,1331,1381,1388,1395,1402,1449,1457,1465,1473,1481,1489,1497,1701,1748,1795,1842,1892,1939,1982,2030,2077,2124,2171,2176,2221,2226,2271,2276,2321,2326,2371,2378,2425,2479,2533,2538,2543,2548,2592,2597,2602,2607,2652,2657,2662,2667,2712,2757,2804,2851,2898,2903,2961,2966,2971,3017,3063,3068,3073,3107,3112,3117,3170,3217,3256,3291,3296,3331,3374,3414,3419,3424,3469,3474,3532,3567,3602,3607,3642,3647,3696,3731,3736,3771,3821,3868,3915,3962,3967,4012,4059,4120,4167,4214,4219,4264,4311,4316,4361,4408,4465-4479,4488-4489
+apps/cli/src/harnesses/pi/telemetry/grafana.json
+  h_dc688f708c4675 61,106,151,196,241,286,331,377,422,467,512,557,615,621,627,673,678,724,781,834,842,850,858,866,874,882,1073,1120,1167,1255,1305,1352,1357,1362,1367,1417,1424,1431,1438,1485,1493,1501,1509,1517,1525,1533,1737,1784,1831,1878,1928,1975,2018,2066,2113,2160,2207,2212,2257,2262,2307,2312,2357,2362,2407,2414,2461,2515,2595,2600,2605,2610,2654,2659,2664,2669,2714,2719,2724,2729,2774,2819,2866,2913,2960,2965,3023,3028,3033,3079,3125,3130,3135,3169,3174,3179,3232,3279,3318,3353,3358,3393,3436,3476,3481,3486,3531,3536,3620,3655,3690,3695,3730,3735,3784,3819,3824,3859,3909,3956,4003,4050,4055,4100,4147,4234,4281,4328,4333,4378,4425,4430,4475,4522,4605-4619,4628-4629
+apps/cli/src/harnesses/pi/telemetry/src/attributes.ts
+  h_dc688f708c4675 12
+apps/cli/src/harnesses/pi/telemetry/src/environment.ts
+  h_dc688f708c4675 1,4-5,10,65,73
+apps/cli/src/harnesses/pi/telemetry/src/otel/runtime.ts
+  h_dc688f708c4675 51,337-338,358
+apps/cli/src/harnesses/pi/telemetry/tests/environment.test.ts
+  h_dc688f708c4675 5,40-63
+apps/cli/src/harnesses/pi/telemetry/tests/grafana-counters.promql.json
+  h_dc688f708c4675 15,37,59,80,102,124
+apps/cli/src/harnesses/pi/telemetry/tests/grafana.test.ts
+  h_dc688f708c4675 53-55,79,86-104,222,229,306,322
+apps/cli/src/harnesses/pi/telemetry/tests/helpers.ts
+  h_dc688f708c4675 15-17
+apps/cli/src/harnesses/pi/telemetry/tests/runtime.test.ts
+  h_dc688f708c4675 5,100-117
+apps/cli/src/harnesses/pi/terminal-permissions/preferences.ts
+  h_dc688f708c4675 8
+apps/cli/src/harnesses/pi/workflow.ts
+  h_dc688f708c4675 1-13
+apps/cli/src/index.ts
+  h_dc688f708c4675 7,9,34-37,46-51
+apps/cli/src/launcher/contracts.ts
+  h_dc688f708c4675 11-12,63-64
+apps/cli/src/launcher/environment.ts
+  h_dc688f708c4675 41-52
+apps/cli/src/launcher/errors.ts
+  h_dc688f708c4675 2,19-43
+apps/cli/src/launcher/file-lock.ts
+  h_dc688f708c4675 1-4,9,19-20,26-60,66-95,98,100-113,119,124-158,163,165,171-175,178-182,185-204,207,209,211-218,221-248,263-281,288,291-296,298-310,312-319,322-323,326,328-333,345,348-355,357-358
+apps/cli/src/launcher/launch-harness.ts
+  h_dc688f708c4675 4,15,37-40,44-50,55-58,73,102,107,111,245-257
+apps/cli/src/launcher/spawn-harness.ts
+  h_dc688f708c4675 11,146
+apps/cli/src/product/paths.ts
+  h_dc688f708c4675 4,6,10-12,48-51,67,70-72
+apps/cli/src/product/project-paths.ts
+  h_dc688f708c4675 1-43
+apps/cli/src/product/release-channel.ts
+  h_dc688f708c4675 1-59
+apps/cli/src/telemetry/client.ts
+  h_dc688f708c4675 8,88
+apps/cli/src/updater/release.ts
+  h_dc688f708c4675 4,17,20-22,38,68-71,111-114,120-126
+apps/cli/src/updater/startup.ts
+  h_dc688f708c4675 1,8,10,12-24,45,63,70-72,89-139
+apps/cli/src/updater/update.ts
+  h_dc688f708c4675 16,19,22-28,39,45-46,48-60,74-77,148,153-184,187,197-202,225-232,236-245,251,268-279,292-295,300-302,305,307,311-312,316-322,324-326,331-335,367,378,382-384,402,404,408-413,415-416,418
+apps/cli/tests/axon-changelog.test.ts
+  h_dc688f708c4675 41,232,241,248,323-329
+apps/cli/tests/axon-header.test.ts
+  h_dc688f708c4675 143-145
+apps/cli/tests/axon-safehouse-filesystem.test.ts
+  h_dc688f708c4675 31
+apps/cli/tests/axon-safehouse-launch.test.ts
+  h_dc688f708c4675 2,25
+apps/cli/tests/compaction-launch-preferences.test.ts
+  h_dc688f708c4675 2-5,10-13,25-29,40-42,51-56,79,116-118,121-139,155-162,167-177,197-298
+apps/cli/tests/file-lock.test.ts
+  h_dc688f708c4675 1-377
+apps/cli/tests/fixtures/launcher-axon-safehouse.ts
+  h_dc688f708c4675 26,48
+apps/cli/tests/launcher.test.ts
+  h_dc688f708c4675 13,111-118,146-149,218-227,318-320,377-378,390-396,399-452
+apps/cli/tests/litellm-client-provider.test.ts
+  h_dc688f708c4675 43
+apps/cli/tests/pi-installation.test.ts
+  h_dc688f708c4675 304,308
+apps/cli/tests/pi-model-cache.test.ts
+  h_dc688f708c4675 31,104-105
+apps/cli/tests/pi-package-setup.test.ts
+  h_dc688f708c4675 236,238,1032
+apps/cli/tests/request-context-bundle.test.ts
+  h_dc688f708c4675 1-66
+apps/cli/tests/request-context.test.ts
+  h_dc688f708c4675 1-490
+apps/cli/tests/terminal-permissions.test.ts
+  h_dc688f708c4675 316
+apps/cli/tests/update.test.ts
+  h_dc688f708c4675 2,6,8,18,20,33-34,59,164,181,185-230,407-408,430,455,462,471,484-498,508,527-655
+apps/cli/tests/web-search.test.ts
+  h_dc688f708c4675 3-6,118-155
+biome.json
+  h_dc688f708c4675 41
+bun.lock
+  h_dc688f708c4675 13,27-28,47,117,119,121,123,125,127,129,131,365-366,389
+docs/session-backup-and-restore.md
+  h_dc688f708c4675 12
+scripts/build-backend-image.sh
+  h_dc688f708c4675 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9b16b50e288b9d2684cdf2e1c843d005c56e482a",
+  "prompts": {},
+  "humans": {
+    "h_dc688f708c4675": {
+      "author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  }
+}
