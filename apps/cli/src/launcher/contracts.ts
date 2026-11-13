@@ -8,8 +8,11 @@ export interface LaunchContext {
   readonly cwd: string;
   readonly environment: NodeJS.ProcessEnv;
   readonly paths: AxonPaths;
-  /** Explicit per-invocation opt-out; never inferred from a missing session owner. */
-  readonly safehouseDisabled?: boolean;
+  /**
+   * Explicit per-invocation opt-out request; never inferred from a missing session owner.
+   * Honored only when the backend policy does not require Safehouse or allows local opt-out.
+   */
+  readonly safehouseOptOutRequested?: boolean;
   /** Owned by Axon for the entire invocation, before any Pi executable runs. */
   readonly axonSafehouse?: AxonSafehouseSession;
   /** Global RPC discovery has no project and must never execute project operations. */

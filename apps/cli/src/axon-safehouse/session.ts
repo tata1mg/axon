@@ -71,28 +71,34 @@ export async function createAxonSafehouseSession(
   context: LaunchContext,
   suppliedAuthorization?: AxonSafehouseAuthorization,
 ): Promise<AxonSafehouseSession> {
-  const locallyDisabled =
-    context.safehouseDisabled === true || isTrue(context.environment["AXON_DISABLE_SAFEHOUSE"]);
-  if (locallyDisabled)
-    recordSafehouseEvent("opt_out", "skipped", {
-      reason: context.safehouseDisabled === true ? "flag" : "env",
-    });
-  setProductTelemetrySafehouse(locallyDisabled ? "disabled" : "enabled");
-  // Explicit local opt-outs must not depend on a Safehouse policy service or runtime.
-  const authorization = locallyDisabled
-    ? undefined
-    : (suppliedAuthorization ??
-      (await measureSafehouseAuthorization(() => authorizeAxonSafehouse(context.paths))));
+  const optOutSource: "flag" | "env" | undefined =
+    context.safehouseOptOutRequested === true
+      ? "flag"
+      : isTrue(context.environment["AXON_DISABLE_SAFEHOUSE"])
+        ? "env"
+        : undefined;
+  // A local opt-out is only a request: the backend policy is always fetched and decides it.
+  const authorization =
+    suppliedAuthorization ??
+    (await measureSafehouseAuthorization(() => authorizeAxonSafehouse(context.paths)));
+  const { policy } = authorization;
   // Best effort and self-contained (it swallows its own errors): never delay the launch on it.
-  if (authorization) void recordSafehousePolicySeen(context.paths, authorization.policy);
-  const disabled = locallyDisabled || authorization?.policy.required === false;
-  if (!locallyDisabled && disabled) {
-    recordSafehouseEvent("opt_out", "skipped", {
-      reason: "policy_disabled",
-      ...(authorization ? { policyVersion: authorization.policy.policyId } : {}),
-    });
-    setProductTelemetrySafehouse("disabled");
+  void recordSafehousePolicySeen(context.paths, policy);
+  const policyVersion = { policyVersion: policy.policyId };
+  let disabled = false;
+  if (!policy.required) {
+    disabled = true;
+    recordSafehouseEvent("opt_out", "skipped", { reason: "policy_disabled", ...policyVersion });
+  } else if (optOutSource && policy.allowLocalOptOut === true) {
+    disabled = true;
+    recordSafehouseEvent("opt_out", "skipped", { reason: optOutSource, ...policyVersion });
+  } else if (optOutSource) {
+    recordSafehouseEvent("opt_out", "blocked", { reason: "policy_disallows", ...policyVersion });
+    console.error(
+      `axon: warning: ${optOutSource === "flag" ? "--no-safehouse" : "AXON_DISABLE_SAFEHOUSE"} is ignored: your administrator does not allow disabling Safehouse locally.`,
+    );
   }
+  setProductTelemetrySafehouse(disabled ? "disabled" : "enabled");
   let resources: Awaited<ReturnType<typeof createAxonSafehouseResources>> | undefined;
   if (!disabled) {
     const startedAt = Date.now();
