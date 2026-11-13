@@ -1,0 +1,30 @@
+apps/cli/install.sh
+  s_5e90ebb482f2e1::t_1d484d8a10d516 45-51,53-56,298,300-301
+  h_dc688f708c4675 17-18,39,52,57-58,263-285,295,297,299,302,315-319,347-350,352-355,357,368-377,380
+  h_dc688f708c4675 59,286,378
+apps/backend/pyproject.toml
+  h_dc688f708c4675 3
+apps/backend/uv.lock
+  h_dc688f708c4675 64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7296dad8f9b1cf512ea0e45b4c14223f9a402cd1",
+  "prompts": {},
+  "humans": {
+    "h_dc688f708c4675": {
+      "author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_5e90ebb482f2e1": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "505665",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  }
+}
