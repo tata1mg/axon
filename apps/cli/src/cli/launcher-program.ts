@@ -213,7 +213,7 @@ function createLauncherProgram(): Command {
     .command("update")
     .description("download and install the latest verified macOS release")
     .option("--check", "report whether a newer release is available without installing")
-    .option("--channel <channel>", "select stable or invite-only beta")
+    .option("--channel <channel>", "select stable or beta")
     .option("--yes", "confirm returning to stable without prompting")
     .action(async (options: { check?: boolean; channel?: string; yes?: boolean }) => {
       if (options.channel !== undefined && !isReleaseChannel(options.channel)) {
@@ -248,10 +248,6 @@ function createLauncherProgram(): Command {
             "Return to stable? This may downgrade Axon. Stable settings are preserved separately from beta.",
         });
         if (isCancel(accepted) || !accepted) return;
-      }
-      if (options.channel === "beta") {
-        // A pasted installer uses piped stdin, so open browser login directly.
-        await runAuthLogin(context.paths, { browser: true, reuseExistingSession: true });
       }
       if (options.check) {
         try {

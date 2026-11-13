@@ -14,6 +14,7 @@ CHECKSUMS_FILE=
 ARCHIVE_FILE=
 STAGED_BINARY=
 BACKUP_TEMP=
+CHANNEL_FILE=
 CHANNEL=stable
 
 say() {
@@ -35,6 +36,7 @@ cleanup() {
   [ -z "$ARCHIVE_FILE" ] || rm -f "$ARCHIVE_FILE"
   [ -z "$STAGED_BINARY" ] || rm -f "$STAGED_BINARY"
   [ -z "$BACKUP_TEMP" ] || rm -f "$BACKUP_TEMP"
+  [ -z "$CHANNEL_FILE" ] || rm -f "$CHANNEL_FILE"
 }
 
 trap cleanup 0
@@ -258,14 +260,9 @@ BIN_DIR=$MANAGED_HOME/bin
 BINARY=$BIN_DIR/$PROGRAM
 PREVIOUS_BINARY=$BIN_DIR/$PROGRAM.prev
 
-# Reuse a channel-aware managed installation. In particular, never replace an
-# existing beta with the stable bootstrap before eligibility/confirmation succeeds.
-if [ -x "$BINARY" ] && "$BINARY" update --help 2>/dev/null | grep -q -- '--channel'; then
-  if [ "$CHANNEL" = beta ]; then
-    "$BINARY" update --channel beta || die "beta installation did not complete; your current installation was preserved"
-    say "Run axon pi to get started."
-    exit 0
-  fi
+# Reuse the CLI only for confirmation when returning to stable. Beta installs
+# download beta directly, even when an older installed CLI still requires an invite.
+if [ "$CHANNEL" = stable ] && [ -x "$BINARY" ] && "$BINARY" update --help 2>/dev/null | grep -q -- '--channel'; then
   INSTALLED_VERSION=$("$BINARY" --version 2>/dev/null || true)
   RETURN_TO_STABLE=0
   case "$INSTALLED_VERSION" in
@@ -295,9 +292,14 @@ VERSION_FILE=$(mktemp "$BIN_DIR/.axon-version.XXXXXX")
 CHECKSUMS_FILE=$(mktemp "$BIN_DIR/.axon-checksums.XXXXXX")
 ARCHIVE_FILE=$(mktemp "$BIN_DIR/.axon-archive.XXXXXX")
 STAGED_BINARY=$(mktemp "$BIN_DIR/.axon-install.XXXXXX")
+CHANNEL_FILE=$(mktemp "$MANAGED_HOME/.axon-channel.XXXXXX")
 
-say "Resolving the latest axon release..."
-download "$RELEASES_URL/latest/VERSION" "$VERSION_FILE" || die "could not download the latest VERSION asset"
+VERSION_URL=$RELEASES_URL/latest/VERSION
+if [ "$CHANNEL" = beta ]; then
+  VERSION_URL="$VERSION_URL?channel=beta"
+fi
+say "Resolving the latest axon $CHANNEL release..."
+download "$VERSION_URL" "$VERSION_FILE" || die "could not download the latest $CHANNEL VERSION asset"
 
 VERSION=
 VERSION_LINE_COUNT=0
@@ -310,8 +312,10 @@ done < "$VERSION_FILE"
 
 SEMVER_PATTERN='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
 printf '%s\n' "$VERSION" | grep -Eq "$SEMVER_PATTERN" || die "VERSION is not canonical semantic version syntax: $VERSION"
-case "${VERSION%%+*}" in
-  *-*) die "the stable bootstrap endpoint returned a prerelease" ;;
+case "$CHANNEL:${VERSION%%+*}" in
+  stable:*-*) die "the stable channel returned a prerelease" ;;
+  beta:*-*) ;;
+  beta:*) die "the beta channel returned a stable release" ;;
 esac
 
 # Pin all remaining requests to the version resolved above, never to mutable latest.
@@ -345,7 +349,12 @@ case "$STAGED_VERSION" in
   *) die "staged executable reports $STAGED_VERSION, expected $VERSION" ;;
 esac
 
+# Stage the channel only after the selected release has passed every verification.
+printf '{"channel":"%s"}\n' "$CHANNEL" > "$CHANNEL_FILE" || die "could not stage release channel"
+
+HAD_BINARY=0
 if [ -e "$BINARY" ]; then
+  HAD_BINARY=1
   [ -f "$BINARY" ] || die "existing managed path is not a regular file: $BINARY"
   BACKUP_TEMP=$(mktemp "$BIN_DIR/.axon-backup.XXXXXX")
   cp -p "$BINARY" "$BACKUP_TEMP" || die "could not preserve the existing installation"
@@ -356,7 +365,19 @@ fi
 mv -f "$STAGED_BINARY" "$BINARY" || die "could not atomically activate axon"
 STAGED_BINARY=
 
+if [ -d "$MANAGED_HOME/release-channel.json" ] || ! mv -f "$CHANNEL_FILE" "$MANAGED_HOME/release-channel.json"; then
+  # Do not leave a beta binary installed with a stable update selection.
+  if [ "$HAD_BINARY" -eq 1 ]; then
+    mv -f "$PREVIOUS_BINARY" "$BINARY" || die "could not save release channel or restore the previous installation"
+  else
+    rm -f "$BINARY" || die "could not save release channel or remove the uncommitted installation"
+  fi
+  die "could not save release channel; installation was not changed"
+fi
+CHANNEL_FILE=
+
 say "Installed axon $VERSION at $BINARY"
+say "Update channel: $CHANNEL"
 [ ! -e "$PREVIOUS_BINARY" ] || say "Previous installation preserved at $PREVIOUS_BINARY"
 
 case ":${PATH:-}:" in
@@ -385,13 +406,7 @@ else
   say "Pi is not bundled; axon pi will install its pinned Pi release on first use."
 fi
 
-if [ "$CHANNEL" = beta ]; then
-  say "Sign in to access the invite-only beta channel."
-  if ! "$BINARY" update --channel beta; then
-    die "beta installation did not complete. Axon stable is installed and ready to use; ask your administrator to confirm beta access"
-  fi
-  say "Run axon pi to get started."
-elif [ "$PATH_HAS_MANAGED_BIN" -eq 1 ]; then
+if [ "$PATH_HAS_MANAGED_BIN" -eq 1 ]; then
   say "Next, run: axon doctor"
 else
   say "After updating PATH, run: axon doctor"

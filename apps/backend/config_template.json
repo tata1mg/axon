@@ -37,7 +37,6 @@
       "stable": { "VERSION": "", "PAUSED": false },
       "beta": { "VERSION": "", "PAUSED": false }
     },
-    "BETA_USER_IDS": [],
     "VERSIONS": {
     }
   },

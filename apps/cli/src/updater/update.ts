@@ -148,7 +148,6 @@ function selectedClient(context: UpdateContext): ReleaseClient {
   return {
     ...context.client,
     channel: context.channel ?? readReleaseChannel(context.paths.home),
-    authPaths: context.paths,
   };
 }
 
@@ -274,7 +273,7 @@ export async function installUpdate(
       {
         cause: error,
         remediation:
-          "Keep using the current installation and retry axon update. For beta, sign in with axon auth login --browser and ask your administrator to confirm beta access. To leave beta, run axon update --channel stable.",
+          "Keep using the current installation and retry axon update. Beta may be unavailable or paused. To leave beta, run axon update --channel stable.",
       },
     );
   }

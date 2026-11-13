@@ -1,9 +1,7 @@
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
 
-import { loadEncryptedSession, refreshEncryptedSession } from "../cli/auth/session.ts";
-import type { AxonPaths } from "../product/paths.ts";
-import type { ReleaseChannel } from "../product/release-channel.ts";
+import { type ReleaseChannel, releaseChannelForVersion } from "../product/release-channel.ts";
 import { type ReleaseTarget, releaseAssetNames } from "../product/release-targets.ts";
 
 const VERSION_PATTERN =
@@ -17,7 +15,6 @@ export interface ReleaseClient {
   readonly fetcher?: typeof fetch;
   readonly metadataTimeoutMs?: number;
   readonly channel?: ReleaseChannel;
-  readonly authPaths?: AxonPaths;
 }
 
 /** Safe, locally authored messages that may be shown without leaking download URLs. */
@@ -38,28 +35,12 @@ async function request(
   const fetcher = client.fetcher ?? fetch;
   let current = url;
   for (let redirects = 0; redirects <= 3; redirects++) {
-    // Credentials are only sent to release API paths, never to signed CDN redirects.
-    const base = new URL(`${client.baseUrl}/`);
-    const destination = new URL(current);
-    const authenticated =
-      client.channel === "beta" &&
-      client.authPaths !== undefined &&
-      destination.origin === base.origin &&
-      destination.pathname.startsWith(base.pathname);
-    const session =
-      authenticated && client.authPaths ? await loadEncryptedSession(client.authPaths) : undefined;
-    if (authenticated && !session)
-      throw new ReleaseAccessError("Beta updates require sign-in. Run axon auth login --browser.");
+    // Both release channels are public; no session credentials are sent to the API or CDN.
     const response = await fetcher(current, {
-      headers: session ? { Authorization: `Bearer ${session}` } : {},
       cache: "no-store",
       redirect: "manual",
       signal: AbortSignal.timeout(timeoutMs),
     });
-    const refreshed = response.headers.get("x-session-refresh-token");
-    if (session && refreshed && client.authPaths) {
-      await refreshEncryptedSession(client.authPaths, session, refreshed);
-    }
     if (followRedirect && response.status >= 300 && response.status < 400) {
       const location = response.headers.get("location");
       if (!location) throw new Error("release redirect has no location");
@@ -84,15 +65,7 @@ async function request(
     }
     if (!response.ok) {
       await response.body?.cancel();
-      if (authenticated && response.status === 403)
-        throw new ReleaseAccessError(
-          "Your account does not have beta access. Your current installation is unchanged.",
-        );
-      if (authenticated && response.status === 401)
-        throw new ReleaseAccessError(
-          "Beta updates require sign-in. Run axon auth login --browser.",
-        );
-      if (authenticated && response.status === 503)
+      if (client.channel === "beta" && response.status === 503)
         throw new ReleaseAccessError(
           "Beta is currently unavailable or paused. Your current installation is unchanged.",
         );
@@ -144,8 +117,12 @@ export async function latestReleaseVersion(client: ReleaseClient): Promise<strin
   }
   const version = value.slice(0, -1);
   assertReleaseVersion(version);
-  if (client.channel !== "beta" && version.split("+", 1)[0]?.includes("-")) {
+  const releaseChannel = releaseChannelForVersion(version);
+  if (client.channel !== "beta" && releaseChannel === "beta") {
     throw new Error("stable channel cannot install a prerelease");
+  }
+  if (client.channel === "beta" && releaseChannel !== "beta") {
+    throw new Error("beta channel cannot install a stable release");
   }
   return version;
 }

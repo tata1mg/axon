@@ -168,7 +168,6 @@ class CliReleaseSettings:
     # version -> release target -> asset
     versions: dict[str, dict[str, CliReleaseAsset]]
     channels: dict[str, CliReleaseChannel] = field(default_factory=dict)
-    beta_user_ids: frozenset[int] = field(default_factory=frozenset)
 
     def channel(self, name: str) -> CliReleaseChannel:
         # LATEST_VERSION remains the stable pointer for older deployments/clients.
@@ -492,15 +491,6 @@ def _release_channels(
     return {name: _release_channel(name, channels.get(name, {}), versions, latest) for name in ("stable", "beta")}
 
 
-def _beta_user_ids(config: dict[str, Any]) -> frozenset[int]:
-    user_ids = config.get("BETA_USER_IDS", [])
-    if not isinstance(user_ids, list) or any(
-        type(user_id) is not int or not 0 < user_id <= 9223372036854775807 for user_id in user_ids
-    ):
-        raise ConfigurationError("config.CLI_RELEASES.BETA_USER_IDS must be a list of positive auth-service user IDs")
-    return frozenset(user_ids)
-
-
 def _cli_releases(raw: dict[str, Any]) -> CliReleaseSettings | None:
     if "CLI_RELEASES" not in raw:
         return None
@@ -537,7 +527,6 @@ def _cli_releases(raw: dict[str, Any]) -> CliReleaseSettings | None:
         latest_version=channels["stable"].version,
         versions=versions,
         channels=channels,
-        beta_user_ids=_beta_user_ids(config),
     )
 
 

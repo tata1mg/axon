@@ -1,4 +1,4 @@
-"""Stable release discovery, invite-only beta downloads and private upload signing."""
+"""Public stable and beta releases with private upload signing."""
 
 from hmac import compare_digest
 from typing import Annotated, Literal
@@ -7,7 +7,6 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
-from app.authentication import require_authenticated_user
 from app.core.config import DEFAULT_CLI_RELEASE_TARGET, CliReleaseSettings, Settings, get_settings
 from app.services.cli_releases import CliReleaseService, archive_for_version, checksums_text
 from app.services.storage_dependencies import get_cli_release_service
@@ -21,29 +20,27 @@ def enabled(settings: Settings) -> CliReleaseSettings:
     return settings.cli_releases
 
 
-async def authorize_release(
+def check_release_availability(
     request: Request,
-    response: Response,
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> None:
     releases = enabled(settings)
     version = request.path_params.get("version", "")
-    # Exact URLs (including legacy checksum names) must not bypass the beta gate.
+    # Beta is public, but pausing also stops exact-version downloads.
     prerelease = "-" in version.split("+", 1)[0]
     if not prerelease and request.query_params.get("channel", "stable") != "beta":
         return
-    # Publishing verifies staged/paused artifacts without giving testers the upload key.
+    # Publishers may verify staged artifacts while public beta distribution is paused.
     authorization = request.headers.get("authorization", "")
     if version and compare_digest(authorization, f"Bearer {releases.upload_auth_key}"):
         return
-    auth = await require_authenticated_user(request, response)
-    if auth.user_id not in releases.beta_user_ids:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Your account does not have beta access", headers=NO_STORE)
     if releases.channel("beta").paused:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Beta distribution is paused", headers=NO_STORE)
 
 
-router = APIRouter(prefix="/api/v1/cli/releases", tags=["cli-releases"], dependencies=[Depends(authorize_release)])
+router = APIRouter(
+    prefix="/api/v1/cli/releases", tags=["cli-releases"], dependencies=[Depends(check_release_availability)]
+)
 
 
 def channel_version(releases: CliReleaseSettings, channel: str) -> str:
