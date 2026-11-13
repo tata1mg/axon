@@ -1,0 +1,20 @@
+apps/cli/package.json
+  h_dc688f708c4675 3
+apps/backend/pyproject.toml
+  h_dc688f708c4675 3
+apps/backend/uv.lock
+  h_dc688f708c4675 2,64
+bun.lock
+  h_dc688f708c4675 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b968804ac8c6555d448022cf09947eacc118af6c",
+  "prompts": {},
+  "humans": {
+    "h_dc688f708c4675": {
+      "author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  }
+}
