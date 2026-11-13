@@ -9,6 +9,8 @@ import type {
   LaunchContext,
   LaunchSpec,
 } from "../launcher/contracts.ts";
+import { isTrue } from "../launcher/debug-preview.ts";
+import { createHarnessEnvironment } from "../launcher/environment.ts";
 import { filesystemPreferencesRevision, watchFilesystemPreferences } from "./filesystem.ts";
 import { createAxonSafehouseLaunchSpec, createAxonSafehouseResources } from "./launch.ts";
 import {
@@ -62,18 +64,32 @@ export async function createAxonSafehouseSession(
   context: LaunchContext,
   suppliedAuthorization?: AxonSafehouseAuthorization,
 ): Promise<AxonSafehouseSession> {
-  assertAxonSafehouseSupported();
-  const authorization = suppliedAuthorization ?? (await authorizeAxonSafehouse(context.paths));
-  const resources = await createAxonSafehouseResources(context.paths, context.environment);
+  const locallyDisabled =
+    context.safehouseDisabled === true || isTrue(context.environment["AXON_DISABLE_SAFEHOUSE"]);
+  // Explicit local opt-outs must not depend on a Safehouse policy service or runtime.
+  const authorization = locallyDisabled
+    ? undefined
+    : (suppliedAuthorization ?? (await authorizeAxonSafehouse(context.paths)));
+  const disabled = locallyDisabled || authorization?.policy.required === false;
+  if (!disabled) assertAxonSafehouseSupported();
+  const resources = disabled
+    ? undefined
+    : await createAxonSafehouseResources(context.paths, context.environment);
+  if (disabled)
+    console.error(
+      "axon: warning: Safehouse is disabled for this invocation; sandbox filesystem and network protections are not applied.",
+    );
   const profiles = new Map<string, Promise<LaunchSpec>>();
   const activeCommands = new Set<() => void>();
   const activeOperations = new Set<() => void>();
-  const stopWatching = watchFilesystemPreferences(context.paths, (requiresRestart) => {
-    if (requiresRestart) for (const stop of activeOperations) stop();
-    profiles.clear();
-    // A settings change rescans package roots, picking up links created since.
-    resources.packageScans.clear();
-  });
+  const stopWatching = resources
+    ? watchFilesystemPreferences(context.paths, (requiresRestart) => {
+        if (requiresRestart) for (const stop of activeOperations) stop();
+        profiles.clear();
+        // A settings change rescans package roots, picking up links created since.
+        resources.packageScans.clear();
+      })
+    : () => {};
   let disposed = false;
   let operationAuthorization: AxonSafehouseAuthorization | undefined;
   let pendingAuthorization: Promise<AxonSafehouseAuthorization> | undefined;
@@ -81,7 +97,7 @@ export async function createAxonSafehouseSession(
   // The login UI and setup may use the public boundary, but project operations may not.
   // A fresh authenticated policy must match the already-compiled boundary exactly.
   const authorizeOperation = async (): Promise<void> => {
-    if (!authorization.bootstrap) return;
+    if (!authorization?.bootstrap) return;
     const session = await loadEncryptedSession(context.paths);
     if (!session)
       throw axonSafehouseFailure("Sign in to Axon before running Axon Safehouse operations");
@@ -117,13 +133,18 @@ export async function createAxonSafehouseSession(
     for (const stop of activeCommands) stop();
     activeCommands.clear();
     stopWatching();
-    resources.dispose();
+    resources?.dispose();
   };
 
   return {
+    disabled,
     dispose,
     async configurationPolicy() {
       assertActive();
+      if (disabled || !authorization)
+        throw axonSafehouseFailure(
+          "Safehouse is disabled; restart without the opt-out to edit permissions",
+        );
       if (context.catalogOnly)
         throw axonSafehouseFailure("RPC catalog probes cannot configure project permissions");
       const verified = await authorizeAxonSafehouse(context.paths);
@@ -143,14 +164,31 @@ export async function createAxonSafehouseSession(
     },
     clientConfig(session) {
       assertActive();
-      if (authorization.session !== undefined && authorization.session !== session)
+      if (authorization?.session !== undefined && authorization.session !== session)
         throw axonSafehouseFailure(
           "Axon identity changed during setup; restart for fresh authorization",
         );
-      return authorization.clientConfig;
+      return authorization?.clientConfig;
     },
     async wrap(specification, options) {
       assertActive();
+      if (!resources || !authorization) {
+        return {
+          ...specification,
+          // Never advertise sandboxing or route native tools to a disabled operation broker.
+          environment: createHarnessEnvironment(specification.environment, {
+            PI_AXON_SAFEHOUSE: undefined,
+            PI_AXON_SAFEHOUSE_OPERATIONS: undefined,
+          }),
+          dispose() {
+            try {
+              specification.dispose?.();
+            } finally {
+              dispose();
+            }
+          },
+        };
+      }
       const revision = filesystemPreferencesRevision(context.paths);
       const wrapped = await createAxonSafehouseLaunchSpec(
         specification,
@@ -212,66 +250,79 @@ export async function createAxonSafehouseSession(
       }
       assertActive();
       options.signal?.throwIfAborted();
-      const revision = filesystemPreferencesRevision(context.paths);
-      const writePaths = [...new Set(options.writePaths ?? [])].sort();
-      // Probes/package administration never need a project's cwd or its configuration.
-      // npm ci alone keeps its explicitly writable staging directory as cwd.
-      const command = {
-        ...specification,
-        cwd:
-          options.purpose === "operation" ||
-          (options.purpose === "provision" && writePaths.includes(specification.cwd))
-            ? specification.cwd
-            : resources.temporary,
-      };
-      // Concurrent commands share compilation, but operation profiles are scoped to a settings revision.
-      const key = JSON.stringify([
-        options.purpose,
-        command.cwd,
-        specification.environment["PATH"],
-        specification.environment["PI_CODING_AGENT_DIR"],
-        writePaths,
-        revision,
-      ]);
-      let pending = profiles.get(key);
-      if (!pending) {
-        pending = createAxonSafehouseLaunchSpec(command, context.paths, authorization, {
-          purpose: options.purpose,
-          // Every purpose inherits the user's optional host blocklist, not project file grants.
-          project: context.cwd,
+      const revision = disabled ? 0 : filesystemPreferencesRevision(context.paths);
+      let command = specification;
+      let commandVector = [specification.executable, ...specification.arguments];
+      let commandEnvironment = createHarnessEnvironment(specification.environment, {
+        PI_AXON_SAFEHOUSE: undefined,
+        PI_AXON_SAFEHOUSE_OPERATIONS: undefined,
+      });
+      if (resources && authorization) {
+        const writePaths = [...new Set(options.writePaths ?? [])].sort();
+        // Probes/package administration never need a project's cwd or its configuration.
+        // npm ci alone keeps its explicitly writable staging directory as cwd.
+        command = {
+          ...specification,
+          cwd:
+            options.purpose === "operation" ||
+            (options.purpose === "provision" && writePaths.includes(specification.cwd))
+              ? specification.cwd
+              : resources.temporary,
+        };
+        // Concurrent commands share compilation, but operation profiles are scoped to a settings revision.
+        const key = JSON.stringify([
+          options.purpose,
+          command.cwd,
+          specification.environment["PATH"],
+          specification.environment["PI_CODING_AGENT_DIR"],
           writePaths,
-          resources,
-        }).catch((error: unknown) => {
-          // Share in-flight compilation, not a failed attempt for the rest of the invocation.
-          if (profiles.get(key) === pending) profiles.delete(key);
-          throw error;
-        });
-        profiles.set(key, pending);
+          revision,
+        ]);
+        let pending = profiles.get(key);
+        if (!pending) {
+          pending = createAxonSafehouseLaunchSpec(command, context.paths, authorization, {
+            purpose: options.purpose,
+            // Every purpose inherits the user's optional host blocklist, not project file grants.
+            project: context.cwd,
+            writePaths,
+            resources,
+          }).catch((error: unknown) => {
+            // Share in-flight compilation, not a failed attempt for the rest of the invocation.
+            if (profiles.get(key) === pending) profiles.delete(key);
+            throw error;
+          });
+          profiles.set(key, pending);
+        }
+        const wrapped = await pending;
+        assertActive();
+        options.signal?.throwIfAborted();
+        if (
+          options.purpose === "operation" &&
+          revision !== filesystemPreferencesRevision(context.paths)
+        )
+          throw axonSafehouseFailure("Axon Safehouse settings changed; retry the operation");
+        const profile = wrapped.arguments[1];
+        if (!profile) throw axonSafehouseFailure("Missing Axon Safehouse command profile");
+        commandVector = [
+          wrapped.executable,
+          "-f",
+          profile,
+          specification.executable,
+          ...specification.arguments,
+        ];
+        commandEnvironment = wrapped.environment;
       }
-      const wrapped = await pending;
-      assertActive();
-      options.signal?.throwIfAborted();
-      if (
-        options.purpose === "operation" &&
-        revision !== filesystemPreferencesRevision(context.paths)
-      )
-        throw axonSafehouseFailure("Axon Safehouse settings changed; retry the operation");
-      const profile = wrapped.arguments[1];
-      if (!profile) throw axonSafehouseFailure("Missing Axon Safehouse command profile");
-      const child = Bun.spawn(
-        [wrapped.executable, "-f", profile, specification.executable, ...specification.arguments],
-        {
-          cwd: command.cwd,
-          env: wrapped.environment,
-          // Noninteractive helpers get their own process group, not the TUI's foreground group.
-          detached: true,
-          stdin: options.stdin === undefined ? "ignore" : new TextEncoder().encode(options.stdin),
-          stdout: options.inheritOutput ? "inherit" : "pipe",
-          stderr: options.inheritOutput ? "inherit" : "pipe",
-          // Explicit operation deadlines and invocation cleanup bound commands;
-          // Pi's shell tool has no default deadline.
-        },
-      );
+      const child = Bun.spawn(commandVector, {
+        cwd: command.cwd,
+        env: commandEnvironment,
+        // Noninteractive helpers get their own process group, not the TUI's foreground group.
+        detached: true,
+        stdin: options.stdin === undefined ? "ignore" : new TextEncoder().encode(options.stdin),
+        stdout: options.inheritOutput ? "inherit" : "pipe",
+        stderr: options.inheritOutput ? "inherit" : "pipe",
+        // Explicit operation deadlines and invocation cleanup bound commands;
+        // Pi's shell tool has no default deadline.
+      });
       const signalGroup = (signal: NodeJS.Signals): void => {
         try {
           process.kill(-child.pid, signal);
@@ -342,6 +393,7 @@ export async function createAxonSafehouseSession(
         assertActive();
         options.signal?.throwIfAborted();
         if (
+          !disabled &&
           options.purpose === "operation" &&
           revision !== filesystemPreferencesRevision(context.paths)
         )

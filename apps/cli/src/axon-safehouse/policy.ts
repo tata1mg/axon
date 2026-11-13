@@ -22,7 +22,7 @@ export function axonSafehouseFailure(message: string, cause?: unknown): Launcher
   return new LauncherError(message, LAUNCHER_EXIT_STATUS.profileFailure, {
     ...(cause === undefined ? {} : { cause }),
     remediation:
-      "Check Axon login and backend Axon Safehouse policy, then restart axon pi. Axon Safehouse cannot be disabled.",
+      "Check Axon login and backend Axon Safehouse policy, then restart axon pi. To run without sandbox protection, use axon --no-safehouse or AXON_DISABLE_SAFEHOUSE=1.",
   });
 }
 
@@ -35,7 +35,7 @@ export function assertAxonSafehouseSupported(): void {
   }
 }
 
-/** Signed-out RPC still fetches a fresh backend policy; no local fallback or Axon Safehouse bypass. */
+/** Signed-out RPC fetches a fresh backend policy unless the invocation explicitly opts out. */
 export async function authorizeAxonSafehouseBootstrap(): Promise<AxonSafehouseAuthorization> {
   const policy = await fetchAxonSafehouseBootstrap({ timeoutMs: 5_000 });
   if (!policy)

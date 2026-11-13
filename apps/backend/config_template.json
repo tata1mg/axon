@@ -123,6 +123,7 @@
     "SEARCH_CONTEXT_SIZE": null
   },
   "AXON_SAFEHOUSE": {
+    "ENABLED": true,
     "POLICY_ID": "safehouse-v1",
     "ALLOW_ADDITIONAL_READ_PATHS": true,
     "ALLOW_ADDITIONAL_WRITE_PATHS": true,

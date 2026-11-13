@@ -312,7 +312,7 @@ function createLauncherProgram(): Command {
 
   program.addHelpText(
     "after",
-    `\nHarnesses:\n  ${PRODUCT_IDENTITY.command} pi [pi arguments...]\n\nEverything after a harness ID is passed to that harness without launcher parsing.`,
+    `\nHarnesses:\n  ${PRODUCT_IDENTITY.command} pi [pi arguments...]\n  ${PRODUCT_IDENTITY.command} --no-safehouse [pi arguments...]\n  ${PRODUCT_IDENTITY.command} pi --no-safehouse [pi arguments...]\n\nSafehouse is enabled by default. Disable it for an invocation with the leading --no-safehouse flag, or set AXON_DISABLE_SAFEHOUSE=1 (also accepts true or yes). Administrators can set AXON_SAFEHOUSE.ENABLED=false in backend config.\n\nExcept for a leading --no-safehouse, everything after a harness ID is passed to that harness without launcher parsing.`,
   );
 
   return program;

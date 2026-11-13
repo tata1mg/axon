@@ -8,6 +8,8 @@ export interface LaunchContext {
   readonly cwd: string;
   readonly environment: NodeJS.ProcessEnv;
   readonly paths: AxonPaths;
+  /** Explicit per-invocation opt-out; never inferred from a missing session owner. */
+  readonly safehouseDisabled?: boolean;
   /** Owned by Axon for the entire invocation, before any Pi executable runs. */
   readonly axonSafehouse?: AxonSafehouseSession;
   /** Global RPC discovery has no project and must never execute project operations. */
@@ -58,6 +60,8 @@ export interface AxonSafehouseCommandResult {
 }
 
 export interface AxonSafehouseSession {
+  /** True only when backend config, a launcher flag or the environment disabled sandboxing. */
+  readonly disabled?: boolean;
   /** Revalidate settings against fresh authentication and this invocation's compiled boundary. */
   configurationPolicy(): Promise<AxonSafehousePolicy>;
   /** Reuse startup configuration only while the verified credential is unchanged. */

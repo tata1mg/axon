@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const axonSafehousePolicySchema = z.strictObject({
   schemaVersion: z.literal(1),
-  required: z.literal(true),
+  required: z.boolean(),
   engine: z.literal("safehouse"),
   policyId: z.string().regex(/^[a-zA-Z0-9._-]{1,128}$/),
   allowAdditionalReadPaths: z.boolean(),

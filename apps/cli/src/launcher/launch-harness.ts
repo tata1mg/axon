@@ -1,11 +1,7 @@
 import { homedir } from "node:os";
 import { validateAxonSafehouseResumeSession } from "../axon-safehouse/configuration-relay.ts";
 import { canonicalPath, isBlockedProjectDirectory } from "../axon-safehouse/filesystem.ts";
-import {
-  assertAxonSafehouseSupported,
-  authorizeAxonSafehouseBootstrap,
-  axonSafehouseFailure,
-} from "../axon-safehouse/policy.ts";
+import { authorizeAxonSafehouseBootstrap, axonSafehouseFailure } from "../axon-safehouse/policy.ts";
 import { createAxonSafehouseRpcTransport } from "../axon-safehouse/rpc-configuration.ts";
 import { withAxonSafehouseSession } from "../axon-safehouse/session.ts";
 import { piRestartArguments } from "../harnesses/pi/restart.ts";
@@ -38,7 +34,10 @@ const DEBUG_ENVIRONMENT_VARIABLE = "AXON_DEBUG";
 export async function launchRegisteredHarness(
   registration: HarnessRegistration,
   userArguments: readonly string[],
-  options: { readonly authenticationDeferred?: boolean } = {},
+  options: {
+    readonly authenticationDeferred?: boolean;
+    readonly safehouseDisabled?: boolean;
+  } = {},
 ): Promise<never> {
   const cwd = process.cwd();
   const inheritedEnvironment = process.env;
@@ -46,15 +45,17 @@ export async function launchRegisteredHarness(
   const paths = (await isBlockedProjectDirectory(sharedPaths, cwd))
     ? sharedPaths
     : await resolveProjectAxonPaths(sharedPaths, cwd);
-  assertAxonSafehouseSupported();
-  if (isPiOffline(inheritedEnvironment, userArguments)) {
+  const locallyDisabled =
+    options.safehouseDisabled === true || isTrue(inheritedEnvironment["AXON_DISABLE_SAFEHOUSE"]);
+  if (!locallyDisabled && isPiOffline(inheritedEnvironment, userArguments)) {
     throw axonSafehouseFailure(
       "Offline Pi launches are disabled: fresh backend Axon Safehouse authorization is required",
     );
   }
-  const authorization = options.authenticationDeferred
-    ? await authorizeAxonSafehouseBootstrap()
-    : undefined;
+  const authorization =
+    options.authenticationDeferred && !locallyDisabled
+      ? await authorizeAxonSafehouseBootstrap()
+      : undefined;
   // Paseo's global catalog starts in homedir(), not a user-selected project.
   // Give that process only a private temporary cwd, never a grant to the home directory.
   const catalogOnly =
@@ -69,6 +70,7 @@ export async function launchRegisteredHarness(
       cwd,
       environment: inheritedEnvironment,
       paths,
+      ...(locallyDisabled ? { safehouseDisabled: true } : {}),
       ...(catalogOnly ? { catalogOnly: true } : {}),
     },
     (context) =>
@@ -240,18 +242,19 @@ async function launchAxonSafehouseHarness(
     outcome: "success",
     durationMs: Date.now() - startedAt,
   });
-  const rpc = isPiRpcMode(userArguments)
-    ? createAxonSafehouseRpcTransport({
-        paths,
-        cwd,
-        axonSafehouse: axonSafehouseContext.axonSafehouse,
-        prepareRestart(session) {
-          if (!context.prepareAxonSafehouseRestart)
-            throw axonSafehouseFailure("The parent-owned Axon Safehouse restart is unavailable");
-          return context.prepareAxonSafehouseRestart(session);
-        },
-      })
-    : undefined;
+  const rpc =
+    !axonSafehouseContext.axonSafehouse.disabled && isPiRpcMode(userArguments)
+      ? createAxonSafehouseRpcTransport({
+          paths,
+          cwd,
+          axonSafehouse: axonSafehouseContext.axonSafehouse,
+          prepareRestart(session) {
+            if (!context.prepareAxonSafehouseRestart)
+              throw axonSafehouseFailure("The parent-owned Axon Safehouse restart is unavailable");
+            return context.prepareAxonSafehouseRestart(session);
+          },
+        })
+      : undefined;
   return spawnHarness(
     specification,
     async () => {

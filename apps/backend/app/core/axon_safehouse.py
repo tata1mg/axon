@@ -1,4 +1,4 @@
-"""Backend-owned Axon Safehouse capabilities; clients may only narrow these permissions."""
+"""Backend-owned Axon Safehouse defaults and filesystem capabilities."""
 
 from typing import Annotated, Literal
 
@@ -14,7 +14,7 @@ class CliAxonSafehousePolicy(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid", populate_by_name=True)
 
     schema_version: Literal[1] = Field(default=1, alias="schemaVersion")
-    required: Literal[True] = True
+    required: bool = True
     engine: Literal["safehouse"] = "safehouse"
     policy_id: str = Field(alias="policyId")
     allow_additional_read_paths: bool = Field(alias="allowAdditionalReadPaths")
@@ -25,6 +25,7 @@ class CliAxonSafehousePolicy(BaseModel):
 class AxonSafehouseSettings(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid", strict=True)
 
+    enabled: bool = Field(default=True, alias="ENABLED")
     policy_id: str = Field(default="safehouse-v1", alias="POLICY_ID", pattern=r"^[a-zA-Z0-9._-]{1,128}$")
     # Networking and local/remote Git have no backend policy gates.
     allow_additional_read_paths: bool = Field(default=True, alias="ALLOW_ADDITIONAL_READ_PATHS")
@@ -33,6 +34,7 @@ class AxonSafehouseSettings(BaseModel):
 
     def cli_config(self) -> CliAxonSafehousePolicy:
         return CliAxonSafehousePolicy(
+            required=self.enabled,
             policyId=self.policy_id,
             allowAdditionalReadPaths=self.allow_additional_read_paths,
             allowAdditionalWritePaths=self.allow_additional_write_paths,

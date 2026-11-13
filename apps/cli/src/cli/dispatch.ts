@@ -34,8 +34,26 @@ async function runDefaultHarness(): Promise<void> {
   await dispatch(["pi"]);
 }
 
-export async function dispatch(argumentsVector: readonly string[]): Promise<void> {
-  const [head, ...harnessArguments] = argumentsVector;
+export async function dispatch(
+  argumentsVector: readonly string[],
+  options: { readonly safehouseDisabled?: boolean } = {},
+): Promise<void> {
+  const [head, ...remainingArguments] = argumentsVector;
+  // Reserve the leading launcher flag; never scan prompt text or tokens after `--`.
+  if (head === "--no-safehouse") {
+    await dispatch(
+      remainingArguments[0] === "pi" ? remainingArguments : ["pi", ...remainingArguments],
+      { safehouseDisabled: true },
+    );
+    return;
+  }
+  const safehouseDisabled =
+    options.safehouseDisabled === true ||
+    (head === "pi" && remainingArguments[0] === "--no-safehouse");
+  const harnessArguments =
+    head === "pi" && remainingArguments[0] === "--no-safehouse"
+      ? remainingArguments.slice(1)
+      : remainingArguments;
   if (head === undefined) {
     await runDefaultHarness();
     return;
@@ -85,6 +103,7 @@ export async function dispatch(argumentsVector: readonly string[]): Promise<void
     if (authentication === "cancelled") return;
     await launchRegisteredHarness(registration, harnessArguments, {
       authenticationDeferred: authentication === "deferred",
+      ...(safehouseDisabled ? { safehouseDisabled: true } : {}),
     });
     return;
   }

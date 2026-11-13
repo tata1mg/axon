@@ -167,20 +167,25 @@ export function createPiAdapter(): HarnessAdapter {
         const axonSafehouse = context.axonSafehouse;
         if (!axonSafehouse) throw axonSafehouseFailure("Axon Safehouse is required");
         relay = startAuthenticatedRequestRelay(context.paths, {
-          axonSafehouseOperation: createAxonSafehouseOperations(
-            axonSafehouse,
-            {
-              executable: context.executable,
-              arguments: [],
-              environment: context.environment,
-              cwd: context.cwd,
-            },
-            context.paths,
-          ),
+          ...(axonSafehouse.disabled
+            ? {}
+            : {
+                axonSafehouseOperation: createAxonSafehouseOperations(
+                  axonSafehouse,
+                  {
+                    executable: context.executable,
+                    arguments: [],
+                    environment: context.environment,
+                    cwd: context.cwd,
+                  },
+                  context.paths,
+                ),
+              }),
           allowPiConfigRefresh: !setup.offline,
           ...(context.authenticationDeferred ? { signedOut: { session: encryptedSession } } : {}),
           allowTelemetry: config?.telemetry?.enabled === true,
-          allowAxonSafehouseConfiguration: setup.invocationKind === "interactive",
+          allowAxonSafehouseConfiguration:
+            !axonSafehouse.disabled && setup.invocationKind === "interactive",
           axonSafehouseConfigurationPolicy: () => axonSafehouse.configurationPolicy(),
           ...(context.prepareAxonSafehouseRestart
             ? { prepareAxonSafehouseRestart: context.prepareAxonSafehouseRestart }
@@ -249,7 +254,7 @@ export function createPiAdapter(): HarnessAdapter {
           // Display label only: Pi persists error text in session history.
           PI_AXON_RELAY_LOG_FILE: relay.diagnosticsLogLabel,
           PI_AXON_CONFIG_REFRESH_ENABLED: String(!setup.offline),
-          PI_AXON_SAFEHOUSE_OPERATIONS: "1",
+          PI_AXON_SAFEHOUSE_OPERATIONS: axonSafehouse.disabled ? undefined : "1",
         };
       } else {
         // Administration is exempt even if spawning it produces startup observations.
