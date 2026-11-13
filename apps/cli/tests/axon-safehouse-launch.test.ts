@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import {
   type AxonSafehouseResources,
   createAxonSafehouseLaunchSpec,
@@ -41,6 +41,8 @@ const authorization: AxonSafehouseAuthorization = {
     allowAdditionalReadPaths: true,
     allowAdditionalWritePaths: true,
     protectedPaths: [],
+    readPaths: [],
+    writePaths: [],
   },
 };
 
@@ -102,5 +104,127 @@ describe("Axon Safehouse package administration", () => {
     expect(profile).toContain(JSON.stringify(join(repository, ".git")));
     expect(profile).toContain(`(subpath ${JSON.stringify(join(subdirectory, ".pi", "npm"))})`);
     expect(profile).not.toContain(JSON.stringify(join(repository, ".pi", "npm")));
+  });
+});
+
+describe("Axon Safehouse backend filesystem grants", () => {
+  async function launch(
+    purpose: "session" | "operation" | "administration" | "provision",
+    policy: Partial<AxonSafehouseAuthorization["policy"]>,
+    environment: Record<string, string> = {},
+  ) {
+    const project = join(root, "project");
+    await mkdir(project, { recursive: true });
+    const paths = resolveAxonPaths({ HOME: join(root, "home") });
+    await mkdir(paths.pi, { recursive: true });
+    const wrapped = await createAxonSafehouseLaunchSpec(
+      {
+        executable: "/usr/bin/true",
+        arguments: [],
+        cwd: project,
+        environment: { PATH: "/usr/bin:/bin", ...environment },
+      },
+      paths,
+      { policy: { ...authorization.policy, ...policy } },
+      { purpose, resources },
+    );
+    const profilePath = wrapped.arguments[1];
+    if (!profilePath) throw new Error("missing profile");
+    return (await Bun.file(profilePath).text()).split("\n");
+  }
+  // Grants are rewritten to (allow op (require-all (require-any (subpath P)) exclusions...)).
+  function grant(profile: string[], operation: string, path: string): string | undefined {
+    const prefix = `(allow ${operation} (require-all (require-any (subpath ${JSON.stringify(path)}))`;
+    return profile.find((rule) => rule.startsWith(prefix));
+  }
+  async function directories() {
+    const shared = join(root, "shared");
+    const output = join(root, "output");
+    await mkdir(shared, { recursive: true });
+    await mkdir(output, { recursive: true });
+    return { shared, output, policy: { readPaths: [shared], writePaths: [output] } };
+  }
+  const brokered = {
+    PI_AXON_AUTH_RELAY_URL: "http://127.0.0.1:12345",
+    PI_AXON_SAFEHOUSE_OPERATIONS: "1",
+  };
+
+  test("operations get backend read-only and read/write grants", async () => {
+    const { shared, output, policy } = await directories();
+    const profile = await launch("operation", policy);
+
+    expect(grant(profile, "file-read*", shared)).toBeDefined();
+    expect(grant(profile, "file-write*", shared)).toBeUndefined();
+    expect(grant(profile, "file-read*", output)).toBeDefined();
+    expect(grant(profile, "file-write*", output)).toBeDefined();
+  });
+
+  test("backend read paths are plain grants, not write ceilings", async () => {
+    const { shared, output, policy } = await directories();
+    const profile = await launch("operation", policy);
+
+    // A write grant elsewhere is never narrowed by a backend read-only path.
+    expect(grant(profile, "file-write*", output)).not.toContain(
+      `(require-not (subpath ${JSON.stringify(shared)}))`,
+    );
+  });
+
+  test("brokered sessions and administration downgrade backend write paths to read-only", async () => {
+    for (const [purpose, environment] of [
+      ["session", brokered],
+      ["administration", {}],
+    ] as const) {
+      const { output, policy } = await directories();
+      const profile = await launch(purpose, policy, environment);
+      expect(grant(profile, "file-read*", output)).toBeDefined();
+      expect(grant(profile, "file-write*", output)).toBeUndefined();
+    }
+  });
+
+  test("provisioning never receives backend grants", async () => {
+    const { shared, output, policy } = await directories();
+    const profile = await launch("provision", policy);
+
+    expect(grant(profile, "file-read*", shared)).toBeUndefined();
+    expect(grant(profile, "file-read*", output)).toBeUndefined();
+  });
+
+  test("protected paths and installed packages stay excluded from backend write grants", async () => {
+    const { output, policy } = await directories();
+    const secret = join(output, "secret");
+    await mkdir(secret);
+    await mkdir(join(output, "node_modules", "left-pad"), { recursive: true });
+    await Bun.write(join(output, "node_modules", "left-pad", "package.json"), "{}");
+    const profile = await launch("operation", { ...policy, protectedPaths: [secret] });
+
+    const write = grant(profile, "file-write*", output);
+    expect(write).toContain(`(require-not (subpath ${JSON.stringify(secret)}))`);
+    expect(write).toContain(
+      `(require-not (subpath ${JSON.stringify(join(output, "node_modules"))}))`,
+    );
+    expect(grant(profile, "file-read*", output)).toContain(
+      `(require-not (subpath ${JSON.stringify(secret)}))`,
+    );
+  });
+
+  test("Git metadata follows the backend grant's access", async () => {
+    const { shared, output, policy } = await directories();
+    await mkdir(join(shared, ".git"));
+    await mkdir(join(output, ".git"));
+    const profile = await launch("operation", policy);
+
+    expect(grant(profile, "file-write*", join(output, ".git"))).toBeDefined();
+    expect(grant(profile, "file-read*", join(shared, ".git"))).toBeDefined();
+    expect(grant(profile, "file-write*", join(shared, ".git"))).toBeUndefined();
+  });
+
+  test("grants of the filesystem root or home directory are rejected", async () => {
+    for (const policy of [
+      { readPaths: ["/"] },
+      { writePaths: ["~/"] },
+      { readPaths: [dirname(homedir())] },
+    ]) {
+      await expect(launch("operation", policy)).rejects.toThrow("root or home directory");
+    }
   });
 });

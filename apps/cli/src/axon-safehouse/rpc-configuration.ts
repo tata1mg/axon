@@ -284,6 +284,9 @@ export function createAxonSafehouseRpcTransport(options: {
         signal,
         requireTerminal: false,
         authorize: () => options.axonSafehouse.configurationPolicy(),
+        ...(options.axonSafehouse.startupPolicy
+          ? { displayPolicy: options.axonSafehouse.startupPolicy }
+          : {}),
         async beforeSave() {
           signal.throwIfAborted();
           const current = await readIdleState();

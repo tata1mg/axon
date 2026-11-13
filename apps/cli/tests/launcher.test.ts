@@ -46,6 +46,8 @@ beforeAll(async () => {
             allowAdditionalReadPaths: true,
             allowAdditionalWritePaths: true,
             protectedPaths: [],
+            readPaths: [],
+            writePaths: [],
           },
         });
       }

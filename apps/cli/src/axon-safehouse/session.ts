@@ -182,6 +182,7 @@ export async function createAxonSafehouseSession(
   return {
     disabled,
     dispose,
+    ...(disabled ? {} : { startupPolicy: policy }),
     async configurationPolicy() {
       assertActive();
       if (disabled || !authorization)

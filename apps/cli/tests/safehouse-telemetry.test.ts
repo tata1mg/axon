@@ -29,6 +29,8 @@ const policy = (policyId: string): AxonSafehousePolicy => ({
   allowAdditionalReadPaths: true,
   allowAdditionalWritePaths: true,
   protectedPaths: [],
+  readPaths: [],
+  writePaths: [],
 });
 
 const preferences = (overrides: Partial<FilesystemPreferences> = {}): FilesystemPreferences => ({

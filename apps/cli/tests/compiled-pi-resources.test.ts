@@ -56,6 +56,8 @@ test.each(["unminified", "minified"] as const)(
               allowAdditionalReadPaths: true,
               allowAdditionalWritePaths: true,
               protectedPaths: [],
+              readPaths: [],
+              writePaths: [],
             },
             terminalPermissions: policy,
             compaction: { enabled: true, model: "litellm/summary", thresholdTokens: 80000 },

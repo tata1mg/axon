@@ -67,6 +67,8 @@ export interface AxonSafehouseSession {
   readonly disabled?: boolean;
   /** Revalidate settings against fresh authentication and this invocation's compiled boundary. */
   configurationPolicy(): Promise<AxonSafehousePolicy>;
+  /** The policy fetched at startup, for display only; saves still use configurationPolicy(). */
+  readonly startupPolicy?: AxonSafehousePolicy;
   /** Reuse startup configuration only while the verified credential is unchanged. */
   clientConfig(session: string): ClientConfig | undefined;
   wrap(

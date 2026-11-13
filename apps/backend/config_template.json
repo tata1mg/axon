@@ -128,7 +128,9 @@
     "POLICY_ID": "safehouse-v1",
     "ALLOW_ADDITIONAL_READ_PATHS": true,
     "ALLOW_ADDITIONAL_WRITE_PATHS": true,
-    "PROTECTED_PATHS": []
+    "PROTECTED_PATHS": [],
+    "READ_PATHS": [],
+    "WRITE_PATHS": []
   },
   "TERMINAL_PERMISSIONS": {
     "YOLO_MODE": false,
