@@ -1,0 +1,35 @@
+apps/cli/src/cli/launcher-program.ts
+  s_2c4803120b4d51::t_93fa44c0f375b6 216
+apps/cli/src/updater/update.ts
+  s_2c4803120b4d51::t_d120867600550f 276
+apps/cli/install.sh
+  s_2c4803120b4d51::t_54cd75a628d9ce 368
+  s_2c4803120b4d51::t_315cc36ef0fee0 17,39,263-265,295,297-302,315-318,352-355,357,369-378,380,409
+apps/cli/src/updater/release.ts
+  s_2c4803120b4d51::t_83b2e675320602 4,38,68,120-121,124-125
+  s_2c4803120b4d51::t_6137838a58456f 126
+apps/backend/app/routers/cli_releases.py
+  s_2c4803120b4d51::t_665569095d5802 1,23,29,33
+  s_2c4803120b4d51::t_381e45344d2d35 41-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b1d30b3e76364214597570a868073b8f0ffea1ce",
+  "prompts": {},
+  "humans": {
+    "h_dc688f708c4675": {
+      "author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_2c4803120b4d51": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "505302",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  }
+}
