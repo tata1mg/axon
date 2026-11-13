@@ -1,0 +1,221 @@
+apps/cli/src/harnesses/pi/telemetry/docs/telemetry-schema.md
+  s_12d89f23a907f2::t_ab38249b8dc1ef 29,38,121
+apps/cli/tests/axon-safehouse-launch.test.ts
+  s_8446ed3780f818::t_bf443bc09ce2b3 91-105
+apps/cli/src/cli/launcher-program.ts
+  s_8446ed3780f818::t_f38467848b081b 248
+apps/cli/src/axon-safehouse/session.ts
+  s_12d89f23a907f2::t_7735c18b6ec169 14,23-28,76-80,84-85,89-110,143-146,191-195,199
+  s_750a46ca42eb2d::t_46de58564210ee 86-87
+apps/cli/src/cli/commands/axon-safehouse.ts
+  s_12d89f23a907f2::t_f471b913c04eba 181-182
+  s_29e4c2384e8a06::t_0bbc658f691652 4
+  s_29e4c2384e8a06::t_90e5d218238e4b 274,279-286
+  s_29e4c2384e8a06::t_9100052886ca18 173-175
+  s_12d89f23a907f2::t_8fc36c8928cbac 14,179-180,183-184,187,381,410,412-413,420-423
+apps/cli/src/axon-safehouse/filesystem.ts
+  s_750a46ca42eb2d::t_2421ee97b24604 138-142,171-172,177,179-184,212-223,232-236,243,245-247,250-264,270-286,293-300
+  s_8446ed3780f818::t_95cf403c416d86 238-242,244,248-249,440
+  s_750a46ca42eb2d::t_12e48b87af6d60 237,301-303
+apps/cli/tests/session-backup-relay.test.ts
+  s_8446ed3780f818::t_0827e0292b41e9 66
+  s_8446ed3780f818::t_e31d6563417128 33
+  s_8446ed3780f818::t_c0bb5ab2324c07 1-32,34-65,67-68
+apps/cli/src/harnesses/pi/telemetry/docs/product-telemetry.md
+  s_12d89f23a907f2::t_ab38249b8dc1ef 19,37-38
+apps/cli/src/harnesses/pi/telemetry/grafana-metrics-only.json
+  s_12d89f23a907f2::t_5cc487ffb251bf 4455,4489,4491,4525,4527,4573,4575,4608,4610,4656,4658,4696,4698,4732,4734,4738
+  s_12d89f23a907f2::t_c72e83998377e3 4446-4454,4456-4488,4490,4492-4524,4526,4528-4572,4574,4576-4607,4609,4611-4655,4657,4659-4695,4697,4699-4731,4733,4735-4737
+apps/cli/src/product/paths.ts
+  s_8446ed3780f818::t_f38467848b081b 52-53,68
+apps/cli/src/hash.ts
+  s_750a46ca42eb2d::t_5b63f0162c5a05 1-6,8
+  s_750a46ca42eb2d::t_e142a007f14e1e 7,9
+apps/cli/src/launcher/launch-harness.ts
+  s_12d89f23a907f2::t_8671d919eb111f 7
+  s_12d89f23a907f2::t_bfcd4597073a0f 58
+apps/cli/src/axon-safehouse/tooling.ts
+  s_8446ed3780f818::t_6a85f686d77365 2-43
+  s_8446ed3780f818::t_11e916a9271c28 1
+apps/cli/src/harnesses/pi/telemetry/src/otel/product-instruments.ts
+  s_12d89f23a907f2::t_60480bf5bdcd2e 12-13
+apps/cli/src/product/project-paths.ts
+  s_750a46ca42eb2d::t_e142a007f14e1e 5,26
+apps/cli/src/telemetry/product-events.ts
+  s_12d89f23a907f2::t_66c51e4dbe3a38 24-32,36-45,66-67,147-171,227-232
+  s_12d89f23a907f2::t_e92391aec68744 233
+apps/cli/src/sessions/backup.ts
+  s_750a46ca42eb2d::t_e142a007f14e1e 87,248,253,259,310-311,317,521
+  s_750a46ca42eb2d::t_75dd0fcbd8c807 7
+apps/cli/tests/axon-safehouse-menu.test.ts
+  s_29e4c2384e8a06::t_67a264bfe6a5b0 53
+  s_29e4c2384e8a06::t_94b5c9055a4fd4 1-52,54-64
+apps/cli/src/axon-safehouse/telemetry.ts
+  s_12d89f23a907f2::t_6ef0d75152b071 1-3,5-6,8-41,45-79,81-88,90-136
+  s_12d89f23a907f2::t_f471b913c04eba 7,42-44
+  s_750a46ca42eb2d::t_1ba1cfc1fb65c4 4,80,89
+apps/cli/src/axon-safehouse/access-relay.ts
+  s_12d89f23a907f2::t_b7eedab6121fd2 162
+apps/cli/src/harnesses/pi/resources/extensions/session-backup.mjs
+  s_12d89f23a907f2::t_f06d6b7595e7b5 2,6,56
+  s_750a46ca42eb2d::t_5b63f0162c5a05 58
+apps/cli/src/axon-safehouse/runtime.ts
+  s_750a46ca42eb2d::t_e142a007f14e1e 5
+  s_8b8bca95792b61::t_ccedbcc107a7a0 10-11,14,16-17,29,32,41-57,64,114
+apps/cli/src/harnesses/pi/telemetry/src/product.ts
+  s_12d89f23a907f2::t_66c51e4dbe3a38 22-23
+apps/cli/tests/pi-client-config.test.ts
+  s_8446ed3780f818::t_827a2f4ef99893 382-383
+  s_8446ed3780f818::t_85aa7a4fd4d241 385
+  s_8446ed3780f818::t_00dcd77975ccf4 120,140,367-381,384,386-391
+  s_8446ed3780f818::t_828b2735182bc5 392-393
+apps/cli/src/product/release-channel.ts
+  s_8446ed3780f818::t_39dd2ca9e99a10 1-2
+apps/cli/package.json
+  s_8b8bca95792b61::t_8bbf59f870fcec 17-18,28-29,32,37
+apps/cli/src/axon-safehouse/access-requests.ts
+  s_12d89f23a907f2::t_482def34f78dec 22,102-103,114-115,117,153-157,173,179,234-235,238,240-242,245-249,259-260,262,267-268,270,304-306,310-333,338-341
+  s_8446ed3780f818::t_95cf403c416d86 98,256
+  s_12d89f23a907f2::t_b7eedab6121fd2 342
+  s_12d89f23a907f2::t_cd477a92291142 239,243-244,250,334-337
+  s_8446ed3780f818::t_e64600b679322d 17
+  s_5edb870a238e9c::t_d0bd09f302ba8f 280,289,345-346
+apps/cli/tests/axon-safehouse-runtime.test.ts
+  s_8b8bca95792b61::t_006785c4d195b3 1-153
+apps/cli/src/cli/auth/request-relay.ts
+  s_8446ed3780f818::t_aeb5f47200361b 485
+apps/cli/src/harnesses/pi/telemetry/src/otel/runtime.ts
+  s_12d89f23a907f2::t_60480bf5bdcd2e 48,340-341,362
+apps/cli/src/harnesses/pi/telemetry/tests/product.test.ts
+  s_12d89f23a907f2::t_8e399664f48da8 10,111-139
+  s_12d89f23a907f2::t_52130023575d6e 140
+apps/cli/src/axon-safehouse/configuration-relay.ts
+  s_8446ed3780f818::t_dc910246059c8e 12-16
+  s_8446ed3780f818::t_95cf403c416d86 78
+apps/cli/src/axon-safehouse/policy.ts
+  s_12d89f23a907f2::t_f471b913c04eba 47-49
+  s_12d89f23a907f2::t_0d49f3b171269c 11,32-37,46,50,64-67,71-74,79-82,85-86,88-91
+apps/cli/src/harnesses/pi/telemetry/grafana.json
+  s_12d89f23a907f2::t_c72e83998377e3 4586-4878
+apps/cli/tests/launcher.test.ts
+  s_8446ed3780f818::t_b3b85658299e01 560-562
+  s_8446ed3780f818::t_627f78aee7f556 546
+  s_8446ed3780f818::t_ea57c42051605e 543,549-559,563-565
+  s_12d89f23a907f2::t_c44f15d3175598 406-408
+  s_8446ed3780f818::t_6f0c04ad219071 544-545,547-548
+apps/cli/src/harnesses/pi/adapter.ts
+  s_8446ed3780f818::t_cabf3887270c6d 324-327
+  s_8446ed3780f818::t_1927ae9a8621fb 268-269,284-293
+  s_8446ed3780f818::t_913459ce301f54 3
+  s_8446ed3780f818::t_6acec6d4a094fe 273-278
+apps/cli/src/axon-safehouse/rpc-configuration.ts
+  s_12d89f23a907f2::t_b7eedab6121fd2 249
+apps/cli/src/harnesses/pi/resources/extensions/pi-org-telemetry.mjs
+  s_12d89f23a907f2::t_f06d6b7595e7b5 231,233,235,238-240,242,245,247,249,251-252,256,258,261,264-269
+apps/cli/src/cli/commands/doctor.ts
+  s_8446ed3780f818::t_913459ce301f54 11
+  s_750a46ca42eb2d::t_46de58564210ee 19,262-290,294,297-305,466
+  s_8446ed3780f818::t_59031119451ba9 296,335,349
+  s_8446ed3780f818::t_11e916a9271c28 308
+  s_8446ed3780f818::t_317a0f29165e2a 309
+  s_8446ed3780f818::t_45c1af2d5f86b7 7-8,10,310-324,333-334,336-348,350-356,360-362,364-369
+  s_750a46ca42eb2d::t_ae2675f421d6b4 3-6
+  s_750a46ca42eb2d::t_5d3a5687698830 9,363
+apps/cli/src/telemetry/client.ts
+  s_12d89f23a907f2::t_cde444fe4292d6 16-24,79-84,88,106-111
+  s_12d89f23a907f2::t_b2999e0e105fae 112-115
+apps/cli/tests/request-relay.test.ts
+  s_12d89f23a907f2::t_25c86034e2f6b1 1603-1638
+apps/cli/src/axon-safehouse/launch.ts
+  s_8446ed3780f818::t_39dd2ca9e99a10 2
+  s_8446ed3780f818::t_95cf403c416d86 238-242,305,441,574
+  s_12d89f23a907f2::t_f471b913c04eba 32
+  s_12d89f23a907f2::t_e1a0223f759b80 636-638,645
+apps/cli/scripts/update-safehouse.ts
+  s_8b8bca95792b61::t_ffa271ed3ea723 1-2,5-43,45-80,82-158,160-184
+  s_750a46ca42eb2d::t_e142a007f14e1e 3-4
+  s_750a46ca42eb2d::t_c4222eeb9502f3 44,81,159
+apps/cli/src/sessions/relay.ts
+  s_8446ed3780f818::t_81a3e46d5bf3d3 2,26-30,56-57
+  s_8446ed3780f818::t_aeb5f47200361b 20
+apps/cli/src/harnesses/pi/telemetry/src/attributes.ts
+  s_12d89f23a907f2::t_60480bf5bdcd2e 13
+apps/cli/tests/safehouse-telemetry.test.ts
+  s_12d89f23a907f2::t_92d910c01b4bfd 1-251
+apps/cli/tests/update.test.ts
+  s_12d89f23a907f2::t_e8ad4a739a52c2 160,165,241-255
+  s_5edb870a238e9c::t_a83c5fe3c9dda7 125,140,159,161-164,166
+apps/cli/src/types/assets.d.ts
+  s_8b8bca95792b61::t_ccedbcc107a7a0 11-16
+apps/cli/src/harnesses/pi/telemetry/src/environment.ts
+  s_12d89f23a907f2::t_60480bf5bdcd2e 11-12,68-74,83,85
+  s_12d89f23a907f2::t_f471b913c04eba 75-79
+apps/cli/src/harnesses/pi/telemetry/tests/grafana.test.ts
+  s_12d89f23a907f2::t_fbfd2539187af4 54-56
+apps/cli/src/updater/update.ts
+  s_12d89f23a907f2::t_a1b2d77b5b1ec2 170-175,180-183
+apps/cli/src/axon-safehouse/vendor/LICENSE
+  s_8b8bca95792b61::t_c7cfb8d9f05c8b 1-202
+apps/cli/src/axon-safehouse/vendor/safehouse.sh
+  s_8b8bca95792b61::t_243e5312ba614e 1-10803
+apps/cli/src/cli/dispatch.ts
+  s_5edb870a238e9c::t_e07541008ef1a1 94
+apps/cli/src/updater/startup.ts
+  s_5edb870a238e9c::t_02dc06dc95ecbf 34-35,83-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "859065f075fe694126731d6cbd47cc9fa722d5f9",
+  "prompts": {},
+  "sessions": {
+    "s_12d89f23a907f2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6a230b30-1225-419a-9229-5a43690c520d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_29e4c2384e8a06": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "45138309-dd6c-443b-bbd1-92512031d8e7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_5edb870a238e9c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d2dc354-a382-46f3-a882-b2adfcd9c7a6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_750a46ca42eb2d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "298c660e-3780-4798-a238-39a6fee89264",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_8446ed3780f818": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5d7e9663-0d52-4048-94e1-6817b6f49184",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_8b8bca95792b61": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b8e5f373-ac5b-461b-97e2-5e43cbd4c65a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
