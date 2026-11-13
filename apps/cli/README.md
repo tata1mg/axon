@@ -101,6 +101,8 @@ Set `AXON_DEBUG=1` for a redacted launch preview on stderr. `AXON_PI_BIN` is rej
 
 Set `AXON_WORKFLOW=<name>` when an automated workflow launches Axon (for example `AXON_WORKFLOW=pr-review axon pi -p "..."`). The value is trimmed, lowercased, and attached as `axon.workflow.name` to every Pi and launcher telemetry span, log, and metric point, so Grafana's **Workflow** filter can split usage and cost by workflow. Only `[a-z0-9._-]`, starting with a letter or digit, up to 64 characters, is accepted; anything else is dropped silently. Use a stable name per workflow, not a run ID. Unset is the normal case: those sessions have no workflow label and still appear under **All**. Pi subagents inherit the tag.
 
+Every Pi request to LiteLLM also carries `x-litellm-tags` and `x-litellm-spend-logs-metadata`, which LiteLLM stores on the request log and forwards to Langfuse as trace tags and generation metadata. Tags hold the few values worth filtering on: `axon_workflow`, `axon_version`, `repo`, `pi_mode`, and `call_kind` (`main`, `compaction`, or `web_search`). The metadata adds `pi_version`, `repo_dir` (relative to the repository root, never the absolute path), `branch`, `commit`, and `ticket` when the branch names one such as `DD-520`. The repository and directory are read once per session and the branch and commit once per prompt, so a branch or commit the agent creates mid-prompt appears from the next prompt. Requests to providers other than `litellm` carry none of this.
+
 ### Paseo integration
 
 If you use [Paseo](https://paseo.sh), register Axon as a provider with:

@@ -1,4 +1,7 @@
+import { normalizeWorkflowName, WORKFLOW_ENV } from "../../workflow.ts";
 import { detectTerminalType, type TerminalType } from "./terminal.ts";
+
+export { normalizeWorkflowName, WORKFLOW_ENV } from "../../workflow.ts";
 
 export interface ResourceEnvironment {
   readonly extensionVersion: string;
@@ -48,21 +51,6 @@ export async function readPiVersion(
   } catch {
     return undefined;
   }
-}
-
-/** Environment variable a calling workflow sets to tag every Axon/Pi signal it produces. */
-export const WORKFLOW_ENV = "AXON_WORKFLOW";
-
-const WORKFLOW_NAME = /^[a-z0-9][a-z0-9._-]{0,63}$/;
-
-/**
- * Workflow names become a label on every metric series, so only short, stable identifiers are
- * accepted. Values are trimmed and lowercased; anything else (spaces, slashes, >64 chars) is
- * dropped rather than rewritten, so a malformed value never silently merges with another workflow.
- */
-export function normalizeWorkflowName(value: string | undefined): string | undefined {
-  const name = value?.trim().toLowerCase();
-  return name && WORKFLOW_NAME.test(name) ? name : undefined;
 }
 
 export function describeEnvironment(

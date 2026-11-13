@@ -48,7 +48,6 @@ PROTECTED_REQUEST_HEADERS = {
     b"x-litellm-api-key",
     b"x-litellm-customer-id",
     b"x-litellm-end-user-id",
-    b"x-litellm-spend-logs-metadata",
     b"x-request-id",
     b"x-session-refresh-token",
     b"x-team-id",

@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
 
+import {
+  buildRequestContext,
+  REQUEST_CONTEXT_CHANNEL,
+} from "../src/harnesses/pi/resources/extensions/request-context.ts";
 import webSearchExtension from "../src/harnesses/pi/resources/extensions/web-search.ts";
 
 type Tool = Parameters<Parameters<typeof webSearchExtension>[0]["registerTool"]>[0];
@@ -111,6 +115,44 @@ describe("standalone LiteLLM web search", () => {
     expect(requestHeaders().get("x-request-id")).toBe(metadata["request_id"] as string);
     expect(requestHeaders().get("x-litellm-session-id")).toBe("canonical-session-id");
     expect(requestHeaders().get("authorization")).toBe("Bearer test-key");
+    expect(requestHeaders().get("x-litellm-tags")).toBeNull();
+  });
+
+  test("tags the search and adds the session's request context to its spend-log metadata", async () => {
+    let publish: ((data: unknown) => void) | undefined;
+    let tool: Tool | undefined;
+    webSearchExtension({
+      registerTool(registered) {
+        tool = registered;
+      },
+      events: {
+        on(channel, handler) {
+          if (channel === REQUEST_CONTEXT_CHANNEL) publish = handler;
+        },
+      },
+    });
+    publish?.(
+      buildRequestContext(
+        { repo: "tata1mg/app", repoDir: ".", piMode: "tui" },
+        { branch: "main", commit: "a1b2c3d" },
+        { AXON_WORKFLOW: "pr-review" },
+      ),
+    );
+    await tool?.execute("call-1", { query: "Current docs" }, undefined);
+
+    expect(requestHeaders().get("x-litellm-tags")).toBe(
+      "axon_workflow:pr-review,repo:tata1mg/app,pi_mode:tui,call_kind:web_search",
+    );
+    const metadata = sentPayload()["metadata"] as Record<string, unknown>;
+    expect(metadata["spend_logs_metadata"]).toMatchObject({
+      repo: "tata1mg/app",
+      branch: "main",
+      commit: "a1b2c3d",
+      call_kind: "web_search",
+      tool: "web_search",
+      tool_call_id: "call-1",
+      request_id: metadata["request_id"],
+    });
   });
 
   for (const level of ["low", "medium", "high"]) {

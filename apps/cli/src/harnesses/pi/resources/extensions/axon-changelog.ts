@@ -25,6 +25,7 @@ export const AXON_RELEASES = [
 - Updated Pi to 1.5.2 and LiteLLM provider to 4.7.3.
 - Non-interactive sessions check for updates in the background, ready for the next launch.
 - Tag workflow telemetry with AXON_WORKFLOW and filter usage in Grafana.
+- LiteLLM request logs and Langfuse traces show the workflow, repo, branch, and Axon version of each request.
 
 ### Fixed
 - Safer recovery from abandoned locks and clearer startup errors.`,

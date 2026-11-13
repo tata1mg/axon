@@ -52,6 +52,7 @@ def verified_scope(app: FastAPI) -> Scope:
             (b"authorization", b"Bearer untrusted-session"),
             (b"cookie", b"secret"),
             (b"x-litellm-end-user-id", b"spoofed-user"),
+            (b"x-litellm-spend-logs-metadata", b'{"repo":"tata1mg/app","call_kind":"main"}'),
             (b"x-litellm-api-key", b"spoofed-key"),
             (b"x-auth-context", b"spoofed-identity"),
             (b"connection", b"x-remove"),
@@ -152,6 +153,7 @@ def test_proxy_forwards_raw_chunks_and_closes_on_cancellation() -> None:
         assert body_chunks == [b"first ", b"second"]
         assert request.headers["authorization"] == "Bearer native-key"
         assert request.headers["x-litellm-end-user-id"] == "12"
+        assert request.headers["x-litellm-spend-logs-metadata"] == '{"repo":"tata1mg/app","call_kind":"main"}'
         assert request.headers.get_list("x-custom") == ["one", "two"]
         assert {"cookie", "x-litellm-api-key", "x-auth-context", "x-remove"}.isdisjoint(request.headers)
         response_headers = httpx.Headers(messages[0]["headers"])

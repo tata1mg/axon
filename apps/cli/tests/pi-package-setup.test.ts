@@ -983,6 +983,7 @@ describe("package and resource locks", () => {
       "web-search.ts",
       "git-ai.ts",
       "compaction.ts",
+      "request-context.mjs",
       "terminal-permissions.mjs",
       "axon-dark.json",
       "axon-light.json",
