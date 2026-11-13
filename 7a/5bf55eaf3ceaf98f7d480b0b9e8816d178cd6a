@@ -1,0 +1,36 @@
+apps/cli/tests/pi-installation.test.ts
+  s_9f5461932fc4bf::t_60e5e81d87d1b5 304,308
+apps/cli/src/axon-safehouse/session.ts
+  s_9f5461932fc4bf::t_5cb0d2013f9755 67,112,131,271-272,294
+  s_9f5461932fc4bf::t_e3990850b9b5b1 107
+apps/cli/src/axon-safehouse/configuration-relay.ts
+  s_9f5461932fc4bf::t_4c67390f449b28 135
+apps/cli/tests/fixtures/launcher-axon-safehouse.ts
+  s_9f5461932fc4bf::t_1830de9ee90108 26,48
+apps/cli/src/axon-safehouse/launch.ts
+  s_9f5461932fc4bf::t_4b606e8aaec5ed 210
+  s_9f5461932fc4bf::t_76c7c059e33f6d 329
+apps/cli/src/launcher/spawn-harness.ts
+  s_9f5461932fc4bf::t_f7dc39928778d8 11,146
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7a5bf55eaf3ceaf98f7d480b0b9e8816d178cd6a",
+  "prompts": {},
+  "humans": {
+    "h_dc688f708c4675": {
+      "author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_9f5461932fc4bf": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "505045",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  }
+}
