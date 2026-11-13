@@ -46,17 +46,17 @@ export async function launchRegisteredHarness(
   const paths = (await isBlockedProjectDirectory(sharedPaths, cwd))
     ? sharedPaths
     : await resolveProjectAxonPaths(sharedPaths, cwd);
-  const locallyDisabled =
+  // Only a request: the backend policy decides whether it may skip the sandbox.
+  const optOutRequested =
     options.safehouseDisabled === true || isTrue(inheritedEnvironment["AXON_DISABLE_SAFEHOUSE"]);
-  if (!locallyDisabled && isPiOffline(inheritedEnvironment, userArguments)) {
+  if (isPiOffline(inheritedEnvironment, userArguments)) {
     throw axonSafehouseFailure(
       "Offline Pi launches are disabled: fresh backend Axon Safehouse authorization is required",
     );
   }
-  const authorization =
-    options.authenticationDeferred && !locallyDisabled
-      ? await measureSafehouseAuthorization(authorizeAxonSafehouseBootstrap)
-      : undefined;
+  const authorization = options.authenticationDeferred
+    ? await measureSafehouseAuthorization(authorizeAxonSafehouseBootstrap)
+    : undefined;
   // Paseo's global catalog starts in homedir(), not a user-selected project.
   // Give that process only a private temporary cwd, never a grant to the home directory.
   const catalogOnly =
@@ -71,7 +71,7 @@ export async function launchRegisteredHarness(
       cwd,
       environment: inheritedEnvironment,
       paths,
-      ...(locallyDisabled ? { safehouseDisabled: true } : {}),
+      ...(optOutRequested ? { safehouseOptOutRequested: true } : {}),
       ...(catalogOnly ? { catalogOnly: true } : {}),
     },
     (context) =>

@@ -23,7 +23,7 @@ export function axonSafehouseFailure(message: string, cause?: unknown): Launcher
   return new LauncherError(message, LAUNCHER_EXIT_STATUS.profileFailure, {
     ...(cause === undefined ? {} : { cause }),
     remediation:
-      "Check Axon login and backend Axon Safehouse policy, then restart axon pi. To run without sandbox protection, use axon --no-safehouse or AXON_DISABLE_SAFEHOUSE=1.",
+      "Check Axon login and backend Axon Safehouse policy, then restart axon pi. If your administrator allows local opt-out, axon --no-safehouse or AXON_DISABLE_SAFEHOUSE=1 runs without sandbox protection.",
   });
 }
 

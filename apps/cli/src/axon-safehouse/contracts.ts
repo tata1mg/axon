@@ -22,6 +22,8 @@ export const axonSafehousePolicySchema = z.strictObject({
         ),
     )
     .max(64),
+  /** Absent means --no-safehouse and AXON_DISABLE_SAFEHOUSE cannot skip a required sandbox. */
+  allowLocalOptOut: z.literal(true).optional(),
 });
 
 export type AxonSafehousePolicy = z.infer<typeof axonSafehousePolicySchema>;

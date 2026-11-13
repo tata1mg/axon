@@ -38,7 +38,11 @@ class CliConfigResponse(BaseModel):
     terminal_permissions: CliTerminalPermissionsConfig | None = Field(default=None, alias="terminalPermissions")
 
 
-@router.get("/axon-safehouse-bootstrap", response_model=CliAxonSafehouseBootstrapResponse)
+@router.get(
+    "/axon-safehouse-bootstrap",
+    response_model=CliAxonSafehouseBootstrapResponse,
+    response_model_exclude_none=True,
+)
 async def axon_safehouse_bootstrap(
     settings: Annotated[Settings, Depends(get_settings)], response: Response
 ) -> CliAxonSafehouseBootstrapResponse:

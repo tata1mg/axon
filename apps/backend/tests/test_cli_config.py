@@ -60,7 +60,8 @@ def test_config_uses_session_guard_and_only_allowlisted_fields(monkeypatch: pyte
     web_search = WebSearchSettings()
     public_search = web_search.cli_config().model_dump(by_alias=True, mode="json", exclude_none=True)
     axon_safehouse = AxonSafehouseSettings()
-    public_axon_safehouse = axon_safehouse.cli_config().model_dump(by_alias=True, mode="json")
+    public_axon_safehouse = axon_safehouse.cli_config().model_dump(by_alias=True, mode="json", exclude_none=True)
+    assert "allowLocalOptOut" not in public_axon_safehouse
     app.dependency_overrides[get_settings] = lambda: SimpleNamespace(
         axon_safehouse=axon_safehouse,
         cli_telemetry=CliTelemetryConfig.model_validate(POLICY),
@@ -123,6 +124,24 @@ def test_config_uses_session_guard_and_only_allowlisted_fields(monkeypatch: pyte
         "axonSafehouse": public_axon_safehouse,
         "webSearch": public_search,
     }
+
+
+@pytest.mark.parametrize("allow_local_opt_out", [False, True])
+def test_bootstrap_sends_local_opt_out_only_when_allowed(allow_local_opt_out: bool) -> None:
+    app = FastAPI()
+    app.include_router(router)
+    app.dependency_overrides[get_settings] = lambda: SimpleNamespace(
+        axon_safehouse=AxonSafehouseSettings.model_validate({"ALLOW_LOCAL_OPT_OUT": allow_local_opt_out})
+    )
+    response = TestClient(app).get("/api/v1/cli/config/axon-safehouse-bootstrap")
+    assert response.status_code == 200
+    policy = response.json()["axonSafehouse"]
+    # Released CLIs reject unknown policy keys, so the default must keep the old shape.
+    if allow_local_opt_out:
+        assert policy["allowLocalOptOut"] is True
+    else:
+        assert "allowLocalOptOut" not in policy
+    assert policy["required"] is True
 
 
 @pytest.mark.parametrize("status", [401, 403, 503])

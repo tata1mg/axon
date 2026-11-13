@@ -124,6 +124,7 @@
   },
   "AXON_SAFEHOUSE": {
     "ENABLED": true,
+    "ALLOW_LOCAL_OPT_OUT": false,
     "POLICY_ID": "safehouse-v1",
     "ALLOW_ADDITIONAL_READ_PATHS": true,
     "ALLOW_ADDITIONAL_WRITE_PATHS": true,
