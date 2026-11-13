@@ -11,6 +11,7 @@ import type {
 } from "../launcher/contracts.ts";
 import { isTrue } from "../launcher/debug-preview.ts";
 import { createHarnessEnvironment } from "../launcher/environment.ts";
+import { setProductTelemetrySafehouse } from "../telemetry/client.ts";
 import { filesystemPreferencesRevision, watchFilesystemPreferences } from "./filesystem.ts";
 import { createAxonSafehouseLaunchSpec, createAxonSafehouseResources } from "./launch.ts";
 import {
@@ -19,6 +20,12 @@ import {
   authorizeAxonSafehouse,
   axonSafehouseFailure,
 } from "./policy.ts";
+import {
+  measureSafehouseAuthorization,
+  recordSafehouseEvent,
+  recordSafehousePolicySeen,
+  safehouseFailureReason,
+} from "./telemetry.ts";
 
 async function readCommandOutput(
   stream: ReadableStream<Uint8Array> | undefined,
@@ -66,15 +73,41 @@ export async function createAxonSafehouseSession(
 ): Promise<AxonSafehouseSession> {
   const locallyDisabled =
     context.safehouseDisabled === true || isTrue(context.environment["AXON_DISABLE_SAFEHOUSE"]);
+  if (locallyDisabled)
+    recordSafehouseEvent("opt_out", "skipped", {
+      reason: context.safehouseDisabled === true ? "flag" : "env",
+    });
+  setProductTelemetrySafehouse(locallyDisabled ? "disabled" : "enabled");
   // Explicit local opt-outs must not depend on a Safehouse policy service or runtime.
   const authorization = locallyDisabled
     ? undefined
-    : (suppliedAuthorization ?? (await authorizeAxonSafehouse(context.paths)));
+    : (suppliedAuthorization ??
+      (await measureSafehouseAuthorization(() => authorizeAxonSafehouse(context.paths))));
+  // Best effort and self-contained (it swallows its own errors): never delay the launch on it.
+  if (authorization) void recordSafehousePolicySeen(context.paths, authorization.policy);
   const disabled = locallyDisabled || authorization?.policy.required === false;
-  if (!disabled) assertAxonSafehouseSupported();
-  const resources = disabled
-    ? undefined
-    : await createAxonSafehouseResources(context.paths, context.environment);
+  if (!locallyDisabled && disabled) {
+    recordSafehouseEvent("opt_out", "skipped", {
+      reason: "policy_disabled",
+      ...(authorization ? { policyVersion: authorization.policy.policyId } : {}),
+    });
+    setProductTelemetrySafehouse("disabled");
+  }
+  let resources: Awaited<ReturnType<typeof createAxonSafehouseResources>> | undefined;
+  if (!disabled) {
+    const startedAt = Date.now();
+    try {
+      assertAxonSafehouseSupported();
+      resources = await createAxonSafehouseResources(context.paths, context.environment);
+      recordSafehouseEvent("prepare", "success", { durationMs: Date.now() - startedAt });
+    } catch (error) {
+      recordSafehouseEvent("prepare", "failed", {
+        reason: safehouseFailureReason(error),
+        durationMs: Date.now() - startedAt,
+      });
+      throw error;
+    }
+  }
   if (disabled)
     console.error(
       "axon: warning: Safehouse is disabled for this invocation; sandbox filesystem and network protections are not applied.",
@@ -107,6 +140,10 @@ export async function createAxonSafehouseSession(
       try {
         const verified = await pending;
         if (!isDeepStrictEqual(verified.policy, authorization.policy)) {
+          recordSafehouseEvent("policy", "blocked", {
+            reason: "restart_required",
+            policyVersion: verified.policy.policyId,
+          });
           throw axonSafehouseFailure(
             "Axon Safehouse policy changed after login; restart the agent for fresh authorization",
           );
@@ -151,10 +188,15 @@ export async function createAxonSafehouseSession(
       assertActive();
       // A settings change cannot silently replace backend filesystem limits.
       // Changed backend boundaries require a new Axon invocation, not just a new Pi child.
-      if (!isDeepStrictEqual(verified.policy, authorization.policy))
+      if (!isDeepStrictEqual(verified.policy, authorization.policy)) {
+        recordSafehouseEvent("policy", "blocked", {
+          reason: "restart_required",
+          policyVersion: verified.policy.policyId,
+        });
         throw axonSafehouseFailure(
           "Backend Axon Safehouse policy changed; restart the agent before editing permissions",
         );
+      }
       if ((await loadEncryptedSession(context.paths)) !== verified.session)
         throw axonSafehouseFailure(
           "Axon identity changed while validating Axon Safehouse permissions",

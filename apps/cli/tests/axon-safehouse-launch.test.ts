@@ -88,4 +88,19 @@ describe("Axon Safehouse package administration", () => {
     expect(profile).toContain(`(subpath ${JSON.stringify(project)})`);
     expect(profile).toContain(`(subpath ${JSON.stringify(join(project, ".pi", "npm"))})`);
   });
+
+  test("launches from a repository subdirectory grant the checkout and its Git metadata", async () => {
+    const repository = join(root, "repository");
+    const subdirectory = join(repository, "packages", "foo");
+    await mkdir(join(repository, ".git"), { recursive: true });
+    await mkdir(subdirectory, { recursive: true });
+    const { wrapped, profile } = await administration(subdirectory);
+
+    // Pi still starts where the user launched it, and local .pi stays there.
+    expect(wrapped.cwd).toBe(subdirectory);
+    expect(profile).toContain(`(subpath ${JSON.stringify(repository)})`);
+    expect(profile).toContain(JSON.stringify(join(repository, ".git")));
+    expect(profile).toContain(`(subpath ${JSON.stringify(join(subdirectory, ".pi", "npm"))})`);
+    expect(profile).not.toContain(JSON.stringify(join(repository, ".pi", "npm")));
+  });
 });

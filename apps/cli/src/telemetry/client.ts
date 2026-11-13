@@ -13,6 +13,15 @@ let runtime: TelemetryRuntime | undefined;
 let stop: (() => void) | undefined;
 let initialization: Promise<void> | undefined;
 let closing: Promise<void> | undefined;
+let safehouseState: "enabled" | "disabled" | undefined;
+
+/**
+ * Tags launcher-side product telemetry with whether this invocation runs Pi inside Axon
+ * Safehouse. Set once the Safehouse decision is known, before telemetry initializes.
+ */
+export function setProductTelemetrySafehouse(state: "enabled" | "disabled"): void {
+  safehouseState = state;
+}
 
 /** In-memory invocation state, never inferred from inherited managed env markers. */
 export interface ProductTelemetryDecision {
@@ -67,10 +76,16 @@ export async function initializeProductTelemetry(
       }
       const telemetry = decision?.policy;
       if (!decision || decision.offline || !telemetry?.enabled) return;
-      const [{ resolveConfig }, { createOtelRuntime }, { recordProductEvent }] = await Promise.all([
+      const [
+        { resolveConfig },
+        { createOtelRuntime },
+        { recordProductEvent },
+        { describeEnvironment },
+      ] = await Promise.all([
         import("../harnesses/pi/telemetry/src/config.ts"),
         import("../harnesses/pi/telemetry/src/otel/runtime.ts"),
         import("../harnesses/pi/telemetry/src/product.ts"),
+        import("../harnesses/pi/telemetry/src/environment.ts"),
       ]);
       const endpoint = resolveServiceUrl(
         options.serviceOrigin ?? BUILD_INFO.serviceOrigin,
@@ -88,10 +103,16 @@ export async function initializeProductTelemetry(
         OTEL_RESOURCE_ATTRIBUTES: `axon.cli.version=${encodeURIComponent(BUILD_INFO.version)},axon.release.channel=${releaseChannelForVersion(BUILD_INFO.version)}`,
       });
       if (!config) return;
-      runtime = createOtelRuntime(config, { userId: "managed", source: "axon_auth" }, undefined, {
-        quiet: true,
-        managed: { endpoint, home: paths.home },
-      });
+      const environment = describeEnvironment();
+      runtime = createOtelRuntime(
+        config,
+        { userId: "managed", source: "axon_auth" },
+        safehouseState ? { ...environment, safehouse: safehouseState } : environment,
+        {
+          quiet: true,
+          managed: { endpoint, home: paths.home },
+        },
+      );
       const current = runtime;
       stop = subscribeProductEvents((event) =>
         recordProductEvent(current, { ...event, version: event.version ?? BUILD_INFO.version }),

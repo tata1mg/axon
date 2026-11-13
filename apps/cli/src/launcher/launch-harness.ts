@@ -4,6 +4,7 @@ import { canonicalPath, isBlockedProjectDirectory } from "../axon-safehouse/file
 import { authorizeAxonSafehouseBootstrap, axonSafehouseFailure } from "../axon-safehouse/policy.ts";
 import { createAxonSafehouseRpcTransport } from "../axon-safehouse/rpc-configuration.ts";
 import { withAxonSafehouseSession } from "../axon-safehouse/session.ts";
+import { measureSafehouseAuthorization } from "../axon-safehouse/telemetry.ts";
 import { piRestartArguments } from "../harnesses/pi/restart.ts";
 import {
   isPiOffline,
@@ -54,7 +55,7 @@ export async function launchRegisteredHarness(
   }
   const authorization =
     options.authenticationDeferred && !locallyDisabled
-      ? await authorizeAxonSafehouseBootstrap()
+      ? await measureSafehouseAuthorization(authorizeAxonSafehouseBootstrap)
       : undefined;
   // Paseo's global catalog starts in homedir(), not a user-selected project.
   // Give that process only a private temporary cwd, never a grant to the home directory.

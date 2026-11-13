@@ -122,6 +122,7 @@ async function startup(
   f: Fixture,
   args: readonly string[] = [],
   environment: NodeJS.ProcessEnv = {},
+  safehouseDisabled = false,
 ) {
   const messages: string[] = [];
   const warnings: string[] = [];
@@ -136,6 +137,7 @@ async function startup(
       restarts.push(argumentsVector);
     },
     progress: silent,
+    safehouseDisabled,
   });
   return { messages, warnings, restarts };
 }
@@ -151,6 +153,14 @@ describe("startup updates", () => {
     expect(result.messages).toEqual([
       `axon: updated to ${version}; continuing with the new version.`,
     ]);
+    expect(result.warnings).toEqual([]);
+  });
+
+  test("restarts the updated launcher with --no-safehouse when the launch opted out", async () => {
+    const f = await fixture();
+    const args = ["--resume", "session-id"];
+    const result = await startup(f, args, {}, true);
+    expect(result.restarts).toEqual([["pi", "--no-safehouse", ...args]]);
     expect(result.warnings).toEqual([]);
   });
 
@@ -226,6 +236,21 @@ describe("startup updates", () => {
     expect(f.requests.some((path) => path.endsWith(assets.archive) || path === "/archive")).toBe(
       false,
     );
+  });
+
+  test("never replaces a newer release another process installed with an older one", async () => {
+    const f = await fixture();
+    const newer = "99.0.0";
+    const replacement = join(f.paths.bin, "replacement");
+    await Bun.write(replacement, `#!/bin/sh\nprintf '%s\\n' '${newer}'\n`);
+    await chmod(replacement, 0o700);
+    await rename(replacement, f.paths.managedBinary);
+    await startup(f, ["hello"]);
+    expect(f.requests.some((path) => path.endsWith(assets.archive) || path === "/archive")).toBe(
+      false,
+    );
+    const probe = Bun.spawnSync([f.paths.managedBinary]);
+    expect(probe.stdout.toString().trim()).toBe(newer);
   });
 
   test("shows check, download, and verify progress, clearing it before the outcome", async () => {

@@ -26,6 +26,7 @@ This schema adopts the supplied development conventions; their names are not a p
 | `process.runtime.version` | Runtime version |
 | `terminal.type` | Bounded host classification: `vscode`, `cursor`, `windsurf`, `zed`, `jetbrains`, `iterm`, `apple_terminal`, `ghostty`, `warp`, `wezterm`, `kitty`, `alacritty`, `hyper`, `windows_terminal`, `tmux`, `screen`, `ssh`, `other`, or `none` (non-TTY) |
 | `axon.workflow.name` | Workflow tag from `AXON_WORKFLOW`, trimmed and lowercased; kept only when it matches `^[a-z0-9][a-z0-9._-]{0,63}$`. Absent for ordinary launches |
+| `axon.safehouse` | `enabled` when the Axon-launched Pi process runs inside Axon Safehouse, `disabled` when Axon launched it without Safehouse (opt-out or backend policy). Absent outside Axon. Launcher product events carry the same value once the Safehouse decision is known |
 
 ## Common span and log attributes
 
@@ -34,6 +35,7 @@ This schema adopts the supplied development conventions; their names are not a p
 | `user.id`, `user.email`, `pi.identity.source` | Duplicated from the resource for backends that do not index resource attributes |
 | `terminal.type` | Duplicated from the resource on every span, log, and metric point; constant per process, so it adds no per-process series |
 | `axon.workflow.name` | Duplicated from the resource on every span, log, and metric point (Pi and launcher product events) when set; constant per process. Use stable workflow names, never run IDs or branch names, or every run becomes a new series |
+| `axon.safehouse` | Duplicated from the resource on every span, log, and metric point when set; constant per process, so it splits every Pi metric by sandbox on/off without adding per-process series |
 | `session.id` | Current pi session ID |
 | `gen_ai.conversation.id` | Current pi session ID |
 | `pi.session.parent_id` | Parent pi session ID when this process was spawned from another pi session's tool (subagents) |
@@ -116,7 +118,7 @@ Totals cover usage recorded through metrics, so the same limits apply: unreporte
 
 ## Metrics
 
-All metric points carry `user.id`, `pi.identity.source`, optional `user.email`, `terminal.type`, optional `axon.workflow.name`, and relevant dimensions. Activity/operation metrics also carry `pi.mode`; token/cost points use usage-source and available provider/model dimensions.
+All metric points carry `user.id`, `pi.identity.source`, optional `user.email`, `terminal.type`, optional `axon.workflow.name`, optional `axon.safehouse`, and relevant dimensions. Activity/operation metrics also carry `pi.mode`; token/cost points use usage-source and available provider/model dimensions.
 Activity metrics also carry `pi.repo.slug`. Token, cost, LLM, and tool metrics do not, to keep series counts bounded; query cost per repository from spans or logs.
 
 | Metric | Instrument | Unit | Dimensions |

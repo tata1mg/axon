@@ -159,6 +159,7 @@ export function createFilesystemAccessRelay(
                   signal: reviewSignal,
                   authorize,
                   liveGrant: true,
+                  source: "tui",
                 });
                 send({ type: "complete", saved });
               } catch {

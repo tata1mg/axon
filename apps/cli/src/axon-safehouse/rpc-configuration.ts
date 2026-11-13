@@ -246,6 +246,7 @@ export function createAxonSafehouseRpcTransport(options: {
         signal: reviewSignal,
         authorize: () => options.axonSafehouse.configurationPolicy(),
         liveGrant: true,
+        source: "rpc",
       });
     } finally {
       reviewingAccess = false;

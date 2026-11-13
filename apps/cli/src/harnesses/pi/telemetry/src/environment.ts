@@ -8,6 +8,8 @@ export interface ResourceEnvironment {
   readonly piVersion?: string;
   readonly cliVersion?: string;
   readonly workflowName?: string;
+  /** Whether this Axon process runs inside Axon Safehouse; absent outside Axon. */
+  readonly safehouse?: "enabled" | "disabled";
   readonly osType: string;
   readonly hostArch: string;
   readonly runtimeName: string;
@@ -63,14 +65,24 @@ export function describeEnvironment(
 ): ResourceEnvironment {
   const bun = Reflect.get(versions, "bun") as string | undefined;
   const workflowName = normalizeWorkflowName(process.env[WORKFLOW_ENV]);
+  const cliVersion =
+    process.env["PI_AXON_CLI_VERSION"] &&
+    /^[a-zA-Z0-9._+-]{1,80}$/.test(process.env["PI_AXON_CLI_VERSION"])
+      ? process.env["PI_AXON_CLI_VERSION"]
+      : undefined;
+  // The launcher sets this marker only for sandboxed Pi processes and clears it otherwise.
+  const safehouse =
+    process.env["PI_AXON_SAFEHOUSE"] === "safehouse"
+      ? "enabled"
+      : cliVersion
+        ? "disabled"
+        : undefined;
   return {
     extensionVersion,
     ...(piVersion ? { piVersion } : {}),
-    ...(process.env["PI_AXON_CLI_VERSION"] &&
-    /^[a-zA-Z0-9._+-]{1,80}$/.test(process.env["PI_AXON_CLI_VERSION"])
-      ? { cliVersion: process.env["PI_AXON_CLI_VERSION"] }
-      : {}),
+    ...(cliVersion ? { cliVersion } : {}),
     ...(workflowName ? { workflowName } : {}),
+    ...(safehouse ? { safehouse } : {}),
     osType: OS_TYPES[platform] ?? platform,
     hostArch: HOST_ARCHS[arch] ?? arch,
     runtimeName: bun ? "bun" : "node",

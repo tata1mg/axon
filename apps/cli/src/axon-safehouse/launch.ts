@@ -1,4 +1,5 @@
 import { rmSync } from "node:fs";
+// writeFile stays: sandbox profiles and CA bundles need exclusive create ("wx") and mode 0o400.
 import { lstat, mkdtemp, realpath, stat, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, parse } from "node:path";
@@ -28,6 +29,7 @@ import { type AxonSafehouseAuthorization, axonSafehouseFailure } from "./policy.
 import { restrictFilesystemGrants, restrictSafehouseBaseline } from "./profile.ts";
 import { ensureSafehouseRuntime, generateSafehousePolicy } from "./runtime.ts";
 import { projectSessionDirectory } from "./session-paths.ts";
+import { recordSafehouseEvent } from "./telemetry.ts";
 
 const SYSTEM_READ_PATHS = [
   "/usr",
@@ -233,6 +235,11 @@ export async function createAxonSafehouseLaunchSpec(
     : purpose === "session" || purpose === "operation" || purpose === "administration"
       ? await validateFilesystemProject(paths, options.project ?? specification.cwd)
       : await canonicalPath(specification.cwd);
+  // Pi keys project-local .pi and its session directory by the launch directory,
+  // which may be a subdirectory of the granted Git checkout.
+  const launchDirectory = isolatedDirectory
+    ? project
+    : await canonicalPath(options.project ?? specification.cwd);
   const home = await canonicalPath(homedir());
   // Provisioning never inherits user project grants or grants access to project contents.
   const preferences: FilesystemPreferences = projectAccess
@@ -295,7 +302,7 @@ export async function createAxonSafehouseLaunchSpec(
   ]);
   if (purpose === "administration" && !globalAdministration) {
     for (const entry of ["npm", "git", "settings.json", "settings.json.lock"])
-      provisionTargets.add(await canonicalPath(join(project, ".pi", entry)));
+      provisionTargets.add(await canonicalPath(join(launchDirectory, ".pi", entry)));
   }
   for (const path of writePaths) {
     if (
@@ -431,7 +438,7 @@ export async function createAxonSafehouseLaunchSpec(
     // shared helpers, project Pi state, atomic-write siblings and runtime packages.
     const writableDirectories = [axonHome, temporary, ...SYSTEM_WRITE_PATHS, tmpdir()];
     if (purpose === "session" && !catalogOnly)
-      await privateDirectory(projectSessionDirectory(paths, project));
+      await privateDirectory(projectSessionDirectory(paths, launchDirectory));
     for (const path of new Set(
       await Promise.all(writableDirectories.map((path) => canonicalPath(path))),
     )) {
@@ -564,7 +571,7 @@ export async function createAxonSafehouseLaunchSpec(
     ]);
     if (purpose === "administration" && !globalAdministration) {
       // Local installs may create .pi itself, not arbitrary siblings or project files.
-      const localRoot = await canonicalPath(join(project, ".pi"));
+      const localRoot = await canonicalPath(join(launchDirectory, ".pi"));
       provisioningRules.push(
         `(allow file-read-metadata file-write-create (literal ${quoted(localRoot)}))`,
       );
@@ -626,13 +633,16 @@ export async function createAxonSafehouseLaunchSpec(
       new Response(probe.stderr).text(),
       probe.exited,
     ]);
-    if (probeExit !== 0)
+    if (probeExit !== 0) {
+      // Diagnostics stay in the error; telemetry gets only the fixed reason.
+      recordSafehouseEvent("prepare", "failed", { reason: "probe_failed" });
       throw axonSafehouseFailure(
         "Generated Safehouse policy failed its working-directory startup check",
         new Error(
           `exit=${probeExit}; signal=${probe.signalCode ?? "none"}; ${probeDiagnostics.slice(0, 8192)}`,
         ),
       );
+    }
     const environment = {
       ...axonSafehouseEnvironment(
         specification.environment,

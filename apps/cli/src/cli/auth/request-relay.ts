@@ -482,7 +482,7 @@ export function startAuthenticatedRequestRelay(
   const diagnostics = createRelayDiagnostics(paths);
   diagnostics.protectSecret(capability);
   const session = createRelaySession(paths, diagnostics.protectSecret);
-  const backupRelay = createBackupRelay(paths, options.cwd ?? process.cwd());
+  const backupRelay = createBackupRelay(paths);
   // Without the invocation's policy check the editor fails closed instead of using a fresh policy.
   const axonSafehouseConfiguration =
     options.allowAxonSafehouseConfiguration && options.axonSafehouseConfigurationPolicy

@@ -117,6 +117,7 @@ async function launchSpec(
     disabled?: boolean;
     searchDisabled?: boolean;
     admin?: boolean;
+    safehouseDisabled?: boolean;
     providerOffline?: boolean;
     discoveryDisabled?: boolean;
     piOfflineEnvironment?: string;
@@ -136,7 +137,7 @@ async function launchSpec(
       (options.interactive !== false) +
       " });",
     // These adapter-only tests inspect launch specs; no process may run through this stub.
-    'const axonSafehouse = { clientConfig() {}, async wrap() { throw new Error("Unexpected fixture wrap"); }, async run() { throw new Error("Unexpected fixture process"); }, dispose() {} };',
+    `const axonSafehouse = { disabled: ${options.safehouseDisabled === true}, clientConfig() {}, async wrap() { throw new Error("Unexpected fixture wrap"); }, async run() { throw new Error("Unexpected fixture process"); }, dispose() {} };`,
     'const context = { cwd: process.env.HOME, environment: process.env, paths: resolveAxonPaths(), registration: resolveHarnessRegistration("pi"), executable: "/unused", axonSafehouse };',
     'import { flushProductTelemetry } from "./src/telemetry/client.ts";',
     'import { emitProductEvent } from "./src/telemetry/product-events.ts";',
@@ -361,6 +362,33 @@ describe("real Pi adapter client config integration", () => {
       expect(await Bun.file(settingsPath).text()).toBe(settings);
     }
     codemodeEnabled = true;
+  });
+
+  test("administrative launches never receive a relay capability", async () => {
+    const capabilities = [
+      "PI_AXON_AUTH_RELAY_KEY",
+      "LITELLM_API_KEY",
+      "LITELLM_BASE_URL",
+      "PI_MODEL_RECOMMENDER_API_KEY",
+      "PI_WEB_SEARCH_API_KEY",
+    ];
+    const cases = [
+      { userArguments: ["--help"], relay: true },
+      { userArguments: ["mcp", "list"], relay: true },
+      { userArguments: ["install", "npm:third-party"], relay: false },
+      { userArguments: ["--help"], safehouseDisabled: true, relay: false },
+      { userArguments: ["install", "npm:third-party"], safehouseDisabled: true, relay: false },
+    ];
+    // Ambient shell credentials must not reach administration either.
+    const ambient = Object.fromEntries(capabilities.map((name) => [name, "ambient-secret"]));
+    for (const { relay, ...options } of cases) {
+      const environment = await launchSpec({ admin: true, environment: ambient, ...options });
+      for (const name of capabilities) expect(environment[name]).toBeUndefined();
+      // Safehouse's session profile needs a loopback origin for non-package administration.
+      expect(environment["PI_AXON_AUTH_RELAY_URL"] !== undefined).toBe(relay);
+      expect(environment["PI_WEB_SEARCH_ENABLED"]).toBe("false");
+      expect(environment["PI_ORG_OTEL_ENABLED"]).toBe("false");
+    }
   });
 
   test("does not persist defaults fetched for an account that changed during the request", async () => {

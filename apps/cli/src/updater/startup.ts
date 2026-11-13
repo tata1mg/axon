@@ -31,6 +31,8 @@ interface StartupUpdateOptions {
   readonly info?: (message: string) => void;
   readonly warn?: (message: string) => void;
   readonly progress?: UpdateProgressView;
+  /** The launch opted out with --no-safehouse; the restarted launcher must too. */
+  readonly safehouseDisabled?: boolean;
 }
 
 /** Check every eligible launch, independently of the old background-check throttle. */
@@ -78,7 +80,12 @@ export async function runStartupUpdate(
 
   try {
     const restart = options.restart ?? restartUpdatedLauncher;
-    await restart(context, ["pi", ...argumentsVector]);
+    // dispatch() strips --no-safehouse from the Pi arguments, so restore it here.
+    await restart(context, [
+      "pi",
+      ...(options.safehouseDisabled ? ["--no-safehouse"] : []),
+      ...argumentsVector,
+    ]);
   } catch {
     warn(
       "axon: could not start the updated launcher; continuing with the current version. Restart axon to retry.",

@@ -319,8 +319,6 @@ describe("launcher dispatch", () => {
           await resolveProjectAxonPaths(resolveAxonPaths({ AXON_HOME: axonHome }), projectRoot)
         ).pi,
         PI_SKIP_VERSION_CHECK: "1",
-        LITELLM_API_KEY: expect.any(String),
-        LITELLM_BASE_URL: expect.stringMatching(/^http:\/\/127\.0\.0\.1:\d+\/litellm$/),
         LITELLM_DISPLAY_NAME: "Company AI Gateway",
         OTEL_EXPORTER_OTLP_ENDPOINT: "https://otel.example",
         PI_ORG_OTEL_ENABLED: "false",
@@ -405,7 +403,9 @@ describe("launcher dispatch", () => {
     expect(initialStderr).toBe("");
     expect(initialStatus).toBe(0);
 
-    const lockPath = resolveAxonPaths(environment).piPackageLock;
+    // Interactive launches from a project hold that project's lock, not the shared one.
+    const lockPath = (await resolveProjectAxonPaths(resolveAxonPaths(environment), projectRoot))
+      .piPackageLock;
     await mkdir(lockPath);
     const owner = {
       createdAt: Date.now(),
@@ -538,6 +538,29 @@ describe("launcher dispatch", () => {
     expect(missingStatus).toBe(121);
     expect(missingOutput).toContain(`managed Pi ${PI_INSTALL_VERSION} is unavailable`);
     expect(await Bun.file(join(absentHome, "pi-runtime", PI_INSTALL_VERSION)).exists()).toBe(false);
+  });
+
+  test("doctor keeps diagnosing when Axon Safehouse cannot start", async () => {
+    const home = join(fixtureDirectory, ".axon");
+    await chmod(home, 0o700);
+    await installEmbeddedPiPackages(home);
+    // Without a cached Pi version, every Pi check would have to execute Pi.
+    await rm(resolveAxonPaths({ AXON_HOME: home }).piExecutableState, { force: true });
+    // A saved login with an unreachable backend: the Safehouse policy cannot be fetched.
+    const subprocess = runLauncher(["doctor", "pi"], {
+      AXON_SERVICE_ORIGIN: "http://127.0.0.1:9",
+    });
+    const [output, status] = await Promise.all([
+      new Response(subprocess.stdout).text(),
+      subprocess.exited,
+    ]);
+    expect(status).not.toBe(0);
+    expect(output).toContain("Axon Safehouse unavailable:");
+    // Checks that execute nothing still report; executions are skipped, never unsandboxed.
+    expect(output).toContain("pi: executable check skipped: Axon Safehouse is unavailable");
+    expect(output).toContain("pi: managed runtime check skipped: Axon Safehouse is unavailable");
+    expect(output).toContain("pi package pi-provider-litellm:");
+    expect(output).not.toContain(`version ${PI_INSTALL_VERSION} (pinned)`);
   });
 
   test("blocks Pi self-updates before resolving or installing Pi", async () => {

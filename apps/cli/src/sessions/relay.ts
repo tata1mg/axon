@@ -1,7 +1,6 @@
 import { lstat } from "node:fs/promises";
-import { isAbsolute } from "node:path";
+import { dirname, isAbsolute, resolve } from "node:path";
 import { z } from "zod";
-import { projectSessionDirectory } from "../axon-safehouse/session-paths.ts";
 import { BUILD_INFO } from "../build-info.ts";
 import type { AxonPaths } from "../product/paths.ts";
 import { emitProductEvent } from "../telemetry/product-events.ts";
@@ -18,13 +17,17 @@ const captureSchema = z.strictObject({
 });
 
 /** Backup credentials, queue state and signed uploads never enter the Pi process. */
-export function createBackupRelay(paths: AxonPaths, cwd: string) {
+export function createBackupRelay(paths: AxonPaths) {
   const backups = new SessionBackups(
     paths,
     new BackupApi(paths, BUILD_INFO.serviceOrigin),
     emitProductEvent,
   );
-  const root = projectSessionDirectory(paths, cwd);
+  // Accept exactly the directory Pi writes to (PI_CODING_AGENT_SESSION_DIR). Blocked
+  // directories such as home use the flat root, so only its direct children are
+  // accepted there: other projects' histories live in its subdirectories.
+  const root = paths.piSessionDirectory ?? paths.piSessions;
+  const flatRoot = paths.piSessionDirectory === undefined;
   return async (request: Request, url: URL): Promise<Response | undefined> => {
     if (!url.pathname.startsWith("/_axon/backups/")) return undefined;
     const reply = (value: unknown, status = 200) =>
@@ -50,6 +53,8 @@ export function createBackupRelay(paths: AxonPaths, cwd: string) {
       if (capture.source) {
         if (!isAbsolute(capture.source) || !capture.source.endsWith(".jsonl"))
           throw new Error("Invalid session path");
+        if (flatRoot && dirname(resolve(capture.source)) !== resolve(root))
+          throw new Error("Session is outside managed storage");
         await assertInside(root, capture.source);
         if ((await lstat(capture.source)).nlink !== 1) throw new Error("Linked session file");
       }
