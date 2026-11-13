@@ -9,7 +9,11 @@ import type { AxonSafehouseResumeSession } from "../launcher/contracts.ts";
 import type { AxonPaths } from "../product/paths.ts";
 import { assertInside } from "../sessions/files.ts";
 import { createFilesystemAccessRelay } from "./access-relay.ts";
-import { canonicalPath, readFilesystemPreferences } from "./filesystem.ts";
+import {
+  canonicalPath,
+  readFilesystemPreferences,
+  resolveFilesystemProject,
+} from "./filesystem.ts";
 import type { AxonSafehousePolicy } from "./policy.ts";
 
 const configurationSchema = z.strictObject({
@@ -71,7 +75,7 @@ export function createAxonSafehouseConfigurationRelay(
       ) {
         try {
           const preferences = await readFilesystemPreferences(paths, cwd);
-          return reply({ project: cwd, ...preferences });
+          return reply({ project: await resolveFilesystemProject(paths, cwd), ...preferences });
         } catch {
           return reply({ error: "Current Axon Safehouse settings are unavailable" }, 503);
         }

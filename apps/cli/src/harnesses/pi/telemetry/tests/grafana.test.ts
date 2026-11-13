@@ -51,8 +51,9 @@ const dashboard = {
 };
 const emailMatcher = 'user_email=~"$user"';
 const workflowMatcher = 'axon_workflow_name=~"$workflow"';
-// Axon product metric names; the `axon_workflow_name` label is on every query and is not one.
-const productMetric = /\baxon_(?!workflow_name\b)\w+/;
+// Axon product metric names. The `axon_workflow_name` label is on every query and the
+// `axon_safehouse` resource label splits Pi metrics by sandbox; neither is a product metric.
+const productMetric = /\baxon_(?!workflow_name\b|safehouse\b)\w+/;
 
 test("Grafana user selector lists non-empty emails and supports multi-select and All", () => {
   const user = dashboard.templating.list.find((variable) => variable.name === "user");

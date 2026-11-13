@@ -135,8 +135,11 @@ export async function canonicalPath(path: string, cwd = process.cwd()): Promise<
 }
 
 export async function filesystemPreferencesPath(paths: AxonPaths, cwd: string): Promise<string> {
-  const project = await resolveProjectDirectory(await canonicalPath(cwd));
-  const key = projectConfigurationKey(project);
+  return preferencesPathForCheckout(paths, await resolveProjectDirectory(await canonicalPath(cwd)));
+}
+
+function preferencesPathForCheckout(paths: AxonPaths, checkout: string): string {
+  const key = projectConfigurationKey(checkout);
   return join(paths.home, "axon-safehouse", "filesystem", `${key}.json`);
 }
 
@@ -165,14 +168,20 @@ export async function readFilesystemPreferences(
   paths: AxonPaths,
   cwd: string,
 ): Promise<FilesystemPreferences> {
-  const destination = await filesystemPreferencesPath(paths, cwd);
+  const resolved = await resolveProject(paths, cwd);
+  const destination = preferencesPathForCheckout(paths, resolved.checkout);
   const cached = invocationPreferences.get(destination);
   if (cached !== undefined) return structuredClone(cached);
   const saved = await readSavedFilesystemPreferences(destination);
   // Global package/catalog commands have no project and only consume the host blocklist.
-  const validated = (await isBlockedProjectDirectory(paths, cwd))
+  const validated = resolved.blocked
     ? saved
-    : await validateFilesystemPreferences(paths, cwd, saved);
+    : await validatePreferencesForProject(
+        paths,
+        await assertProjectDirectory(resolved.project),
+        resolved.boundary,
+        saved,
+      );
   if (JSON.stringify(saved) !== JSON.stringify(validated))
     throw axonSafehouseFailure("Saved filesystem paths changed; review the project permissions");
   // A concurrent initial read must not replace a configuration committed while it was waiting.
@@ -200,11 +209,18 @@ export async function protectedFilesystemPaths(
   );
 }
 
-/** Home, filesystem roots and Axon storage can never become a project. */
-export async function isBlockedProjectDirectory(paths: AxonPaths, cwd: string): Promise<boolean> {
-  const project = await canonicalPath(cwd);
-  const home = await canonicalPath(homedir());
-  const axonHome = await canonicalPath(paths.home);
+/** Canonical directories no project may contain or sit inside. */
+interface ProjectBoundary {
+  readonly home: string;
+  readonly axonHome: string;
+}
+
+async function projectBoundary(paths: AxonPaths): Promise<ProjectBoundary> {
+  const [home, axonHome] = await Promise.all([canonicalPath(homedir()), canonicalPath(paths.home)]);
+  return { home, axonHome };
+}
+
+function isBlockedProject(project: string, { home, axonHome }: ProjectBoundary): boolean {
   return (
     project === parse(project).root ||
     isWithin(project, home) ||
@@ -213,16 +229,59 @@ export async function isBlockedProjectDirectory(paths: AxonPaths, cwd: string): 
   );
 }
 
-/** A project profile can grant many repositories, but never the whole home or managed storage. */
-export async function validateFilesystemProject(paths: AxonPaths, cwd: string): Promise<string> {
-  const project = await canonicalPath(cwd);
-  if (await isBlockedProjectDirectory(paths, project))
-    throw axonSafehouseFailure(
-      "Choose a project directory, not a home, system root or Axon runtime directory",
-    );
+/** Home, filesystem roots and Axon storage can never become a project. */
+export async function isBlockedProjectDirectory(paths: AxonPaths, cwd: string): Promise<boolean> {
+  const [project, boundary] = await Promise.all([canonicalPath(cwd), projectBoundary(paths)]);
+  return isBlockedProject(project, boundary);
+}
+
+/**
+ * The Safehouse project is the enclosing Git checkout, matching the per-checkout
+ * preferences, so Git works from any subdirectory. A checkout rooted at a blocked
+ * directory (a dotfiles repository in home, say) falls back to the directory itself.
+ */
+async function projectForDirectory(directory: string, boundary: ProjectBoundary) {
+  const checkout = await resolveProjectDirectory(directory);
+  const project =
+    checkout !== directory && !isBlockedProject(checkout, boundary) ? checkout : directory;
+  return { checkout, project };
+}
+
+/** Every project fact one call needs, from a single canonicalization and checkout walk. */
+async function resolveProject(paths: AxonPaths, cwd: string) {
+  const [directory, boundary] = await Promise.all([canonicalPath(cwd), projectBoundary(paths)]);
+  return {
+    ...(await projectForDirectory(directory, boundary)),
+    blocked: isBlockedProject(directory, boundary),
+    boundary,
+  };
+}
+
+export async function resolveFilesystemProject(paths: AxonPaths, cwd: string): Promise<string> {
+  return (await resolveProject(paths, cwd)).project;
+}
+
+async function assertProjectDirectory(project: string): Promise<string> {
   if (!(await lstat(project)).isDirectory())
     throw axonSafehouseFailure("The project must be a directory");
   return project;
+}
+
+/** Validate the launch directory, then return its project and the boundary used to check it. */
+async function validatedProject(paths: AxonPaths, cwd: string) {
+  const [directory, boundary] = await Promise.all([canonicalPath(cwd), projectBoundary(paths)]);
+  // Checked before the checkout walk, which needs the directory to exist.
+  if (isBlockedProject(directory, boundary))
+    throw axonSafehouseFailure(
+      "Choose a project directory, not a home, system root or Axon runtime directory",
+    );
+  const { project } = await projectForDirectory(directory, boundary);
+  return { project: await assertProjectDirectory(project), boundary };
+}
+
+/** A project profile can grant many repositories, but never the whole home or managed storage. */
+export async function validateFilesystemProject(paths: AxonPaths, cwd: string): Promise<string> {
+  return (await validatedProject(paths, cwd)).project;
 }
 
 export async function validateFilesystemPreferences(
@@ -231,15 +290,23 @@ export async function validateFilesystemPreferences(
   value: FilesystemPreferences,
   policy?: AxonSafehousePolicy,
 ): Promise<FilesystemPreferences> {
-  const project = await validateFilesystemProject(paths, cwd);
+  const { project, boundary } = await validatedProject(paths, cwd);
+  return validatePreferencesForProject(paths, project, boundary, value, policy);
+}
+
+async function validatePreferencesForProject(
+  paths: AxonPaths,
+  project: string,
+  { home, axonHome }: ProjectBoundary,
+  value: FilesystemPreferences,
+  policy?: AxonSafehousePolicy,
+): Promise<FilesystemPreferences> {
   const preferences = filesystemPreferencesSchema.parse(value);
   if (
     (policy?.allowAdditionalReadPaths === false && preferences.readPaths.length > 0) ||
     (policy?.allowAdditionalWritePaths === false && preferences.writePaths.length > 0)
   )
     throw axonSafehouseFailure("Backend policy does not permit these additional filesystem grants");
-  const home = await canonicalPath(homedir());
-  const axonHome = await canonicalPath(paths.home);
   const protectedPaths = await protectedFilesystemPaths(paths, policy);
   const essentialPaths = await Promise.all(
     [
@@ -370,7 +437,7 @@ export async function saveFilesystemPreferences(
           "Filesystem permissions changed; reopen the editor before saving",
         );
       if (options?.liveGrant) {
-        const project = await canonicalPath(cwd);
+        const project = await resolveFilesystemProject(paths, cwd);
         const writableRoots = [
           ...(current.projectMode === "read-write" ? [project] : []),
           ...current.writePaths,

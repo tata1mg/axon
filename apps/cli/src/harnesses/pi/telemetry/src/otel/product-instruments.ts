@@ -9,6 +9,8 @@ const dimensions = [
   "terminal_shell",
   "terminal_source",
   "yolo_mode",
+  "safehouse_source",
+  "safehouse_change",
   "model",
   "selected_rank",
   "policy_version",

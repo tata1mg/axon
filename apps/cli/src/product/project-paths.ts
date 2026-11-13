@@ -1,8 +1,8 @@
-import { createHash } from "node:crypto";
 import { lstat, realpath } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import { projectSessionDirectory } from "../axon-safehouse/session-paths.ts";
+import { sha256 } from "../hash.ts";
 import type { AxonPaths } from "./paths.ts";
 
 /** Keep nested repositories and Git worktrees separate, but share settings within a checkout. */
@@ -23,7 +23,7 @@ export async function resolveProjectDirectory(cwd: string): Promise<string> {
 }
 
 export function projectConfigurationKey(project: string): string {
-  return createHash("sha256").update(project).digest("hex");
+  return sha256(project);
 }
 
 /** Scope mutable Pi configuration without moving shared login, binaries or conversation storage. */

@@ -8,3 +8,9 @@ declare module "*harnesses/pi/resources/extensions/web-search.ts" {
   const assetPath: string;
   export default assetPath;
 }
+
+// Vendored shell runtimes are embedded with Bun's file loader.
+declare module "*.sh" {
+  const assetPath: string;
+  export default assetPath;
+}

@@ -167,12 +167,20 @@ async function probeVersion(binary: string): Promise<string | undefined> {
   }
 }
 
-/** Recheck under the update lock before downloading a release another updater installed. */
+/**
+ * Recheck under the update lock: another Axon process (usually the background worker) may
+ * already have installed `version` or something newer. Never replace a newer binary, except
+ * when the user explicitly switches channels (e.g. beta to stable), which may move backwards.
+ * An unknown version is a failure, not "older": guessing could overwrite another install.
+ */
 async function alreadyInstalled(context: UpdateContext, version: string): Promise<boolean> {
   const installed = await probeVersion(context.paths.managedBinary);
   if (installed === undefined) throw new Error("could not determine the installed axon version");
   assertReleaseVersion(installed);
-  return installed === version;
+  const switchingChannel =
+    context.channel !== undefined && context.channel !== releaseChannelForVersion(installed);
+  const order = Bun.semver.order(installed, version);
+  return switchingChannel ? order === 0 : order >= 0;
 }
 
 function selectedClient(context: UpdateContext): ReleaseClient {

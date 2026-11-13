@@ -1,3 +1,5 @@
+// node:fs on purpose: readReleaseChannel must stay synchronous (commander --version), and the
+// atomic save needs exclusive create ("wx") with a mode, which Bun.file/Bun.write do not offer.
 import { readFileSync } from "node:fs";
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";

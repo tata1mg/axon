@@ -14,10 +14,12 @@ import {
   isWithin,
   protectedFilesystemPaths,
   readFilesystemPreferences,
+  resolveFilesystemProject,
   saveFilesystemPreferences,
 } from "./filesystem.ts";
 import { installedPackagePaths, isPackageWriteProtectedPath } from "./packages.ts";
 import type { AxonSafehousePolicy } from "./policy.ts";
+import { recordSafehouseEvent, recordSafehouseSettingsChanges } from "./telemetry.ts";
 
 const REQUEST_LIFETIME_MS = 10 * 60_000;
 const MAX_REQUESTS = 64;
@@ -93,10 +95,12 @@ export async function createFilesystemAccessRequest(options: {
   for (const [id, request] of requests) {
     if (request.expiresAt <= Date.now()) requests.delete(id);
   }
-  const project = await canonicalPath(options.project);
+  const project = await resolveFilesystemProject(options.paths, options.project);
   const original = await readFilesystemPreferences(options.paths, project);
   const protectedPaths = await protectedFilesystemPaths(options.paths, policy);
   const explicitPath = options.input["path"];
+  // Why no reviewable request was created; reported as a fixed code, never the path.
+  let blockedReason: "protected" | "policy_disallows" | "unresolved" = "unresolved";
   const candidates = [
     ...deniedFilesystemPaths(options.diagnostic),
     ...(options.tool !== "shell" && typeof explicitPath === "string" ? [explicitPath] : []),
@@ -107,8 +111,10 @@ export async function createFilesystemAccessRequest(options: {
       // Explicit human denials must be changed deliberately in /safehouse, not by a tool retry.
       if (
         [...protectedPaths, ...original.denyPaths].some((denied) => isWithin(denied, requestedPath))
-      )
+      ) {
+        blockedReason = "protected";
         continue;
+      }
       let path = requestedPath;
       // Creating a file requires its directory. Show the actual existing grant scope to the user.
       while (true) {
@@ -144,7 +150,11 @@ export async function createFilesystemAccessRequest(options: {
         projectModeChange,
       };
       const modes = await availableModes(options.paths, request, original, policy);
-      if (modes.length === 0) continue;
+      if (modes.length === 0) {
+        if (blockedReason === "unresolved") blockedReason = "policy_disallows";
+        continue;
+      }
+      // A repeated denial of the same scope reuses its request and is not counted again.
       for (const existing of requests.values()) {
         if (
           existing.home === request.home &&
@@ -160,11 +170,13 @@ export async function createFilesystemAccessRequest(options: {
         requests.delete(oldest);
       }
       requests.set(request.id, request);
+      recordSafehouseEvent("access_request", "pending", { reason: "grantable" });
       return request.id;
     } catch {
       // Unparseable, protected, missing or unsupported paths remain denied; never guess a wider grant.
     }
   }
+  recordSafehouseEvent("access_request", "blocked", { reason: blockedReason });
   return undefined;
 }
 
@@ -219,24 +231,43 @@ export async function runFilesystemAccessPrompt(
     readonly authorize: () => Promise<AxonSafehousePolicy>;
     readonly beforeSave?: () => Promise<void>;
     readonly liveGrant?: boolean;
+    /** Which approval surface showed the prompt, for telemetry only. */
+    readonly source?: "tui" | "rpc";
   },
 ): Promise<boolean> {
+  const startedAt = Date.now();
+  let decided = false;
+  const recordDecision = (
+    outcome: "selected" | "dismissed" | "cancelled" | "failed",
+    reason: string,
+  ): void => {
+    decided = true;
+    recordSafehouseEvent("access_decision", outcome, {
+      reason,
+      durationMs: Date.now() - startedAt,
+      ...(options.source ? { safehouseSource: options.source } : {}),
+    });
+  };
   const request = requests.get(id);
   requests.delete(id); // A late or replayed dialog cannot reuse an approval.
   if (
     !request ||
     request.home !== paths.home ||
-    request.project !== (await canonicalPath(cwd)) ||
+    request.project !== (await resolveFilesystemProject(paths, cwd)) ||
     request.expiresAt <= Date.now() ||
     request.revision !== filesystemPreferencesRevision(paths)
-  )
+  ) {
+    recordDecision("failed", "expired");
     throw new Error("This access request expired or permissions changed; retry the operation");
+  }
   options.signal.throwIfAborted();
   const original = await readFilesystemPreferences(paths, cwd);
   const policy = await options.authorize();
   const modes = await availableModes(paths, request, original, policy);
-  if (!modes.length)
+  if (!modes.length) {
+    recordDecision("failed", "policy_disallows");
     throw new Error("This path cannot be granted under the current Safehouse policy");
+  }
   ui.intro("Axon Safehouse · blocked path");
   ui.note(
     [
@@ -246,7 +277,7 @@ export async function runFilesystemAccessPrompt(
         ? ["This changes access for the entire read-only project."]
         : []),
       "Directory grants include their contents, except protected or blocked paths.",
-      "Permissions last only until this Axon process exits.",
+      "Granted paths are saved to this project's Safehouse policy and stay until you remove them with /safehouse.",
       options.liveGrant
         ? "Your task will continue in this chat. Reads can retry; commands and edits are not automatically replayed."
         : "Applying permissions restarts Pi and resumes this chat. The operation is NOT rerun automatically.",
@@ -255,7 +286,7 @@ export async function runFilesystemAccessPrompt(
   );
   const choice = await ui.select<"no" | "allow-read" | "allow-write">({
     signal: options.signal,
-    message: "Add this path to your Safehouse policy for this session?",
+    message: "Add this path to this project's Safehouse policy?",
     initialValue: "no",
     options: [
       { value: "no", label: "No — keep this path blocked" },
@@ -270,26 +301,49 @@ export async function runFilesystemAccessPrompt(
     ],
   });
   if (prompts.isCancel(choice) || choice === "no") {
+    // Dismissal, Escape and the review timeout all cancel; only an explicit "No" is a denial.
+    if (prompts.isCancel(choice)) recordDecision("cancelled", "cancelled");
+    else recordDecision("dismissed", "denied");
     ui.outro("Access was not granted. Your chat and permissions are unchanged.");
     return false;
   }
-  if (!modes.includes(choice)) throw new Error("Invalid filesystem access choice");
-  options.signal.throwIfAborted();
-  if (request.expiresAt <= Date.now()) throw new Error("This filesystem access request expired");
-  const currentPolicy = await options.authorize();
-  if (!(await availableModes(paths, request, original, currentPolicy)).includes(choice))
-    throw new Error("This filesystem access choice is no longer permitted");
-  const draft = await draftForAccess(paths, request, original, choice, currentPolicy);
-  await options.beforeSave?.();
-  options.signal.throwIfAborted();
-  await saveFilesystemPreferences(paths, cwd, draft, original, currentPolicy, {
-    liveGrant: options.liveGrant === true,
-    signal: options.signal,
-  });
+  if (!modes.includes(choice)) {
+    recordDecision("failed", "not_permitted");
+    throw new Error("Invalid filesystem access choice");
+  }
+  let draft: FilesystemPreferences | undefined;
+  try {
+    options.signal.throwIfAborted();
+    if (request.expiresAt <= Date.now()) {
+      recordDecision("failed", "expired");
+      throw new Error("This filesystem access request expired");
+    }
+    const currentPolicy = await options.authorize();
+    if (!(await availableModes(paths, request, original, currentPolicy)).includes(choice)) {
+      recordDecision("failed", "not_permitted");
+      throw new Error("This filesystem access choice is no longer permitted");
+    }
+    draft = await draftForAccess(paths, request, original, choice, currentPolicy);
+    await options.beforeSave?.();
+    options.signal.throwIfAborted();
+    await saveFilesystemPreferences(paths, cwd, draft, original, currentPolicy, {
+      liveGrant: options.liveGrant === true,
+      signal: options.signal,
+    });
+  } catch (error) {
+    const cancelled = options.signal.aborted;
+    if (!decided)
+      recordDecision(cancelled ? "cancelled" : "failed", cancelled ? "cancelled" : "unavailable");
+    if (draft && !cancelled)
+      recordSafehouseSettingsChanges(original, draft, "access_grant", "failed", "unavailable");
+    throw error;
+  }
+  recordDecision("selected", choice === "allow-read" ? "allow_read" : "allow_write");
+  if (draft) recordSafehouseSettingsChanges(original, draft, "access_grant", "success");
   ui.outro(
     options.liveGrant
-      ? "Access granted for this Axon session. Continuing your task."
-      : "Access granted for this Axon session. Resuming your chat; retry the operation when ready.",
+      ? "Access saved to this project's Safehouse policy. Continuing your task."
+      : "Access saved to this project's Safehouse policy. Resuming your chat; retry the operation when ready.",
   );
   return true;
 }

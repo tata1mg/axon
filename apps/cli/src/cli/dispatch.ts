@@ -91,7 +91,7 @@ export async function dispatch(
     }
     // Interactive launches update in the foreground; RPC/JSON/scripted ones in a
     // detached, throttled worker that takes effect on the next launch.
-    await runStartupUpdate(harnessArguments);
+    await runStartupUpdate(harnessArguments, safehouseDisabled ? { safehouseDisabled } : {});
     await scheduleBackgroundUpdate(harnessArguments);
     const paths = resolveAxonPaths();
     const invocationKind = classifyPiInvocation(harnessArguments);

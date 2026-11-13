@@ -245,7 +245,7 @@ function createLauncherProgram(): Command {
         }
         const accepted = await confirm({
           message:
-            "Return to stable? This may downgrade Axon. Stable settings are preserved separately from beta.",
+            "Return to stable? This may downgrade Axon. Stable settings are preserved separately from beta; chats are shared.",
         });
         if (isCancel(accepted) || !accepted) return;
       }

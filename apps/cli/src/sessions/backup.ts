@@ -1,10 +1,10 @@
-import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { lstat, readdir, rm } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { Readable } from "node:stream";
 import { z } from "zod";
 import { loadEncryptedSession } from "../cli/auth/session.ts";
+import { sha256 } from "../hash.ts";
 import { withFileLock } from "../launcher/file-lock.ts";
 import { SERVICE_ENDPOINTS } from "../product/endpoints.ts";
 import type { AxonPaths } from "../product/paths.ts";
@@ -46,7 +46,6 @@ export class BackupPolicyError extends Error {
 
 const QUEUE_PAUSED =
   "Backup paused: local queue is incompatible, corrupt, unsafe or busy; files retained. Run /axon-backups status";
-const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 const isObject = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value);
 // Local state binds queues to an account; it cannot enable or disable backups.
@@ -85,7 +84,7 @@ const uploadSchema = z.discriminatedUnion("status", [
 ]);
 
 function contentKey(snapshot: Snapshot): string {
-  return digest(
+  return sha256(
     JSON.stringify([
       snapshot.display_name,
       snapshot.raw_sha256,
@@ -246,18 +245,18 @@ export class SessionBackups {
       !settings ||
       settings.origin !== this.api.origin ||
       !token ||
-      digest(token) !== settings.credentialHash
+      sha256(token) !== settings.credentialHash
     )
       return;
     const scope = this.scope(settings.owner);
     await privateDirectory(scope);
-    const directory = join(scope, digest(`${source}\n${nativeId}`));
+    const directory = join(scope, sha256(`${source}\n${nativeId}`));
     await privateDirectory(directory);
     await atomicJson(join(directory, "selected-leaf.json"), resume);
   }
 
   private scope(owner: string): string {
-    return join(this.root, digest(`${this.api.origin}\n${owner}`));
+    return join(this.root, sha256(`${this.api.origin}\n${owner}`));
   }
 
   async device(): Promise<string> {
@@ -308,14 +307,14 @@ export class SessionBackups {
       return "Backup paused: login required";
     }
     // Login may change after policy verification but before local capture starts.
-    if (digest(token) !== this.api.credentialFingerprint()) return "Backup paused: account changed";
-    if (digest(token) !== settings.credentialHash) await this.rememberCredential(settings.owner);
+    if (sha256(token) !== this.api.credentialFingerprint()) return "Backup paused: account changed";
+    if (sha256(token) !== settings.credentialHash) await this.rememberCredential(settings.owner);
     const scope = this.scope(settings.owner);
     await privateDirectory(scope);
     let message = "No persisted session to back up";
     if (!source) this.observed({ stage: "capture", outcome: "skipped", reason: "no_session" });
     if (source) {
-      const directory = join(scope, digest(`${source}\n${nativeId}`));
+      const directory = join(scope, sha256(`${source}\n${nativeId}`));
       await privateDirectory(directory);
       message = await withFileLock(
         join(directory, "sync.lock"),
@@ -519,7 +518,7 @@ export class SessionBackups {
         if ((await this.api.owner(signal)) !== state.owner) return "Backup paused: account changed";
         await this.rememberCredential(state.owner);
         const credential = await loadEncryptedSession(this.paths);
-        if (!credential || digest(credential) !== this.api.credentialFingerprint())
+        if (!credential || sha256(credential) !== this.api.credentialFingerprint())
           throw new Error("Account changed before upload; snapshot remains paused");
         const bytes = createReadStream(join(directory, pending.file));
         let put: Response;

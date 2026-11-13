@@ -1,6 +1,14 @@
 import { stat } from "node:fs/promises";
 import { delimiter, resolve } from "node:path";
-import { runAxonSafehouseCommand, withAxonSafehouseSession } from "../../axon-safehouse/session.ts";
+import {
+  createAxonSafehouseSession,
+  runAxonSafehouseCommand,
+} from "../../axon-safehouse/session.ts";
+import {
+  AxonSafehouseUnavailableError,
+  axonSafehouseSkippedFinding,
+  unavailableAxonSafehouse,
+} from "../../axon-safehouse/tooling.ts";
 import { BUILD_INFO } from "../../build-info.ts";
 import {
   HARNESS_REGISTRY,
@@ -8,6 +16,7 @@ import {
   resolveHarnessRegistration,
 } from "../../harnesses/registry.ts";
 import type {
+  AxonSafehouseSession,
   DoctorFinding,
   HarnessRegistration,
   LaunchContext,
@@ -250,29 +259,69 @@ function versionFinding(
   };
 }
 
+/**
+ * One Safehouse session for the whole doctor run, like any other Axon invocation: a session
+ * per harness would repeat the policy fetch and its authorize/opt_out telemetry.
+ */
+async function inspectHarnesses(
+  registrations: readonly HarnessRegistration[],
+  context: LaunchContext,
+): Promise<DoctorResult[]> {
+  if (registrations.length === 0) return [];
+  let axonSafehouse: AxonSafehouseSession | LauncherError | undefined = context.axonSafehouse;
+  const owned = axonSafehouse === undefined;
+  if (axonSafehouse === undefined) {
+    try {
+      axonSafehouse = await createAxonSafehouseSession(context);
+    } catch (error) {
+      if (!(error instanceof LauncherError)) throw error;
+      axonSafehouse = error;
+    }
+  }
+  try {
+    const results: DoctorResult[] = [];
+    for (const registration of registrations)
+      results.push(await inspectHarness(registration, context, axonSafehouse));
+    return results;
+  } finally {
+    if (owned && !(axonSafehouse instanceof LauncherError)) axonSafehouse.dispose();
+  }
+}
+
 async function inspectHarness(
   registration: HarnessRegistration,
   context: LaunchContext,
+  axonSafehouse: AxonSafehouseSession | LauncherError,
 ): Promise<DoctorResult> {
-  try {
-    return await withAxonSafehouseSession(context, (axonSafehouseContext) =>
-      inspectAxonSafehouseHarness(registration, axonSafehouseContext),
-    );
-  } catch (error) {
-    if (error instanceof LauncherError) {
-      return {
-        findings: [
-          {
-            level: "error",
-            message: error.message,
-            ...(error.remediation === undefined ? {} : { remediation: error.remediation }),
-          },
-        ],
-        exitStatus: error.exitStatus,
-      };
+  let unavailable: LauncherError;
+  if (axonSafehouse instanceof LauncherError) unavailable = axonSafehouse;
+  else {
+    try {
+      // inspectAxonSafehouseHarness reports its own failures, so errors here mean the
+      // Safehouse session itself could not run this harness's checks.
+      return await inspectAxonSafehouseHarness(registration, { ...context, axonSafehouse });
+    } catch (error) {
+      if (!(error instanceof LauncherError)) throw error;
+      unavailable = error;
     }
-    throw error;
   }
+  // Offline backend, rejected login, missing policy or unsupported runtime: diagnose what
+  // needs no execution, and skip (never retry unsandboxed) whatever would run a binary.
+  const degraded = await inspectAxonSafehouseHarness(registration, {
+    ...context,
+    axonSafehouse: unavailableAxonSafehouse(unavailable),
+  });
+  return {
+    findings: [
+      {
+        level: "error",
+        message: `Axon Safehouse unavailable: ${unavailable.message}`,
+        ...(unavailable.remediation === undefined ? {} : { remediation: unavailable.remediation }),
+      },
+      ...degraded.findings,
+    ],
+    exitStatus: unavailable.exitStatus,
+  };
 }
 
 async function inspectAxonSafehouseHarness(
@@ -281,37 +330,43 @@ async function inspectAxonSafehouseHarness(
 ): Promise<DoctorResult> {
   try {
     const adapter = await loadHarnessAdapter(registration.id);
-    // Diagnostics locate executables but never download one.
-    const executable =
-      adapter.resolveExecutable === undefined
-        ? (await resolveExecutablePath(registration, context.environment, context.cwd)).path
-        : await adapter.resolveExecutable(context, registration, {
-            userArguments: [],
-            allowInstall: false,
-          });
-    const exactVersion = adapter.exactVersion?.(context);
-    const version =
-      adapter.probeVersion === undefined
-        ? await probeVersion(executable, context)
-        : await adapter.probeVersion(context, executable);
-    const adapterFindings = await adapter.doctor(context);
-
-    return {
-      findings: [
-        {
-          level: "info",
-          message: `${registration.id}: executable ${executable} (${describeExecutableSource(registration, context, executable)})`,
-        },
-        versionFinding(registration, version, adapter.minimumVersion, exactVersion),
-        ...adapterFindings,
-      ],
-      exitStatus:
+    const findings: DoctorFinding[] = [];
+    let versionMismatch = false;
+    let step = "executable check";
+    try {
+      // Diagnostics locate executables but never download one.
+      const executable =
+        adapter.resolveExecutable === undefined
+          ? (await resolveExecutablePath(registration, context.environment, context.cwd)).path
+          : await adapter.resolveExecutable(context, registration, {
+              userArguments: [],
+              allowInstall: false,
+            });
+      findings.push({
+        level: "info",
+        message: `${registration.id}: executable ${executable} (${describeExecutableSource(registration, context, executable)})`,
+      });
+      step = "version check";
+      const exactVersion = adapter.exactVersion?.(context);
+      const version =
+        adapter.probeVersion === undefined
+          ? await probeVersion(executable, context)
+          : await adapter.probeVersion(context, executable);
+      findings.push(versionFinding(registration, version, adapter.minimumVersion, exactVersion));
+      versionMismatch =
         (exactVersion !== undefined && version !== exactVersion) ||
         (version !== undefined &&
           adapter.minimumVersion !== undefined &&
-          compareSemVer(version, adapter.minimumVersion) < 0)
-          ? LAUNCHER_EXIT_STATUS.profileFailure
-          : 0,
+          compareSemVer(version, adapter.minimumVersion) < 0);
+    } catch (error) {
+      if (!(error instanceof AxonSafehouseUnavailableError)) throw error;
+      findings.push(axonSafehouseSkippedFinding(`${registration.id}: ${step}`));
+    }
+    findings.push(...(await adapter.doctor(context)));
+
+    return {
+      findings,
+      exitStatus: versionMismatch ? LAUNCHER_EXIT_STATUS.profileFailure : 0,
     };
   } catch (error) {
     if (error instanceof LauncherError) {
@@ -408,8 +463,7 @@ export async function runDoctor(
 
   const registrations =
     selectedRegistration === undefined ? HARNESS_REGISTRY : [selectedRegistration];
-  for (const registration of registrations) {
-    const harnessResult = await inspectHarness(registration, context);
+  for (const harnessResult of await inspectHarnesses(registrations, context)) {
     findings.push(...harnessResult.findings);
     exitStatus = mergeExitStatus(exitStatus, harnessResult.exitStatus);
   }

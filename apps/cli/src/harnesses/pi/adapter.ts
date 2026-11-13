@@ -1,5 +1,6 @@
 import { createAxonSafehouseOperations } from "../../axon-safehouse/operations.ts";
 import { axonSafehouseFailure } from "../../axon-safehouse/policy.ts";
+import { skipWithoutAxonSafehouse } from "../../axon-safehouse/tooling.ts";
 import {
   type AuthenticatedRequestRelay,
   startAuthenticatedRequestRelay,
@@ -264,27 +265,32 @@ export function createPiAdapter(): HarnessAdapter {
           decision: { offline: setup.offline },
         });
       }
-      // Administrative invocations use Axon Safehouse too, without inheriting auth markers.
+      // Administrative invocations never receive a relay capability: package install
+      // scripts and other third-party code must not reach LiteLLM or backend APIs.
       if (relay === undefined) {
-        relay = startAuthenticatedRequestRelay(context.paths, { cwd: context.cwd });
         litellmOverrides = {
           ...litellmOverrides,
-          PI_AXON_AUTH_RELAY_URL: relay.origin,
-          PI_AXON_AUTH_RELAY_KEY: relay.capability,
-          LITELLM_API_KEY: relay.capability,
-          LITELLM_BASE_URL: new URL("/litellm", relay.origin).toString(),
-          PI_MODEL_RECOMMENDER_API_KEY: relay.capability,
-          PI_MODEL_RECOMMENDER_URL: new URL(
-            "/api/v1/model-recommendations",
-            relay.origin,
-          ).toString(),
-          PI_WEB_SEARCH_API_KEY: relay.capability,
-          PI_WEB_SEARCH_URL: new URL("/litellm/v1/chat/completions", relay.origin).toString(),
+          LITELLM_API_KEY: undefined,
+          LITELLM_BASE_URL: undefined,
+          PI_MODEL_RECOMMENDER_API_KEY: undefined,
+          PI_MODEL_RECOMMENDER_URL: undefined,
+          PI_WEB_SEARCH_API_KEY: undefined,
+          PI_WEB_SEARCH_URL: undefined,
           PI_WEB_SEARCH_ENABLED: "false",
           PI_ORG_OTEL_ENABLED: "false",
           PI_ORG_OTEL_MANAGED_ENDPOINT: undefined,
           PI_ORG_OTEL_MANAGED_HOME: undefined,
         };
+        // Safehouse runs non-package administration (mcp, config, list, --help) with the
+        // session profile, which requires a loopback relay origin. Package commands use the
+        // administration profile, which strips relay variables, so they need no relay.
+        const packageAdministration = ["install", "remove", "uninstall", "update"].includes(
+          userArguments[0] ?? "",
+        );
+        if (context.axonSafehouse?.disabled !== true && !packageAdministration) {
+          relay = startAuthenticatedRequestRelay(context.paths, { cwd: context.cwd });
+          litellmOverrides = { ...litellmOverrides, PI_AXON_AUTH_RELAY_URL: relay.origin };
+        }
       }
       const themeArguments =
         setup.invocationKind === "interactive"
@@ -315,8 +321,10 @@ export function createPiAdapter(): HarnessAdapter {
       });
     },
     doctor: async (context) => [
-      ...(await inspectPiRuntime(context)),
-      ...(await inspectPiPackages(context)),
+      ...(await skipWithoutAxonSafehouse("pi: managed runtime check", () =>
+        inspectPiRuntime(context),
+      )),
+      ...(await skipWithoutAxonSafehouse("pi: package check", () => inspectPiPackages(context))),
     ],
   };
 

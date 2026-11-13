@@ -45,6 +45,7 @@ import {
   ATTR_PI_VERSION,
   ATTR_RUNTIME_NAME,
   ATTR_RUNTIME_VERSION,
+  ATTR_SAFEHOUSE,
   ATTR_TERMINAL_TYPE,
   ATTR_USER_EMAIL,
   ATTR_USER_ID,
@@ -336,6 +337,8 @@ export function createOtelRuntime(
     [ATTR_TERMINAL_TYPE]: environment.terminalType,
     // Same reasoning: one bounded value per process, set only by workflow-driven launches.
     ...(environment.workflowName ? { [ATTR_WORKFLOW_NAME]: environment.workflowName } : {}),
+    // One bounded value per process; splits every signal by sandbox on/off.
+    ...(environment.safehouse ? { [ATTR_SAFEHOUSE]: environment.safehouse } : {}),
   };
   const resource = defaultResource().merge(
     resourceFromAttributes({
@@ -356,6 +359,7 @@ export function createOtelRuntime(
       [ATTR_RUNTIME_VERSION]: environment.runtimeVersion,
       [ATTR_TERMINAL_TYPE]: environment.terminalType,
       ...(environment.workflowName ? { [ATTR_WORKFLOW_NAME]: environment.workflowName } : {}),
+      ...(environment.safehouse ? { [ATTR_SAFEHOUSE]: environment.safehouse } : {}),
     }),
   );
   const health = new ExportHealth(config.diagnostics && !options.quiet, options.now);

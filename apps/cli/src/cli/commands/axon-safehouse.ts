@@ -1,6 +1,7 @@
 import * as prompts from "@clack/prompts";
 import colors from "picocolors";
 import {
+  canonicalPath,
   editFilesystemPreferences,
   type FilesystemOperation,
   type FilesystemPreferences,
@@ -10,6 +11,7 @@ import {
 } from "../../axon-safehouse/filesystem.ts";
 import { blockedHostsSchema } from "../../axon-safehouse/network.ts";
 import { type AxonSafehousePolicy, authorizeAxonSafehouse } from "../../axon-safehouse/policy.ts";
+import { recordSafehouseSettingsChanges } from "../../axon-safehouse/telemetry.ts";
 import { currentPiInvocationEnvironment } from "../../harnesses/pi/setup/packages/invocation.ts";
 import { LauncherError } from "../../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
@@ -168,11 +170,21 @@ export async function runAxonSafehouseMenu(
     );
   }
   const project = await validateFilesystemProject(paths, cwd);
+  // The project can be the enclosing Git checkout; typed relative paths still mean
+  // "relative to where I launched", so a block on .env lands on the intended file.
+  const launchDirectory = await canonicalPath(cwd);
   const original = await readFilesystemPreferences(paths, project);
   let draft = structuredClone(original);
   const changed = () => JSON.stringify(draft) !== JSON.stringify(original);
+  // Telemetry: unsaved edits that were abandoned, by kind of change.
+  const discarded = () => {
+    if (changed())
+      recordSafehouseSettingsChanges(original, draft, "menu", "cancelled", "discarded");
+  };
+  let saving = false;
   function cancelled(value: unknown): value is symbol {
     if (!prompts.isCancel(value)) return false;
+    discarded();
     ui.cancel("Safehouse editor cancelled. No changes saved.");
     return true;
   }
@@ -259,12 +271,19 @@ export async function runAxonSafehouseMenu(
           if (entry === "back") break;
           const selected = await ui.text({
             ...cancellation,
-            message: "Enter a directory/file (leave empty to go back)",
+            message: `Enter a directory/file, relative to ${formatHomePath(launchDirectory)} (leave empty to go back)`,
             placeholder: "~/projects/another-repository",
           });
           if (cancelled(selected)) return false;
           if (!selected.trim()) continue;
-          draft = await editFilesystemPreferences(paths, project, draft, action, selected);
+          const resolved = await canonicalPath(selected, launchDirectory);
+          draft = await editFilesystemPreferences(paths, project, draft, action, resolved);
+          ui.note(
+            `${formatHomePath(resolved)}: ${formatFilesystemAccess(
+              action === "deny" ? "blocked" : action === "allow-read" ? "read-only" : "read/write",
+            )}`,
+            "Rule added (unsaved)",
+          );
         }
       } else if (action === "manage") {
         const entries = [
@@ -359,6 +378,7 @@ export async function runAxonSafehouseMenu(
           });
           if (cancelled(discard)) return false;
           if (discard === "back") continue;
+          discarded();
         }
         ui.outro("No changes saved.");
         return false;
@@ -387,13 +407,20 @@ export async function runAxonSafehouseMenu(
         signal?.throwIfAborted();
         await options.beforeSave?.();
         signal?.throwIfAborted();
+        saving = true;
         await saveFilesystemPreferences(paths, project, draft, original, currentPolicy);
+        saving = false;
+        recordSafehouseSettingsChanges(original, draft, "menu", "success");
         ui.outro(
           "Axon Safehouse permissions saved locally for this project. Restarting Pi to resume your chat safely.",
         );
         return true;
       }
     } catch (error) {
+      if (saving) {
+        saving = false;
+        recordSafehouseSettingsChanges(original, draft, "menu", "failed", "unavailable");
+      }
       ui.note(errorMessage(error), "No changes saved");
     }
   }

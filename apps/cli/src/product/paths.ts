@@ -49,6 +49,8 @@ export function resolveAxonPaths(
     BUILD_INFO.kind === "binary" ? releaseStateHome(home, BUILD_INFO.version) : home;
   const runtime = join(stateHome, "runtime");
   const pi = join(stateHome, "pi");
+  // Conversations are shared across release channels; only settings, packages and runtimes are isolated.
+  const piSessions = join(home, "pi", "sessions");
   const locks = join(home, "locks");
   const staged = join(home, "staged");
 
@@ -63,7 +65,7 @@ export function resolveAxonPaths(
     runtime,
     runtimeCurrent: join(runtime, "current"),
     pi,
-    piSessions: join(pi, "sessions"),
+    piSessions,
     piPackageState: join(stateHome, "pi-packages.json"),
     piPackageLock: join(locks, "pi-packages.lock"),
     piInstallLock: join(locks, "pi-install.lock"),
