@@ -1,0 +1,97 @@
+apps/cli/src/axon-safehouse/access-relay.ts
+  s_625732883a6d95::t_8ae6294fd2fca2 8-12,15,66,162,168
+apps/cli/src/harnesses/pi/environment.ts
+  s_625732883a6d95::t_c2476b980a1151 77
+apps/cli/tests/launcher.test.ts
+  s_625732883a6d95::t_f62a98cff34aab 147,316,380,400
+  s_625732883a6d95::t_a236ec85cc9550 399
+apps/cli/src/harnesses/pi/setup/index.ts
+  s_625732883a6d95::t_63c01f8a6dbe11 12,118-119,122
+apps/cli/src/harnesses/pi/resources/extensions/terminal-permissions.mjs
+  s_625732883a6d95::t_b0fa5a11912eea 2-9,13-14
+apps/cli/src/launcher/launch-harness.ts
+  s_625732883a6d95::t_c2476b980a1151 44
+apps/cli/tests/safehouse-permissions-format.test.ts
+  s_625732883a6d95::t_30d96ae8944f59 1-29
+apps/cli/src/axon-safehouse/access-requests.ts
+  s_625732883a6d95::t_b0fa5a11912eea 160-161,163-167,395-397,485-488,526-527
+  s_625732883a6d95::t_8df819c2ab3cdd 9
+  s_625732883a6d95::t_8e11ec028344d3 117-118,169-171,173-174,221-222,225-226,228-230,265-267
+  s_625732883a6d95::t_92757b1c1ab929 27-30,32-41,49-55,74,76,81-84,87,89,91,93,114,123,157-159,172,177-178,183-220,223-224,227,231-232,235-254,256-257,260-263,268,270,273,281-299,301-306,311-323,340-349,352-356,358,361-388,392-394,398-405,407-422,437,466-468,472-474,477-478,480,482,489,491,501,503,508,516-517,533-540,544,560-561,564-565,567
+  s_625732883a6d95::t_bad82202d96697 351
+  s_625732883a6d95::t_e9671ee06ab135 518-521
+  s_625732883a6d95::t_946b104e08d5b2 330-339,350,357,359-360,389-391,475,492,500
+  s_625732883a6d95::t_5e041f6a0e4280 406,522-525,528-532
+  s_625732883a6d95::t_dd8759b7ccfa86 324
+apps/cli/src/harnesses/pi/resources/extensions/terminal-permissions.ts
+  s_625732883a6d95::t_8f9df88d809018 603,607,657-658
+apps/cli/src/cli/commands/setup.ts
+  s_625732883a6d95::t_c2476b980a1151 61-63
+apps/cli/src/harnesses/pi/terminal-permissions/preferences.ts
+  s_625732883a6d95::t_8f9df88d809018 8
+apps/cli/src/sessions/relay.ts
+  s_625732883a6d95::t_c2476b980a1151 26-28,54
+apps/cli/src/axon-safehouse/launch.ts
+  s_625732883a6d95::t_e3aaea0793b844 469
+apps/cli/src/harnesses/pi/resources/extensions/axon.ts
+  s_00bc12b6db06f5::t_db394d7495963a 963,967-970
+  s_00bc12b6db06f5::t_3266c7ffc93341 160-163,165,167
+  s_625732883a6d95::t_ce2da730743128 563-578,585-586,588,590,592,602,604,619-620,622-623
+  s_625732883a6d95::t_8f9df88d809018 805
+  s_00bc12b6db06f5::t_c2da24ef0a9fbf 54-68
+  s_625732883a6d95::t_dc2b1bc466f524 474-482
+  s_625732883a6d95::t_5697a10cc7ce49 629,647-648,652,677,690,712-714,721-730,746,827,831,835,842,868-870,878-881
+  s_625732883a6d95::t_bad82202d96697 807-813
+apps/cli/tests/safehouse-access-prompt.test.ts
+  s_625732883a6d95::t_954e6f98da1122 11-14,101-104
+  s_625732883a6d95::t_e810ed53aa2124 89-100,105-149,216
+  s_625732883a6d95::t_35d780799007a4 77,150-215
+  s_625732883a6d95::t_efe4e2357d3af6 1-10,15-76,78-88
+apps/cli/tests/terminal-permissions.test.ts
+  s_625732883a6d95::t_2f66a5f58fd050 316
+apps/cli/src/telemetry/product-events.ts
+  s_625732883a6d95::t_8e11ec028344d3 157
+apps/cli/src/harnesses/pi/resources/extensions/pi-org-telemetry.mjs
+  s_625732883a6d95::t_954e6f98da1122 264
+apps/cli/src/harnesses/pi/adapter.ts
+  s_625732883a6d95::t_0547dfe60af77c 80
+apps/cli/tests/axon-header.test.ts
+  s_625732883a6d95::t_e65cffac6f886f 144
+  s_625732883a6d95::t_3e06a27f0368af 161-164,167,169-186
+  s_625732883a6d95::t_34ce282de6af5b 165-166,168
+apps/cli/src/cli/launcher-program.ts
+  s_625732883a6d95::t_c2476b980a1151 67,182
+  s_625732883a6d95::t_e3aaea0793b844 3
+apps/cli/tests/session-backup-relay.test.ts
+  s_625732883a6d95::t_f62a98cff34aab 48,52
+apps/cli/src/product/project-paths.ts
+  s_625732883a6d95::t_b80072fcb04d0d 6
+apps/cli/src/cli/commands/axon-safehouse.ts
+  s_625732883a6d95::t_dc2b1bc466f524 85-98
+apps/cli/src/harnesses/pi/settings-defaults.ts
+  s_625732883a6d95::t_0547dfe60af77c 50,86-90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8be59ec09f9dc1888f20f4ccb7f6a5d455f89483",
+  "prompts": {},
+  "sessions": {
+    "s_00bc12b6db06f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9ace8c3c-c265-4e97-b4f7-845a3b0ba1a3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_625732883a6d95": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "019f6238-7404-44c7-918f-d6732ea68170",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
