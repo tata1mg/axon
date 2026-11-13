@@ -75,11 +75,12 @@ export function createPiAdapter(): HarnessAdapter {
             resolveConfiguredPiVersion(context.environment),
           );
           await applyPiProviderDefaults(context.paths);
-        } catch {
+        } catch (error) {
+          // Lock timeouts in `cause` are rendered with owner details by the top-level handler.
           throw new LauncherError(
             "Could not prepare Axon's Pi startup settings safely",
             LAUNCHER_EXIT_STATUS.profileFailure,
-            { remediation: `Run ${PRODUCT_IDENTITY.command} doctor pi.` },
+            { cause: error, remediation: `Run ${PRODUCT_IDENTITY.command} doctor pi.` },
           );
         }
         let encryptedSession: string | undefined;

@@ -4,8 +4,9 @@ import { dispatch } from "./cli/dispatch.ts";
 import { isPiOffline } from "./harnesses/pi/setup/packages/invocation.ts";
 import { bootstrapCertificates } from "./launcher/certificates.ts";
 import { isTrue } from "./launcher/debug-preview.ts";
-import { LauncherError } from "./launcher/errors.ts";
+import { describeLauncherFailure, LauncherError } from "./launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "./launcher/exit-status.ts";
+import { FileLockTimeoutError } from "./launcher/file-lock.ts";
 import { PRODUCT_IDENTITY } from "./product/identity.ts";
 import { resolveAxonPaths } from "./product/paths.ts";
 import { beginProductTelemetryInvocation, flushProductTelemetry } from "./telemetry/client.ts";
@@ -30,9 +31,10 @@ export async function main(
     await dispatch(argumentsVector);
   } catch (error) {
     if (error instanceof LauncherError) {
-      console.error(`${PRODUCT_IDENTITY.command}: ${error.message}`);
-      if (error.remediation !== undefined) {
-        console.error(`Remediation: ${error.remediation}`);
+      const { message, remediation } = describeLauncherFailure(error);
+      console.error(`${PRODUCT_IDENTITY.command}: ${message}`);
+      if (remediation !== undefined) {
+        console.error(`Remediation: ${remediation}`);
       }
       if (isTrue(process.env[DEBUG_ENVIRONMENT_VARIABLE]) && error.cause !== undefined) {
         console.error(error.cause);
@@ -41,7 +43,12 @@ export async function main(
       return;
     }
 
-    printUnexpectedError(error);
+    if (error instanceof FileLockTimeoutError) {
+      console.error(`${PRODUCT_IDENTITY.command}: ${error.message}`);
+      console.error(`Remediation: ${error.remediation}`);
+    } else {
+      printUnexpectedError(error);
+    }
     process.exitCode = LAUNCHER_EXIT_STATUS.profileFailure;
   } finally {
     await flushProductTelemetry(resolveAxonPaths(), isPiOffline(process.env, argumentsVector));

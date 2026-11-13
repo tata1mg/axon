@@ -50,6 +50,9 @@ const dashboard = {
     .filter((panel) => panel.type !== "row"),
 };
 const emailMatcher = 'user_email=~"$user"';
+const workflowMatcher = 'axon_workflow_name=~"$workflow"';
+// Axon product metric names; the `axon_workflow_name` label is on every query and is not one.
+const productMetric = /\baxon_(?!workflow_name\b)\w+/;
 
 test("Grafana user selector lists non-empty emails and supports multi-select and All", () => {
   const user = dashboard.templating.list.find((variable) => variable.name === "user");
@@ -73,10 +76,30 @@ test("every Grafana metrics query respects the selected emails", () => {
     for (const target of panel.targets) {
       assert.ok(target.expr, panel.title);
       assert.ok(target.expr.includes(emailMatcher), panel.title);
+      assert.ok(target.expr.includes(`${emailMatcher},${workflowMatcher}`), panel.title);
       assert.doesNotMatch(target.expr, /user_id/, panel.title);
       assert.doesNotMatch(target.legendFormat ?? "", /user_id/, panel.title);
     }
   }
+});
+
+test("Grafana workflow selector follows email selection and keeps untagged sessions under All", () => {
+  const names = dashboard.templating.list.map((variable) => variable.name);
+  assert.ok(names.indexOf("workflow") > names.indexOf("user"));
+  assert.ok(names.indexOf("workflow") < names.indexOf("repo"));
+  const workflow = dashboard.templating.list.find((variable) => variable.name === "workflow");
+  assert.ok(workflow);
+  assert.equal(workflow.label, "Workflow");
+  assert.equal(
+    workflow.query,
+    'label_values({__name__=~"pi_interaction_count_total|axon_.*_events_total",user_email=~"$user",axon_workflow_name!=""}, axon_workflow_name)',
+  );
+  assert.equal(workflow.definition, workflow.query);
+  assert.equal(workflow.includeAll, true);
+  assert.equal(workflow.multi, true);
+  // `.*` also matches series without the label, so sessions launched without AXON_WORKFLOW stay
+  // visible; `.+` would hide them.
+  assert.equal(workflow.allValue, ".*");
 });
 
 test("Grafana repository options and leaderboards follow email selection", () => {
@@ -196,14 +219,14 @@ test("product histograms use the declared instrument names and translated units"
 
 test("product metrics separate CLI funnel counts from backend requests and avoid repo/ID labels", () => {
   const productPanels = dashboard.panels.filter((panel) =>
-    panel.targets.some((target) => target.expr?.includes("axon_")),
+    panel.targets.some((target) => productMetric.test(target.expr ?? "")),
   );
   assert.ok(productPanels.length > 0);
   for (const panel of productPanels) {
     for (const target of panel.targets) {
       assert.ok(target.expr, panel.title);
       assert.doesNotMatch(target.expr, /pi_repo_slug|recommendation_id|session_id/, panel.title);
-      if (!target.expr.includes("axon_")) continue;
+      if (!productMetric.test(target.expr)) continue;
       if (panel.title === "Model recommender request p95") {
         assert.ok(target.expr.includes("by (le, component)"));
       } else {
@@ -280,7 +303,7 @@ test("agent-loop counter windows cover four exports even at the maximum configur
   ];
   assert.equal(panel.targets.length, names.length);
   for (const [index, name] of names.entries()) {
-    const metric = `${name}{user_email=~"$user",pi_repo_slug=~"$repo"}`;
+    const metric = `${name}{user_email=~"$user",axon_workflow_name=~"$workflow",pi_repo_slug=~"$repo"}`;
     assert.equal(
       panel.targets[index]?.expr,
       `sum ((increase(${metric}[$__interval]) and (${metric} offset $__interval)) or (max_over_time(${metric}[$__interval]) unless (${metric} offset $__interval)))`,
@@ -296,6 +319,7 @@ test("PromQL counter regression fixtures evaluate the dashboard expression", () 
   const expr = turns.expr
     .replaceAll("$__interval", "20m")
     .replaceAll("$user", "test@example.com")
+    .replaceAll("$workflow", ".*")
     .replaceAll("$repo", "test/repo");
   const fixture = JSON.parse(
     readFileSync(new URL("./grafana-counters.promql.json", import.meta.url), "utf8"),

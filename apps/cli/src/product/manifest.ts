@@ -20,6 +20,9 @@ import modelRecommenderExtensionAsset from "../harnesses/pi/resources/extensions
 import piOrgTelemetryExtensionAsset from "../harnesses/pi/resources/extensions/pi-org-telemetry.mjs" with {
   type: "file",
 };
+import requestContextExtensionAsset from "../harnesses/pi/resources/extensions/request-context.mjs" with {
+  type: "file",
+};
 import sessionBackupExtensionAsset from "../harnesses/pi/resources/extensions/session-backup.mjs" with {
   type: "file",
 };
@@ -97,6 +100,12 @@ const COMPACTION_RESOURCE = Object.freeze({
   destination: "pi/extensions/compaction.ts",
 }) satisfies PiResourceManifestEntry;
 
+const REQUEST_CONTEXT_RESOURCE = Object.freeze({
+  id: "request-context",
+  type: "extension",
+  destination: "pi/extensions/request-context.mjs",
+}) satisfies PiResourceManifestEntry;
+
 const WEB_SEARCH_RESOURCE = Object.freeze({
   id: "web-search",
   type: "extension",
@@ -122,7 +131,7 @@ const AXON_LIGHT_THEME_RESOURCE = Object.freeze({
 
 export const AXON_MANIFEST = parseAxonManifest({
   schemaVersion: 1,
-  revision: "23",
+  revision: "25",
   pi: {
     packages: [
       {
@@ -136,7 +145,7 @@ export const AXON_MANIFEST = parseAxonManifest({
         id: "pi-provider-litellm",
         source: "npm:pi-provider-litellm",
         required: true,
-        versionPolicy: { kind: "exact", version: "4.7.2" },
+        versionPolicy: { kind: "exact", version: "4.7.3" },
         install: { action: "pi.install" },
       },
       {
@@ -162,6 +171,7 @@ export const AXON_MANIFEST = parseAxonManifest({
       WEB_SEARCH_RESOURCE,
       GIT_AI_RESOURCE,
       COMPACTION_RESOURCE,
+      REQUEST_CONTEXT_RESOURCE,
       // Run permission checks after the other managed tool-call handlers.
       TERMINAL_PERMISSIONS_RESOURCE,
       AXON_DARK_THEME_RESOURCE,
@@ -215,6 +225,10 @@ export const EMBEDDED_PI_RESOURCES = Object.freeze([
   Object.freeze({
     ...COMPACTION_RESOURCE,
     sourcePath: compactionExtensionAsset as unknown as string,
+  }),
+  Object.freeze({
+    ...REQUEST_CONTEXT_RESOURCE,
+    sourcePath: requestContextExtensionAsset as unknown as string,
   }),
   Object.freeze({
     ...TERMINAL_PERMISSIONS_RESOURCE,

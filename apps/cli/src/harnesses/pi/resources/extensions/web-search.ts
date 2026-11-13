@@ -99,6 +99,24 @@ interface PiExtensionHost {
       ctx?: SearchContext,
     ): Promise<ToolResult>;
   }): void;
+  events?: { on(channel: string, handler: (data: unknown) => void): unknown };
+}
+
+// Keep this bus contract in sync with request-context.ts; this extension ships standalone.
+const REQUEST_CONTEXT_CHANNEL = "axon:request-context";
+
+interface RequestContext {
+  tags(callKind: "web_search"): string;
+  metadata(callKind: "web_search"): Readonly<Record<string, string>>;
+}
+
+function isRequestContext(value: unknown): value is RequestContext {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof Reflect.get(value, "tags") === "function" &&
+    typeof Reflect.get(value, "metadata") === "function"
+  );
 }
 
 function setting(name: string): string | undefined {
@@ -263,7 +281,12 @@ function searchSystemPrompt(): string {
   return prompt;
 }
 
-function searchPayload(config: SearchConfig, query: string, metadata: JsonRecord): JsonRecord {
+function searchPayload(
+  config: SearchConfig,
+  query: string,
+  metadata: JsonRecord,
+  spendLogsMetadata: JsonRecord,
+): JsonRecord {
   const payload: JsonRecord = {
     model: config.model,
     messages: [
@@ -276,7 +299,7 @@ function searchPayload(config: SearchConfig, query: string, metadata: JsonRecord
       : {},
     max_tokens: config.maxOutputTokens,
     temperature: config.temperature,
-    metadata: { ...metadata, spend_logs_metadata: metadata },
+    metadata: { ...metadata, spend_logs_metadata: spendLogsMetadata },
   };
   if (config.useUrlContext) payload["tools"] = [{ urlContext: {} }];
   if (config.thinkingLevel !== undefined) payload["reasoning_effort"] = config.thinkingLevel;
@@ -474,6 +497,7 @@ async function search(
   toolCallId: string,
   signal: AbortSignal | undefined,
   ctx?: SearchContext,
+  requestContext?: RequestContext,
 ): Promise<{ result: SearchResult; usage: Usage | undefined }> {
   const config = readConfig();
   if (!query.trim() || Array.from(query).length > config.maxQueryCharacters) {
@@ -486,7 +510,9 @@ async function search(
     tool: "web_search",
     tool_call_id: toolCallId,
   };
-  const payload = searchPayload(config, query, metadata);
+  // A spend-logs header would replace this body field on LiteLLM, so the context joins it here.
+  const spendLogsMetadata = { ...requestContext?.metadata("web_search"), ...metadata };
+  const payload = searchPayload(config, query, metadata, spendLogsMetadata);
   const timeout = AbortSignal.timeout(config.timeoutMs);
   const requestSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
   let response: Response | undefined;
@@ -502,6 +528,11 @@ async function search(
     const sessionId = ctx?.sessionManager?.getSessionId();
     if (sessionId && /^[A-Za-z0-9._:/-]{1,128}$/.test(sessionId))
       headers.set("x-litellm-session-id", sessionId);
+    if (requestContext) {
+      const tags = requestContext.tags("web_search");
+      const existingTags = headers.get("x-litellm-tags");
+      headers.set("x-litellm-tags", existingTags ? `${existingTags},${tags}` : tags);
+    }
     if (connection.apiKey) headers.set("authorization", `Bearer ${connection.apiKey}`);
     response = await fetch(connection.url, {
       method: "POST",
@@ -527,6 +558,10 @@ async function search(
 
 export default function webSearchExtension(pi: PiExtensionHost): void {
   if (!booleanSetting("ENABLED", true)) return;
+  let requestContext: RequestContext | undefined;
+  pi.events?.on(REQUEST_CONTEXT_CHANNEL, (data) => {
+    if (isRequestContext(data)) requestContext = data;
+  });
   pi.registerTool({
     name: "web_search",
     label: "Web Search",
@@ -552,7 +587,7 @@ export default function webSearchExtension(pi: PiExtensionHost): void {
     async execute(toolCallId, parameters, signal, _onUpdate, ctx) {
       const query = records(parameters)[0]?.["query"];
       if (typeof query !== "string") throw new Error("Web search requires a query string");
-      const { result, usage } = await search(query, toolCallId, signal, ctx);
+      const { result, usage } = await search(query, toolCallId, signal, ctx, requestContext);
       const sourceText = result.sources
         .map((source, index) => `[${index + 1}] ${source.title}: ${source.url}`)
         .join("\n");

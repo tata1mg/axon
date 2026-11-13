@@ -1,6 +1,6 @@
 {
   "name": "axon-cli",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Native Axon launcher for Pi (axon)",
   "private": true,
   "type": "module",
@@ -14,8 +14,8 @@
   },
   "scripts": {
     "dev": "bun run src/index.ts",
-    "build": "bun run pi-version:check && bun run telemetry:check && bun run backups:check && bun run terminal:check && bun build src/index.ts --compile --format=esm --bytecode --sourcemap=external --no-compile-autoload-dotenv --no-compile-autoload-bunfig --define 'BUILD_VERSION=\"0.1.0-dev\"' --define 'BUILD_KIND=\"dev\"' --define 'BUILD_COMMIT=\"local\"' --define 'BUILD_SERVICE_ORIGIN=\"http://localhost:3000\"' --outfile dist/axon",
-    "build:release": "bun run telemetry:check && bun run backups:check && bun run terminal:check && bun run scripts/build-release.ts",
+    "build": "bun run pi-version:check && bun run telemetry:check && bun run backups:check && bun run terminal:check && bun run request-context:check && bun build src/index.ts --compile --format=esm --bytecode --sourcemap=external --no-compile-autoload-dotenv --no-compile-autoload-bunfig --define 'BUILD_VERSION=\"0.1.0-dev\"' --define 'BUILD_KIND=\"dev\"' --define 'BUILD_COMMIT=\"local\"' --define 'BUILD_SERVICE_ORIGIN=\"http://localhost:3000\"' --outfile dist/axon",
+    "build:release": "bun run telemetry:check && bun run backups:check && bun run terminal:check && bun run request-context:check && bun run scripts/build-release.ts",
     "pi-version:check": "bun run scripts/check-pi-version.ts",
     "backups:build": "bun run scripts/build-session-backup.ts",
     "backups:check": "bun run scripts/build-session-backup.ts --check",
@@ -23,14 +23,16 @@
     "terminal:check": "bun run scripts/build-terminal-permissions.ts --check",
     "telemetry:build": "bun run scripts/build-pi-telemetry.ts",
     "telemetry:check": "bun run scripts/build-pi-telemetry.ts --check",
+    "request-context:build": "bun run scripts/build-request-context.ts",
+    "request-context:check": "bun run scripts/build-request-context.ts --check",
     "release:validate": "bun run scripts/validate-release.ts",
     "release:metadata": "bun run scripts/generate-release-metadata.ts",
-    "release:prepare-s3": "bun run telemetry:check && bun run terminal:check && bun run scripts/prepare-s3-release.ts",
+    "release:prepare-s3": "bun run telemetry:check && bun run terminal:check && bun run request-context:check && bun run scripts/prepare-s3-release.ts",
     "release:publish-s3": "bun run scripts/publish-s3-release.ts",
     "test": "bun test --parallel=4",
     "test:installer": "bun test tests/installer",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.pi-resources.json",
-    "check": "bun run pi-version:check && bun run telemetry:check && bun run backups:check && bun run terminal:check && bun run typecheck"
+    "check": "bun run pi-version:check && bun run telemetry:check && bun run backups:check && bun run terminal:check && bun run request-context:check && bun run typecheck"
   },
   "dependencies": {
     "@clack/prompts": "^1.8.1",
@@ -42,8 +44,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.12",
-    "@earendil-works/pi-coding-agent": "1.5.0",
-    "@earendil-works/pi-tui": "1.5.0",
+    "@earendil-works/pi-coding-agent": "1.5.2",
+    "@earendil-works/pi-tui": "1.5.2",
     "@opentelemetry/api": "1.9.0",
     "@opentelemetry/api-logs": "0.222.0",
     "@opentelemetry/core": "2.11.0",
@@ -62,7 +64,7 @@
     "@opentelemetry/semantic-conventions": "1.43.0",
     "@types/bun": "^1.4.4",
     "@types/proper-lockfile": "4.1.4",
-    "pi-provider-litellm": "4.7.2",
+    "pi-provider-litellm": "4.7.3",
     "typescript": "^7.0.2"
   }
 }
