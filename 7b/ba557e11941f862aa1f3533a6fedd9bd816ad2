@@ -1,0 +1,18 @@
+apps/cli/src/harnesses/pi/resources/extensions/pi-org-telemetry.mjs
+  h_dc688f708c4675 231,233,235,238-245,247,249,251-252,256,258,260-261,263-269
+apps/cli/src/harnesses/pi/resources/extensions/session-backup.mjs
+  h_dc688f708c4675 2,6-10,17-20,23-24,28-30,50,52-54,56,58
+apps/cli/src/harnesses/pi/resources/extensions/terminal-permissions.mjs
+  h_dc688f708c4675 2-11,13-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7bba557e11941f862aa1f3533a6fedd9bd816ad2",
+  "prompts": {},
+  "humans": {
+    "h_dc688f708c4675": {
+      "author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  }
+}
