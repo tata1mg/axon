@@ -11,7 +11,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = ROOT / "scripts/build-backend-image.sh"
-PRIVATE_IMAGE = "831059512818.dkr.ecr.ap-south-1.amazonaws.com/wolfi-3.12.16-r1-test1"
+PRIVATE_IMAGE = "831059512818.dkr.ecr.ap-south-1.amazonaws.com/python:wolfi-3.12.16-r1-test1"
 PUBLIC_IMAGE = "cgr.dev/chainguard/wolfi-base:latest"
 
 

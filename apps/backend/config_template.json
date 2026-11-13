@@ -33,6 +33,10 @@
       "PRIVATE_KEY": ""
     },
     "LATEST_VERSION": "",
+    "CHANNELS": {
+      "stable": { "VERSION": "", "PAUSED": false },
+      "beta": { "VERSION": "", "PAUSED": false }
+    },
     "VERSIONS": {
     }
   },
@@ -117,6 +121,16 @@
     "USE_URL_CONTEXT": false,
     "REQUIRE_GROUNDING": true,
     "SEARCH_CONTEXT_SIZE": null
+  },
+  "AXON_SAFEHOUSE": {
+    "ENABLED": true,
+    "ALLOW_LOCAL_OPT_OUT": false,
+    "POLICY_ID": "safehouse-v1",
+    "ALLOW_ADDITIONAL_READ_PATHS": true,
+    "ALLOW_ADDITIONAL_WRITE_PATHS": true,
+    "PROTECTED_PATHS": [],
+    "READ_PATHS": [],
+    "WRITE_PATHS": []
   },
   "TERMINAL_PERMISSIONS": {
     "YOLO_MODE": false,

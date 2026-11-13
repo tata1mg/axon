@@ -16,6 +16,7 @@ code, session names, paths, storage URLs or credentials are collected.
 | `config` | fetch | Config-fetch duration and bounded failure reason; authentication rotation is preserved even for invalid settings |
 | `update` | check, install | Availability checks, install/verification failures, skips and successful activation, including background updates |
 | `release` | launch | CLI version observed at the first initialized Pi session per process |
+| `safehouse` | authorize, prepare, opt_out, policy, access_request, access_decision, config_change | Axon Safehouse policy authorization and sandbox setup (duration, bounded failure reason); opt-outs (`flag`, `env`, `policy_disabled`); first-seen/changed backend policy IDs and mid-session changes that require a restart; sandbox denials that could or could not be offered for review; the user's access decision and time to decide (`safehouse_source`: `tui`, `rpc`); saved, failed and discarded settings edits by kind (`safehouse_change`) and source (`menu`, `access_grant`). Never paths, hosts, rule contents or policy contents |
 
 The backend independently owns recommender request, Jev assessment and ranking spans plus numeric
 assessment distributions. `component=backend` and `component=cli` distinguish those observations;
@@ -33,7 +34,8 @@ also record `axon.<category>.duration` (`s`), and applicable transfers record
 operation span. Failure text and automatic exception recording are deliberately excluded.
 
 Dimensions are allowlisted: component, stage, outcome, bounded reason, model, selected rank,
-policy version and CLI version. Verified user identity is attached through the existing managed
+policy version, CLI version, and for `safehouse` events the fixed `safehouse_source` and
+`safehouse_change` enums. Verified user identity is attached through the existing managed
 proxy. Session/recommendation IDs and repository identity stay on product traces/logs, not product
 metric labels. Numeric complexity/confidence/reasoning/speed/candidate counts are histogram values,
 not dimensions. Histograms use explicit boundaries appropriate to seconds, bytes and scores.

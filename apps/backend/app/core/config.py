@@ -12,6 +12,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from sentry_sdk.utils import Dsn
 
+from app.core.axon_safehouse import AxonSafehouseSettings, parse_axon_safehouse
 from app.core.cli_config import (
     CliCompactionConfig,
     CliLiteLLMClientConfig,
@@ -148,6 +149,12 @@ class CliReleaseAsset:
 
 
 @dataclass(frozen=True, slots=True)
+class CliReleaseChannel:
+    version: str = ""
+    paused: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class CliReleaseSettings:
     s3: S3StorageSettings
     key_prefix: str
@@ -160,6 +167,11 @@ class CliReleaseSettings:
     latest_version: str
     # version -> release target -> asset
     versions: dict[str, dict[str, CliReleaseAsset]]
+    channels: dict[str, CliReleaseChannel] = field(default_factory=dict)
+
+    def channel(self, name: str) -> CliReleaseChannel:
+        # LATEST_VERSION remains the stable pointer for older deployments/clients.
+        return self.channels.get(name, CliReleaseChannel(self.latest_version if name == "stable" else ""))
 
 
 @dataclass(frozen=True, slots=True)
@@ -202,6 +214,7 @@ class Settings:
     cli_model_recommender: CliModelRecommenderConfig | None = None
     cli_litellm_client: CliLiteLLMClientConfig | None = None
     terminal_permissions: TerminalPermissionsSettings | None = None
+    axon_safehouse: AxonSafehouseSettings = field(default_factory=AxonSafehouseSettings)
 
 
 def _cli_pi_settings(raw_config: dict[str, Any]) -> CliPiConfig | None:
@@ -450,6 +463,34 @@ def _cloudfront_credentials(config: dict[str, Any]) -> tuple[str, str, str]:
     return distribution_url, key_pair_id, private_key
 
 
+def _release_channel(
+    name: str, config: Any, versions: dict[str, dict[str, CliReleaseAsset]], latest: str
+) -> CliReleaseChannel:
+    path = f"config.CLI_RELEASES.CHANNELS.{name}"
+    if not isinstance(config, dict):
+        raise ConfigurationError(f"{path} must be an object")
+    version = config.get("VERSION", "")
+    if not isinstance(version, str) or (version and version not in versions):
+        raise ConfigurationError(f"{path}.VERSION must reference a configured version")
+    if name == "stable":
+        version = version or latest
+    if version:
+        prerelease = "-" in version.split("+", 1)[0]
+        if prerelease != (name == "beta"):
+            expected = "a prerelease" if name == "beta" else "a production release"
+            raise ConfigurationError(f"{path}.VERSION must be {expected}")
+    return CliReleaseChannel(version, _boolean(config, "PAUSED", path, default=False))
+
+
+def _release_channels(
+    config: dict[str, Any], versions: dict[str, dict[str, CliReleaseAsset]], latest: str
+) -> dict[str, CliReleaseChannel]:
+    channels = config.get("CHANNELS", {})
+    if not isinstance(channels, dict) or set(channels) - {"stable", "beta"}:
+        raise ConfigurationError("config.CLI_RELEASES.CHANNELS accepts only stable and beta objects")
+    return {name: _release_channel(name, channels.get(name, {}), versions, latest) for name in ("stable", "beta")}
+
+
 def _cli_releases(raw: dict[str, Any]) -> CliReleaseSettings | None:
     if "CLI_RELEASES" not in raw:
         return None
@@ -465,6 +506,7 @@ def _cli_releases(raw: dict[str, Any]) -> CliReleaseSettings | None:
     latest = _string(config, "LATEST_VERSION", "config.CLI_RELEASES", allow_empty=True)
     if latest and latest not in versions:
         raise ConfigurationError("config.CLI_RELEASES.LATEST_VERSION must reference a configured version")
+    channels = _release_channels(config, versions, latest)
     distribution_url, key_pair_id, private_key = _cloudfront_credentials(config)
     upload_auth_key = _string(config, "UPLOAD_AUTH_KEY", "config.CLI_RELEASES")
     if len(upload_auth_key) < 32:
@@ -482,8 +524,9 @@ def _cli_releases(raw: dict[str, Any]) -> CliReleaseSettings | None:
         distribution_url=distribution_url,
         key_pair_id=key_pair_id,
         private_key=private_key,
-        latest_version=latest,
+        latest_version=channels["stable"].version,
         versions=versions,
+        channels=channels,
     )
 
 
@@ -545,6 +588,13 @@ def _terminal_permissions(raw: dict[str, Any]) -> TerminalPermissionsSettings | 
         return parse_terminal_permissions(raw)
     except (ValueError, TypeError):
         raise ConfigurationError("config.TERMINAL_PERMISSIONS contains invalid settings") from None
+
+
+def _axon_safehouse(raw: dict[str, Any]) -> AxonSafehouseSettings:
+    try:
+        return parse_axon_safehouse(raw)
+    except (ValueError, TypeError):
+        raise ConfigurationError("config.AXON_SAFEHOUSE contains invalid settings") from None
 
 
 @cache
@@ -745,6 +795,7 @@ def get_settings() -> Settings:
         web_search=web_search,
         model_recommender=_model_recommender(raw_config),
         terminal_permissions=terminal_permissions,
+        axon_safehouse=_axon_safehouse(raw_config),
         backend_telemetry=backend_telemetry,
         sentry=_sentry_settings(raw_config),
         log_level=log_level,

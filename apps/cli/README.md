@@ -526,7 +526,7 @@ Backend `false`, missing policy, or a failed policy fetch prevents YOLO executio
 a saved preference. These do not erase the preference. Environment variables cannot grant
 eligibility; `PI_TERMINAL_YOLO_MODE` is no longer used. The tool prompt/schema stays static.
 
-Literal-prefix blocklists remain **best-effort in both modes**, not an OS sandbox. Recognized
+Literal-prefix blocklists remain **best-effort in both modes**, not OS isolation. Recognized
 blocked commands are denied without prompting. In YOLO, scripts, wrappers, or syntax the
 parser cannot understand may hide blocked operations and are allowed. Only subsequent
 calls use a changed mode; toggling does not cancel running commands or approve dialogs

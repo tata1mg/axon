@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from app import authentication
 from app.clients.auth_service import AuthDataResponse, AuthServiceError
 from app.core import config as config_module
+from app.core.axon_safehouse import AxonSafehouseSettings
 from app.core.cli_config import (
     CliPiConfig,
     CliTelemetryConfig,
@@ -58,7 +59,11 @@ def test_config_uses_session_guard_and_only_allowlisted_fields(monkeypatch: pyte
     app.include_router(router)
     web_search = WebSearchSettings()
     public_search = web_search.cli_config().model_dump(by_alias=True, mode="json", exclude_none=True)
+    axon_safehouse = AxonSafehouseSettings()
+    public_axon_safehouse = axon_safehouse.cli_config().model_dump(by_alias=True, mode="json", exclude_none=True)
+    assert "allowLocalOptOut" not in public_axon_safehouse
     app.dependency_overrides[get_settings] = lambda: SimpleNamespace(
+        axon_safehouse=axon_safehouse,
         cli_telemetry=CliTelemetryConfig.model_validate(POLICY),
         cli_pi=CliPiConfig.model_validate(
             {
@@ -86,6 +91,7 @@ def test_config_uses_session_guard_and_only_allowlisted_fields(monkeypatch: pyte
     assert seen == ["Bearer saved-secret"]
     assert response.json() == {
         "schemaVersion": 1,
+        "axonSafehouse": public_axon_safehouse,
         "telemetry": POLICY,
         "pi": {
             "codemodeEnabled": True,
@@ -104,6 +110,7 @@ def test_config_uses_session_guard_and_only_allowlisted_fields(monkeypatch: pyte
     assert response.headers["x-session-refresh-token"] == "rotated-secret"
     assert "secret" not in response.text
     app.dependency_overrides[get_settings] = lambda: SimpleNamespace(
+        axon_safehouse=axon_safehouse,
         cli_telemetry=None,
         cli_pi=None,
         cli_compaction=None,
@@ -114,8 +121,64 @@ def test_config_uses_session_guard_and_only_allowlisted_fields(monkeypatch: pyte
     )
     assert client.get("/api/v1/cli/config", headers={"Authorization": "Bearer second-user"}).json() == {
         "schemaVersion": 1,
+        "axonSafehouse": public_axon_safehouse,
         "webSearch": public_search,
     }
+
+
+@pytest.mark.parametrize("allow_local_opt_out", [False, True])
+def test_bootstrap_sends_local_opt_out_only_when_allowed(allow_local_opt_out: bool) -> None:
+    app = FastAPI()
+    app.include_router(router)
+    app.dependency_overrides[get_settings] = lambda: SimpleNamespace(
+        axon_safehouse=AxonSafehouseSettings.model_validate({"ALLOW_LOCAL_OPT_OUT": allow_local_opt_out})
+    )
+    response = TestClient(app).get("/api/v1/cli/config/axon-safehouse-bootstrap")
+    assert response.status_code == 200
+    policy = response.json()["axonSafehouse"]
+    # Released CLIs reject unknown policy keys, so the default must keep the old shape.
+    if allow_local_opt_out:
+        assert policy["allowLocalOptOut"] is True
+    else:
+        assert "allowLocalOptOut" not in policy
+    assert policy["required"] is True
+
+
+def test_policy_grants_default_empty_and_are_always_sent() -> None:
+    policy = AxonSafehouseSettings().cli_config().model_dump(by_alias=True, mode="json", exclude_none=True)
+    assert policy["readPaths"] == []
+    assert policy["writePaths"] == []
+    configured = AxonSafehouseSettings.model_validate(
+        {"READ_PATHS": ["~/shared-libs", "/opt/docs"], "WRITE_PATHS": ["~/.cache/tool"]}
+    ).cli_config()
+    assert configured.model_dump(by_alias=True, mode="json")["readPaths"] == ["~/shared-libs", "/opt/docs"]
+    assert configured.model_dump(by_alias=True, mode="json")["writePaths"] == ["~/.cache/tool"]
+
+
+@pytest.mark.parametrize(
+    "section",
+    [
+        {"READ_PATHS": ["/"]},
+        {"WRITE_PATHS": ["~/"]},
+        {"WRITE_PATHS": ["~/work/.."]},
+        {"READ_PATHS": ["relative/path"]},
+        {"READ_PATHS": ["~/bad\npath"]},
+        {"READ_PATHS": ["~/shared"], "WRITE_PATHS": ["~/shared/"]},
+        {"WRITE_PATHS": ["~/.aws/cli"], "PROTECTED_PATHS": ["~/.aws"]},
+        {"READ_PATHS": ["/opt"], "PROTECTED_PATHS": ["/opt/secrets"]},
+        {"READ_PATHS": ["/x"] * 65},
+    ],
+)
+def test_policy_grants_reject_unsafe_paths(section: dict) -> None:
+    with pytest.raises(ValueError):
+        AxonSafehouseSettings.model_validate(section)
+
+
+def test_policy_grants_allow_siblings_of_protected_paths() -> None:
+    settings = AxonSafehouseSettings.model_validate(
+        {"READ_PATHS": ["~/.aws-docs", "/opt/docs"], "WRITE_PATHS": ["~/shared/out"], "PROTECTED_PATHS": ["~/.aws"]}
+    )
+    assert settings.read_paths == ["~/.aws-docs", "/opt/docs"]
 
 
 @pytest.mark.parametrize("status", [401, 403, 503])
