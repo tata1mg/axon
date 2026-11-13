@@ -1,0 +1,27 @@
+apps/cli/src/harnesses/pi/resources/extensions/axon-changelog.ts
+  s_7697c6637f9c61::t_2f6fa03d8e3db3 21-26
+  s_7697c6637f9c61::t_120fd223a604e6 20
+apps/cli/src/axon-safehouse/launch.ts
+  s_7697c6637f9c61::t_a530aa387a0834 148-152,244,697-711,713-718,722-728,735-736
+  s_7697c6637f9c61::t_302e7ceec93b40 719-721
+apps/cli/package.json
+  s_7697c6637f9c61::t_4ae8f9c052c5f7 3
+apps/cli/src/axon-safehouse/session.ts
+  s_7697c6637f9c61::t_cc0f69abb4914f 121,362-363
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b6e377fa6e5986935cb48b29e5e1fcccf76303da",
+  "prompts": {},
+  "sessions": {
+    "s_7697c6637f9c61": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "505685",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  }
+}
