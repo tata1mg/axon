@@ -1,8 +1,16 @@
 import { afterEach, expect, test } from "bun:test";
+import { mkdirSync, mkdtempSync } from "node:fs";
+import { rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { compact, ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { parseClientConfig } from "../src/cli/client-config.ts";
 import { createCompactionOverrides } from "../src/harnesses/pi/launch-preferences-environment.ts";
 import compactionExtension from "../src/harnesses/pi/resources/extensions/compaction.ts";
+import requestContextExtension, {
+  buildRequestContext,
+  REQUEST_CONTEXT_CHANNEL,
+} from "../src/harnesses/pi/resources/extensions/request-context.ts";
 
 type Preparation = Parameters<typeof compact>[0];
 type Model = NonNullable<ExtensionContext["model"]>;
@@ -14,7 +22,11 @@ const environmentKeys = [
   "TIMEOUT_MS",
 ].map((key) => `PI_COMPACTION_${key}`);
 const previous = Object.fromEntries(environmentKeys.map((key) => [key, process.env[key]]));
-afterEach(() => {
+const directories: string[] = [];
+afterEach(async () => {
+  await Promise.all(
+    directories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
+  );
   for (const [key, value] of Object.entries(previous)) {
     if (value === undefined) delete process.env[key];
     else process.env[key] = value;
@@ -25,7 +37,9 @@ function setup(policy: unknown, failure?: "auth" | "missing" | "empty" | "timeou
   for (const key of environmentKeys) delete process.env[key];
   const config = parseClientConfig({ schemaVersion: 1, compaction: policy });
   Object.assign(process.env, createCompactionOverrides(config.compaction));
-  const handlers = new Map<string, (event: unknown, ctx: ExtensionContext) => unknown>();
+  type Handler = (event: unknown, ctx: ExtensionContext) => unknown;
+  const handlers = new Map<string, Handler[]>();
+  const listeners = new Map<string, ((data: unknown) => void)[]>();
   const model = {
     provider: "litellm",
     id: "team/summary",
@@ -34,7 +48,12 @@ function setup(policy: unknown, failure?: "auth" | "missing" | "empty" | "timeou
     maxTokens: 10000,
     contextWindow: 128000,
   } as Model;
-  const requests: { model: Model; maxTokens?: number; signal: AbortSignal }[] = [];
+  const requests: {
+    model: Model;
+    maxTokens?: number;
+    signal: AbortSignal;
+    headers?: Record<string, string>;
+  }[] = [];
   const finds: string[][] = [];
   const nativeSettings = {
     compaction: { enabled: true, reserveTokens: 16384, keepRecentTokens: 20000 },
@@ -57,7 +76,7 @@ function setup(policy: unknown, failure?: "auth" | "missing" | "empty" | "timeou
       streamSimple(
         requestModel: Model,
         _context: unknown,
-        options: { maxTokens?: number; signal: AbortSignal },
+        options: { maxTokens?: number; signal: AbortSignal; headers?: Record<string, string> },
       ) {
         requests.push({ model: requestModel, ...options });
         return {
@@ -94,13 +113,30 @@ function setup(policy: unknown, failure?: "auth" | "missing" | "empty" | "timeou
       options.onComplete();
     },
   } as unknown as ExtensionContext;
-  compactionExtension({
-    on: (name: string, handler: (event: unknown, context: ExtensionContext) => unknown) =>
-      handlers.set(name, handler),
+  const host = {
+    on: (name: string, handler: Handler) =>
+      handlers.set(name, [...(handlers.get(name) ?? []), handler]),
     registerCommand: () => {},
     getSettings: () => nativeSettings,
-    events: { emit: () => {} },
-  } as unknown as ExtensionAPI);
+    events: {
+      emit: (channel: string, data: unknown) => {
+        for (const listener of listeners.get(channel) ?? []) listener(data);
+      },
+      on: (channel: string, handler: (data: unknown) => void) => {
+        listeners.set(channel, [...(listeners.get(channel) ?? []), handler]);
+        return () => {};
+      },
+    },
+  } as unknown as ExtensionAPI;
+  compactionExtension(host);
+  const emit = async (name: string, event: unknown = {}) => {
+    let result: unknown;
+    for (const handler of handlers.get(name) ?? []) {
+      const next = await handler(event, ctx);
+      if (next !== undefined) result = next;
+    }
+    return result;
+  };
   const preparation: Preparation = {
     firstKeptEntryId: "kept",
     messagesToSummarize: [{ role: "user", content: "old history", timestamp: 1 }],
@@ -116,20 +152,29 @@ function setup(policy: unknown, failure?: "auth" | "missing" | "empty" | "timeou
     model,
     nativeSettings,
     preparation,
+    publishContext: (data: unknown) => host.events.emit(REQUEST_CONTEXT_CHANNEL, data),
+    loadRequestContext: (exec: ExtensionAPI["exec"]) => {
+      const cwd = mkdtempSync(join(tmpdir(), "axon-compaction-context-"));
+      directories.push(cwd);
+      mkdirSync(join(cwd, ".git"));
+      Object.assign(ctx, { cwd, mode: "rpc" });
+      requestContextExtension({ ...host, exec });
+    },
     compactions: () => compactions,
     setIdle: (value: boolean) => {
       idle = value;
     },
-    emit: (name: string, event: unknown = {}) => handlers.get(name)?.(event, ctx),
-    compact: (reason: "manual" | "threshold" | "overflow", tokensBefore = 90000) =>
-      handlers.get("session_before_compact")?.(
-        {
-          reason,
-          preparation: { ...preparation, tokensBefore },
-          signal: new AbortController().signal,
-        },
-        ctx,
-      ),
+    emit,
+    compact: (
+      reason: "manual" | "threshold" | "overflow",
+      tokensBefore = 90000,
+      signal = new AbortController().signal,
+    ) =>
+      emit("session_before_compact", {
+        reason,
+        preparation: { ...preparation, tokensBefore },
+        signal,
+      }),
   };
 }
 
@@ -147,6 +192,108 @@ test("managed model/output/timeout environment is consumed by the pinned Pi comp
   expect(fixture.requests[0]?.maxTokens).toBe(1234);
   expect(fixture.requests[0]?.signal.aborted).toBe(false);
   expect(fixture.nativeSettings.compaction.enabled).toBe(true);
+});
+
+test("summary requests to LiteLLM carry the session's request context as compaction", async () => {
+  const fixture = setup({ model: "litellm/team/summary" });
+  await fixture.compact("manual");
+  expect(fixture.requests[0]?.headers).toBeUndefined();
+
+  fixture.publishContext(
+    buildRequestContext(
+      { repo: "tata1mg/app", repoDir: ".", piMode: "tui" },
+      { branch: "main", commit: "a1b2c3d" },
+      { AXON_WORKFLOW: "pr-review" },
+    ),
+  );
+  await fixture.compact("manual");
+  const headers = fixture.requests[1]?.headers ?? {};
+  expect(headers["x-litellm-tags"]).toBe(
+    "axon_workflow:pr-review,repo:tata1mg/app,pi_mode:tui,call_kind:compaction",
+  );
+  expect(JSON.parse(headers["x-litellm-spend-logs-metadata"] as string)).toMatchObject({
+    repo: "tata1mg/app",
+    branch: "main",
+    commit: "a1b2c3d",
+    call_kind: "compaction",
+  });
+
+  fixture.model.provider = "anthropic";
+  await fixture.compact("manual");
+  expect(fixture.requests[2]?.headers).toBeUndefined();
+});
+
+function delayedGit(gate: Promise<void>, code = 0): ExtensionAPI["exec"] {
+  return async (_command, args) => {
+    await gate;
+    const stdout = {
+      "rev-parse --show-prefix": ".",
+      "remote get-url origin": "git@github.com:tata1mg/app.git",
+      "symbolic-ref --quiet --short HEAD": "main",
+      "rev-parse --verify --quiet --short HEAD": "a1b2c3d",
+    }[args.slice(2).join(" ")];
+    if (stdout === undefined) throw new Error(`Unexpected Git arguments: ${args.join(" ")}`);
+    return { code, stdout, stderr: "", killed: false, truncated: false };
+  };
+}
+
+test("immediate resumed-session compaction awaits attribution from delayed Git", async () => {
+  const fixture = setup({ model: "litellm/team/summary" });
+  const git = Promise.withResolvers<void>();
+  fixture.loadRequestContext(delayedGit(git.promise));
+  await fixture.emit("session_start", { reason: "resume" });
+  const pending = fixture.compact("manual");
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  expect(fixture.requests).toHaveLength(0);
+
+  git.resolve();
+  const result = (await pending) as { compaction?: { summary: string } };
+  expect(result.compaction?.summary).toContain("safe summary");
+  expect(fixture.requests).toHaveLength(1);
+  const headers = fixture.requests[0]?.headers;
+  expect(headers?.["x-litellm-tags"]).toContain("repo:tata1mg/app");
+  expect(headers?.["x-litellm-tags"]).toEndWith(",call_kind:compaction");
+  expect(JSON.parse(headers?.["x-litellm-spend-logs-metadata"] as string)).toMatchObject({
+    repo: "tata1mg/app",
+    repo_dir: ".",
+    branch: "main",
+    commit: "a1b2c3d",
+    pi_mode: "rpc",
+    call_kind: "compaction",
+  });
+});
+
+test("failed initial attribution cancels compaction without an unattributed request", async () => {
+  const fixture = setup({ model: "litellm/team/summary" });
+  fixture.loadRequestContext(delayedGit(Promise.resolve(), 128));
+  await fixture.emit("session_start", { reason: "resume" });
+  expect(await fixture.compact("manual")).toEqual({ cancel: true });
+  expect(fixture.requests).toHaveLength(0);
+});
+
+test("compaction cancelled while waiting for attribution sends no summary request", async () => {
+  const fixture = setup({ model: "litellm/team/summary" });
+  const git = Promise.withResolvers<void>();
+  fixture.loadRequestContext(delayedGit(git.promise));
+  await fixture.emit("session_start", { reason: "resume" });
+  const controller = new AbortController();
+  const pending = fixture.compact("manual", 90000, controller.signal);
+  controller.abort();
+  git.resolve();
+  expect(await pending).toEqual({ cancel: true });
+  expect(fixture.requests).toHaveLength(0);
+});
+
+test("non-LiteLLM compaction does not wait for or export request attribution", async () => {
+  const fixture = setup({ model: "litellm/team/summary" });
+  const git = Promise.withResolvers<void>();
+  fixture.loadRequestContext(delayedGit(git.promise));
+  fixture.model.provider = "anthropic";
+  await fixture.emit("session_start", { reason: "resume" });
+  const result = (await fixture.compact("manual")) as { compaction?: unknown };
+  expect(result.compaction).toBeDefined();
+  expect(fixture.requests[0]?.headers).toBeUndefined();
+  git.resolve();
 });
 
 test.each([10000, 50000])(

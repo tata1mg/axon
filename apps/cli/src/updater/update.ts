@@ -13,9 +13,10 @@ import {
 import { join, resolve } from "node:path";
 
 import { BUILD_INFO, type BuildInfo } from "../build-info.ts";
+import { isCiEnvironment } from "../harnesses/pi/setup/packages/invocation.ts";
 import { LauncherError } from "../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../launcher/exit-status.ts";
-import { withFileLock } from "../launcher/file-lock.ts";
+import { FileLockTimeoutError, withFileLock } from "../launcher/file-lock.ts";
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../product/endpoints.ts";
 import { type AxonPaths, resolveAxonPaths } from "../product/paths.ts";
 import {
@@ -41,8 +42,22 @@ import {
 
 const BACKGROUND_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const FAILED_CHECK_INTERVAL_MS = 60 * 60 * 1000;
+/** Retry delay after losing the lock to another updater; long enough to cover a download. */
+const BUSY_CHECK_INTERVAL_MS = 10 * 60 * 1000;
 const NO_UPDATE_ENV = "AXON_NO_UPDATE";
-const CI_ENV = "CI";
+
+/**
+ * The one gate shared by the foreground startup check, the background scheduler, and the
+ * background worker, so their opt-outs cannot drift apart.
+ */
+export function automaticUpdatesAllowed(build: BuildInfo, environment: NodeJS.ProcessEnv): boolean {
+  return (
+    build.kind === "binary" &&
+    isReleaseTarget(build.target) &&
+    environment[NO_UPDATE_ENV] !== "1" &&
+    !isCiEnvironment(environment)
+  );
+}
 
 export interface UpdateProgress {
   readonly stage: "check" | "download" | "verify";
@@ -58,6 +73,8 @@ export interface UpdateContext {
   readonly onProgress?: ((progress: UpdateProgress) => void) | undefined;
   /** Only explicit channel selection may move to an older release. */
   readonly channel?: ReleaseChannel;
+  /** How long to wait for another updater; the file-lock default when unset. */
+  readonly lockTimeoutMs?: number;
 }
 
 export function updateContext(): UpdateContext {
@@ -128,19 +145,24 @@ async function verifyStagedBinary(
     if ((await signature.exited) !== 0)
       throw new Error("downloaded binary has an invalid code signature");
   }
-  const probe = Bun.spawn([binary, "--version"], {
-    stdin: "ignore",
-    stdout: "pipe",
-    stderr: "ignore",
-    timeout: 10_000,
-  });
-  const output = await new Response(probe.stdout).text();
-  const reported = output.trim();
-  if (
-    (await probe.exited) !== 0 ||
-    ![version, `${version} (channel: stable)`, `${version} (channel: beta)`].includes(reported)
-  ) {
+    if ((await probeVersion(binary)) !== version) {
     throw new Error("downloaded binary reports the wrong version");
+  }
+}
+
+async function probeVersion(binary: string): Promise<string | undefined> {
+  try {
+    const probe = Bun.spawn([binary, "--version"], {
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "ignore",
+      timeout: 10_000,
+    });
+    const output = await new Response(probe.stdout).text();
+    const reported = output.trim();
+    return (await probe.exited) === 0 ? output.trim() : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -191,14 +213,22 @@ export async function checkForUpdate(
   }
 }
 
-async function performUpdate(context: UpdateContext): Promise<string | undefined> {
+interface UpdateOutcome {
+  /** Newest installed version, or undefined when this build is already current. */
+  readonly version: string | undefined;
+  /** False when another process installed `version` first. */
+  readonly installedHere: boolean;
+}
+
+async function performUpdate(context: UpdateContext): Promise<UpdateOutcome> {
   const target = supportedTarget(context);
   await assertManagedInstallation(context);
   const version = await checkForUpdate(context);
   if (!version) {
     if (context.channel !== undefined)
       await saveReleaseChannel(context.paths.home, context.channel);
-    return undefined;
+    return { version: undefined, installedHere: false };
+  if (await alreadyInstalled(context, version)) return { version, installedHere: false };
   }
   context.onProgress?.({ stage: "download", version });
 
@@ -233,7 +263,7 @@ async function performUpdate(context: UpdateContext): Promise<string | undefined
         throw error;
       }
     }
-    return version;
+    return { version, installedHere: true };
   } finally {
     await rm(staging, { recursive: true, force: true });
   }
@@ -246,37 +276,56 @@ export async function installUpdate(
   try {
     supportedTarget(context);
     await assertManagedInstallation(context);
-    const installed = await withFileLock(join(context.paths.locks, "update.lock"), () =>
-      performUpdate(context),
+    const result = await withFileLock(
+      join(context.paths.locks, "update.lock"),
+      () => performUpdate(context),
+      context.lockTimeoutMs === undefined ? {} : { timeoutMs: context.lockTimeoutMs },
     );
     emitProductEvent({
       category: "update",
       stage: "install",
-      outcome: installed ? "success" : "skipped",
-      reason: installed ? undefined : "up_to_date",
-      version: installed ?? context.build.version,
+      outcome: result.installedHere ? "success" : "skipped",
+      reason: result.installedHere ? undefined : "up_to_date",
+      version: result.version ?? context.build.version,
       durationMs: Date.now() - startedAt,
     });
-    return installed;
+    return result.version;
   } catch (error) {
+    const busy = error instanceof FileLockTimeoutError;
     emitProductEvent({
       category: "update",
       stage: "install",
-      outcome: "failed",
-      reason: productFailureReason(error),
+      outcome: busy ? "skipped" : "failed",
+      reason: busy ? "busy" : productFailureReason(error),
       version: context.build.version,
       durationMs: Date.now() - startedAt,
     });
     throw new LauncherError(
-      error instanceof ReleaseAccessError ? error.message : "could not update axon",
+      error instanceof ReleaseAccessError ? error.message :
+      busy ? "another axon update is already in progress" : "could not update axon",
+
       LAUNCHER_EXIT_STATUS.updateFailure,
+
       {
-        cause: error,
-        remediation:
-          "Keep using the current installation and retry axon update. Beta may be unavailable or paused. To leave beta, run axon update --channel stable.",
-      },
+          cause: error,
+          remediation:
+          busy
+          ? "Retry axon update after the other update finishes."
+          : "Keep using the current installation and retry axon update. Beta may be unavailable or paused. To leave beta, run axon update --channel stable.",
+        },
+    ,
     );
   }
+}
+
+/** Cheap pre-spawn throttle; the worker rechecks under the update lock. */
+export async function backgroundCheckDue(paths: AxonPaths): Promise<boolean> {
+  return Date.now() >= (await nextCheckAt(paths.updateState));
+}
+
+/** Cheap pre-spawn throttle; the worker rechecks under the update lock. */
+export async function backgroundCheckDue(paths: AxonPaths): Promise<boolean> {
+  return Date.now() >= (await nextCheckAt(paths.updateState));
 }
 
 async function nextCheckAt(path: string): Promise<number> {
@@ -310,8 +359,7 @@ async function recordNextCheck(path: string, milliseconds: number): Promise<void
 }
 
 export async function runBackgroundUpdate(context: UpdateContext = updateContext()): Promise<void> {
-  if (context.build.kind !== "binary" || process.env[NO_UPDATE_ENV] === "1" || process.env[CI_ENV])
-    return;
+  if (!automaticUpdatesAllowed(context.build, process.env)) return;
   try {
     await assertManagedInstallation(context);
     await mkdir(context.paths.locks, { recursive: true, mode: 0o700 });
@@ -322,13 +370,13 @@ export async function runBackgroundUpdate(context: UpdateContext = updateContext
         await recordNextCheck(context.paths.updateState, FAILED_CHECK_INTERVAL_MS);
         const startedAt = Date.now();
         try {
-          const installed = await performUpdate(context);
+          const result = await performUpdate(context);
           emitProductEvent({
             category: "update",
             stage: "install",
-            outcome: installed ? "success" : "skipped",
-            reason: installed ? undefined : "up_to_date",
-            version: installed ?? context.build.version,
+            outcome: result.installedHere ? "success" : "skipped",
+            reason: result.installedHere ? undefined : "up_to_date",
+            version: result.version ?? context.build.version,
             durationMs: Date.now() - startedAt,
           });
         } catch (error) {
@@ -346,30 +394,22 @@ export async function runBackgroundUpdate(context: UpdateContext = updateContext
       },
       { timeoutMs: 100 },
     );
-  } catch {
+  } catch (error) {
     /* Best-effort worker never affects the user's completed command. */
+    if (error instanceof FileLockTimeoutError) await deferBusyCheck(context.paths.updateState);
   }
 }
 
-export function scheduleBackgroundUpdate(): void {
-  if (
-    BUILD_INFO.kind !== "binary" ||
-    !process.stdin.isTTY ||
-    !process.stdout.isTTY ||
-    process.env[NO_UPDATE_ENV] === "1" ||
-    process.env[CI_ENV]
-  )
-    return;
+/**
+ * A foreground updater holding the lock does not write update.json, so without this every
+ * scripted launch during its download would spawn another worker that also times out.
+ * Leaves a later deadline alone; racing the holder's own write only schedules an earlier recheck.
+ */
+async function deferBusyCheck(path: string): Promise<void> {
   try {
-    const worker = Bun.spawn([process.execPath, "__background-update"], {
-      detached: true,
-      stdin: "ignore",
-      stdout: "ignore",
-      stderr: "ignore",
-      env: process.env,
-    });
-    worker.unref();
+    if (Date.now() >= (await nextCheckAt(path)))
+      await recordNextCheck(path, BUSY_CHECK_INTERVAL_MS);
   } catch {
-    /* An optional update must not affect harness exit status. */
+    /* Without state the next launch simply retries. */
   }
 }

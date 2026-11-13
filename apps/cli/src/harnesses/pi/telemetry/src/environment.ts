@@ -1,9 +1,13 @@
+import { normalizeWorkflowName, WORKFLOW_ENV } from "../../workflow.ts";
 import { detectTerminalType, type TerminalType } from "./terminal.ts";
+
+export { normalizeWorkflowName, WORKFLOW_ENV } from "../../workflow.ts";
 
 export interface ResourceEnvironment {
   readonly extensionVersion: string;
   readonly piVersion?: string;
   readonly cliVersion?: string;
+  readonly workflowName?: string;
   readonly osType: string;
   readonly hostArch: string;
   readonly runtimeName: string;
@@ -58,6 +62,7 @@ export function describeEnvironment(
   terminalType: TerminalType = detectTerminalType(),
 ): ResourceEnvironment {
   const bun = Reflect.get(versions, "bun") as string | undefined;
+  const workflowName = normalizeWorkflowName(process.env[WORKFLOW_ENV]);
   return {
     extensionVersion,
     ...(piVersion ? { piVersion } : {}),
@@ -65,6 +70,7 @@ export function describeEnvironment(
     /^[a-zA-Z0-9._+-]{1,80}$/.test(process.env["PI_AXON_CLI_VERSION"])
       ? { cliVersion: process.env["PI_AXON_CLI_VERSION"] }
       : {}),
+    ...(workflowName ? { workflowName } : {}),
     osType: OS_TYPES[platform] ?? platform,
     hostArch: HOST_ARCHS[arch] ?? arch,
     runtimeName: bun ? "bun" : "node",

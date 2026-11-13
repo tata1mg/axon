@@ -57,12 +57,17 @@ export function isPiPackageUpdate(argumentsVector: readonly string[]): boolean {
   return packageTarget;
 }
 
+/** `CI=0`/`CI=false` are common in local wrappers and do not mean CI. */
+export function isCiEnvironment(environment: NodeJS.ProcessEnv = process.env): boolean {
+  const ciValue = (Reflect.get(environment, "CI") as string | undefined)?.toLowerCase();
+  return ciValue === "1" || ciValue === "true" || ciValue === "yes";
+}
+
 export function currentPiInvocationEnvironment(
   environment: NodeJS.ProcessEnv = process.env,
 ): PiInvocationEnvironment {
-  const ciValue = (Reflect.get(environment, "CI") as string | undefined)?.toLowerCase();
   return {
-    ci: ciValue === "1" || ciValue === "true" || ciValue === "yes",
+    ci: isCiEnvironment(environment),
     stdinIsTty: process.stdin.isTTY === true,
     stdoutIsTty: process.stdout.isTTY === true,
   };

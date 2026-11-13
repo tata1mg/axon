@@ -50,7 +50,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "count(count by (user_email) (count_over_time(pi_session_started_total{user_email=~\"$user\"}[$__range]))) or vector(0)",
+          "expr": "count(count by (user_email) (count_over_time(pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]))) or vector(0)",
           "legendFormat": "",
           "instant": true,
           "range": false
@@ -95,7 +95,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "count(count by (user_email) (count_over_time(pi_session_started_total{user_email=~\"$user\"}[$__range])) unless count by (user_email) (count_over_time(pi_session_started_total{user_email=~\"$user\"}[30d] offset $__range))) or vector(0)",
+          "expr": "count(count by (user_email) (count_over_time(pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range])) unless count by (user_email) (count_over_time(pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[30d] offset $__range))) or vector(0)",
           "legendFormat": "",
           "instant": true,
           "range": false
@@ -140,7 +140,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "(sum ((increase(pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range)) or (max_over_time(pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) unless (pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range)))) or vector(0)",
+          "expr": "(sum ((increase(pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__range)) or (max_over_time(pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__range]) unless (pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__range)))) or vector(0)",
           "legendFormat": "",
           "instant": true,
           "range": false
@@ -185,7 +185,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "(sum ((increase(pi_interaction_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_interaction_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range)) or (max_over_time(pi_interaction_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) unless (pi_interaction_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range)))) or vector(0)",
+          "expr": "(sum ((increase(pi_interaction_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_interaction_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__range)) or (max_over_time(pi_interaction_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__range]) unless (pi_interaction_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__range)))) or vector(0)",
           "legendFormat": "",
           "instant": true,
           "range": false
@@ -230,7 +230,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "(sum ((increase(pi_cost_USD_total{user_email=~\"$user\"}[$__range]) and (pi_cost_USD_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_cost_USD_total{user_email=~\"$user\"}[$__range]) unless (pi_cost_USD_total{user_email=~\"$user\"} offset $__range)))) or vector(0)",
+          "expr": "(sum ((increase(pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)))) or vector(0)",
           "legendFormat": "",
           "instant": true,
           "range": false
@@ -275,7 +275,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "(sum (label_replace((increase(pi_tokens_input_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_input_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_tokens_input_total{user_email=~\"$user\"}[$__range]) unless (pi_tokens_input_total{user_email=~\"$user\"} offset $__range)), \"metric_source\", \"pi_tokens_input_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_cache_read_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]) unless (pi_tokens_cache_read_total{user_email=~\"$user\"} offset $__range)), \"metric_source\", \"pi_tokens_cache_read_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_write_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_cache_write_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_tokens_cache_write_total{user_email=~\"$user\"}[$__range]) unless (pi_tokens_cache_write_total{user_email=~\"$user\"} offset $__range)), \"metric_source\", \"pi_tokens_cache_write_total\", \"\", \"\") or label_replace((increase(pi_tokens_output_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_output_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_tokens_output_total{user_email=~\"$user\"}[$__range]) unless (pi_tokens_output_total{user_email=~\"$user\"} offset $__range)), \"metric_source\", \"pi_tokens_output_total\", \"\", \"\"))) or vector(0)",
+          "expr": "(sum (label_replace((increase(pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)), \"metric_source\", \"pi_tokens_input_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)), \"metric_source\", \"pi_tokens_cache_read_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)), \"metric_source\", \"pi_tokens_cache_write_total\", \"\", \"\") or label_replace((increase(pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)), \"metric_source\", \"pi_tokens_output_total\", \"\", \"\"))) or vector(0)",
           "legendFormat": "",
           "instant": true,
           "range": false
@@ -320,7 +320,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "(sum ((increase(pi_interaction_duration_seconds_sum{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_interaction_duration_seconds_sum{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range)) or (max_over_time(pi_interaction_duration_seconds_sum{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) unless (pi_interaction_duration_seconds_sum{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range)))) / 3600 or vector(0)",
+          "expr": "(sum ((increase(pi_interaction_duration_seconds_sum{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_interaction_duration_seconds_sum{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__range)) or (max_over_time(pi_interaction_duration_seconds_sum{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__range]) unless (pi_interaction_duration_seconds_sum{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__range)))) / 3600 or vector(0)",
           "legendFormat": "",
           "instant": true,
           "range": false
@@ -366,7 +366,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "(sum ((increase(pi_cost_USD_total{user_email=~\"$user\"}[$__range]) and (pi_cost_USD_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_cost_USD_total{user_email=~\"$user\"}[$__range]) unless (pi_cost_USD_total{user_email=~\"$user\"} offset $__range)))) / (count(count by (user_email) (count_over_time(pi_session_started_total{user_email=~\"$user\"}[$__range]))))",
+          "expr": "(sum ((increase(pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)))) / (count(count by (user_email) (count_over_time(pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]))))",
           "legendFormat": "",
           "instant": true,
           "range": false
@@ -411,7 +411,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "(sum ((increase(pi_cost_USD_total{user_email=~\"$user\"}[$__range]) and (pi_cost_USD_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_cost_USD_total{user_email=~\"$user\"}[$__range]) unless (pi_cost_USD_total{user_email=~\"$user\"} offset $__range)))) / (sum ((increase(pi_session_started_total{user_email=~\"$user\"}[$__range]) and (pi_session_started_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_session_started_total{user_email=~\"$user\"}[$__range]) unless (pi_session_started_total{user_email=~\"$user\"} offset $__range))))",
+          "expr": "(sum ((increase(pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)))) / (sum ((increase(pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range))))",
           "legendFormat": "",
           "instant": true,
           "range": false
@@ -456,7 +456,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "(sum ((increase(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_cache_read_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]) unless (pi_tokens_cache_read_total{user_email=~\"$user\"} offset $__range)))) / (sum (label_replace((increase(pi_tokens_input_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_input_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_tokens_input_total{user_email=~\"$user\"}[$__range]) unless (pi_tokens_input_total{user_email=~\"$user\"} offset $__range)), \"metric_source\", \"pi_tokens_input_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_cache_read_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]) unless (pi_tokens_cache_read_total{user_email=~\"$user\"} offset $__range)), \"metric_source\", \"pi_tokens_cache_read_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_write_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_cache_write_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_tokens_cache_write_total{user_email=~\"$user\"}[$__range]) unless (pi_tokens_cache_write_total{user_email=~\"$user\"} offset $__range)), \"metric_source\", \"pi_tokens_cache_write_total\", \"\", \"\")))",
+          "expr": "(sum ((increase(pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)))) / (sum (label_replace((increase(pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)), \"metric_source\", \"pi_tokens_input_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)), \"metric_source\", \"pi_tokens_cache_read_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)), \"metric_source\", \"pi_tokens_cache_write_total\", \"\", \"\")))",
           "legendFormat": "",
           "instant": true,
           "range": false
@@ -501,7 +501,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "((sum ((increase(pi_llm_errors_total{user_email=~\"$user\"}[$__range]) and (pi_llm_errors_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_llm_errors_total{user_email=~\"$user\"}[$__range]) unless (pi_llm_errors_total{user_email=~\"$user\"} offset $__range)))) or vector(0)) / (sum ((increase(pi_llm_requests_total{user_email=~\"$user\"}[$__range]) and (pi_llm_requests_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_llm_requests_total{user_email=~\"$user\"}[$__range]) unless (pi_llm_requests_total{user_email=~\"$user\"} offset $__range))))",
+          "expr": "((sum ((increase(pi_llm_errors_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_llm_errors_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_llm_errors_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_llm_errors_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)))) or vector(0)) / (sum ((increase(pi_llm_requests_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_llm_requests_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_llm_requests_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_llm_requests_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range))))",
           "legendFormat": "",
           "instant": true,
           "range": false
@@ -546,7 +546,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "((sum ((increase(pi_tool_errors_total{user_email=~\"$user\"}[$__range]) and (pi_tool_errors_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_tool_errors_total{user_email=~\"$user\"}[$__range]) unless (pi_tool_errors_total{user_email=~\"$user\"} offset $__range)))) or vector(0)) / (sum ((increase(pi_tool_calls_total{user_email=~\"$user\"}[$__range]) and (pi_tool_calls_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_tool_calls_total{user_email=~\"$user\"}[$__range]) unless (pi_tool_calls_total{user_email=~\"$user\"} offset $__range))))",
+          "expr": "((sum ((increase(pi_tool_errors_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_tool_errors_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_tool_errors_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_tool_errors_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)))) or vector(0)) / (sum ((increase(pi_tool_calls_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_tool_calls_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_tool_calls_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_tool_calls_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range))))",
           "legendFormat": "",
           "instant": true,
           "range": false
@@ -604,19 +604,19 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "count(count by (user_email) (count_over_time(pi_session_started_total{user_email=~\"$user\"}[1d])))",
+          "expr": "count(count by (user_email) (count_over_time(pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[1d])))",
           "legendFormat": "Daily",
           "interval": "1d"
         },
         {
           "refId": "B",
-          "expr": "count(count by (user_email) (count_over_time(pi_session_started_total{user_email=~\"$user\"}[7d])))",
+          "expr": "count(count by (user_email) (count_over_time(pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[7d])))",
           "legendFormat": "Weekly (rolling 7d)",
           "interval": "1d"
         },
         {
           "refId": "C",
-          "expr": "count(count by (user_email) (count_over_time(pi_session_started_total{user_email=~\"$user\"}[30d])))",
+          "expr": "count(count by (user_email) (count_over_time(pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[30d])))",
           "legendFormat": "Monthly (rolling 30d)",
           "interval": "1d"
         }
@@ -662,12 +662,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum ((increase(pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval)))",
+          "expr": "sum ((increase(pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)))",
           "legendFormat": "Sessions"
         },
         {
           "refId": "B",
-          "expr": "sum ((increase(pi_interaction_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_interaction_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_interaction_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_interaction_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval)))",
+          "expr": "sum ((increase(pi_interaction_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_interaction_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_interaction_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_interaction_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)))",
           "legendFormat": "Interactions"
         }
       ],
@@ -713,7 +713,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "count by (terminal_type) (count by (user_email, terminal_type) (count_over_time(pi_session_started_total{user_email=~\"$user\"}[$__interval])))",
+          "expr": "count by (terminal_type) (count by (user_email, terminal_type) (count_over_time(pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval])))",
           "legendFormat": "{{terminal_type}}",
           "interval": "1d"
         }
@@ -770,7 +770,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "count by (axon_cli_version) (max by (user_email, axon_cli_version) (max_over_time(axon_release_events_total{user_email=~\"$user\",component=\"cli\",stage=\"launch\"}[$__range])) > 0)",
+          "expr": "count by (axon_cli_version) (max by (user_email, axon_cli_version) (max_over_time(axon_release_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"launch\"}[$__range])) > 0)",
           "legendFormat": "{{axon_cli_version}}",
           "instant": true,
           "range": false
@@ -823,7 +823,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (user_email) ((increase(pi_cost_USD_total{user_email=~\"$user\"}[$__range]) and (pi_cost_USD_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_cost_USD_total{user_email=~\"$user\"}[$__range]) unless (pi_cost_USD_total{user_email=~\"$user\"} offset $__range)))",
+          "expr": "sum by (user_email) ((increase(pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)))",
           "legendFormat": "",
           "instant": true,
           "range": false,
@@ -831,7 +831,7 @@
         },
         {
           "refId": "B",
-          "expr": "sum by (user_email) ((increase(pi_session_started_total{user_email=~\"$user\"}[$__range]) and (pi_session_started_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_session_started_total{user_email=~\"$user\"}[$__range]) unless (pi_session_started_total{user_email=~\"$user\"} offset $__range)))",
+          "expr": "sum by (user_email) ((increase(pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)))",
           "legendFormat": "",
           "instant": true,
           "range": false,
@@ -839,7 +839,7 @@
         },
         {
           "refId": "C",
-          "expr": "sum by (user_email) ((increase(pi_interaction_count_total{user_email=~\"$user\"}[$__range]) and (pi_interaction_count_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_interaction_count_total{user_email=~\"$user\"}[$__range]) unless (pi_interaction_count_total{user_email=~\"$user\"} offset $__range)))",
+          "expr": "sum by (user_email) ((increase(pi_interaction_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_interaction_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_interaction_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_interaction_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)))",
           "legendFormat": "",
           "instant": true,
           "range": false,
@@ -847,7 +847,7 @@
         },
         {
           "refId": "D",
-          "expr": "sum by (user_email) (label_replace((increase(pi_tokens_input_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_input_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_tokens_input_total{user_email=~\"$user\"}[$__range]) unless (pi_tokens_input_total{user_email=~\"$user\"} offset $__range)), \"metric_source\", \"pi_tokens_input_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_cache_read_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]) unless (pi_tokens_cache_read_total{user_email=~\"$user\"} offset $__range)), \"metric_source\", \"pi_tokens_cache_read_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_write_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_cache_write_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_tokens_cache_write_total{user_email=~\"$user\"}[$__range]) unless (pi_tokens_cache_write_total{user_email=~\"$user\"} offset $__range)), \"metric_source\", \"pi_tokens_cache_write_total\", \"\", \"\"))",
+          "expr": "sum by (user_email) (label_replace((increase(pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)), \"metric_source\", \"pi_tokens_input_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)), \"metric_source\", \"pi_tokens_cache_read_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)), \"metric_source\", \"pi_tokens_cache_write_total\", \"\", \"\"))",
           "legendFormat": "",
           "instant": true,
           "range": false,
@@ -855,7 +855,7 @@
         },
         {
           "refId": "E",
-          "expr": "sum by (user_email) ((increase(pi_tokens_output_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_output_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_tokens_output_total{user_email=~\"$user\"}[$__range]) unless (pi_tokens_output_total{user_email=~\"$user\"} offset $__range)))",
+          "expr": "sum by (user_email) ((increase(pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)))",
           "legendFormat": "",
           "instant": true,
           "range": false,
@@ -863,7 +863,7 @@
         },
         {
           "refId": "F",
-          "expr": "sum by (user_email) ((increase(pi_tool_calls_total{user_email=~\"$user\"}[$__range]) and (pi_tool_calls_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_tool_calls_total{user_email=~\"$user\"}[$__range]) unless (pi_tool_calls_total{user_email=~\"$user\"} offset $__range)))",
+          "expr": "sum by (user_email) ((increase(pi_tool_calls_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_tool_calls_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_tool_calls_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_tool_calls_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)))",
           "legendFormat": "",
           "instant": true,
           "range": false,
@@ -871,7 +871,7 @@
         },
         {
           "refId": "G",
-          "expr": "sum by (user_email) ((increase(pi_interaction_duration_seconds_sum{user_email=~\"$user\"}[$__range]) and (pi_interaction_duration_seconds_sum{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_interaction_duration_seconds_sum{user_email=~\"$user\"}[$__range]) unless (pi_interaction_duration_seconds_sum{user_email=~\"$user\"} offset $__range))) / 3600",
+          "expr": "sum by (user_email) ((increase(pi_interaction_duration_seconds_sum{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_interaction_duration_seconds_sum{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_interaction_duration_seconds_sum{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_interaction_duration_seconds_sum{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range))) / 3600",
           "legendFormat": "",
           "instant": true,
           "range": false,
@@ -1062,7 +1062,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "topk(10, sum by (user_email) (label_replace((increase(pi_tokens_input_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_input_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_tokens_input_total{user_email=~\"$user\"}[$__range]) unless (pi_tokens_input_total{user_email=~\"$user\"} offset $__range)), \"metric_source\", \"pi_tokens_input_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_cache_read_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]) unless (pi_tokens_cache_read_total{user_email=~\"$user\"} offset $__range)), \"metric_source\", \"pi_tokens_cache_read_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_write_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_cache_write_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_tokens_cache_write_total{user_email=~\"$user\"}[$__range]) unless (pi_tokens_cache_write_total{user_email=~\"$user\"} offset $__range)), \"metric_source\", \"pi_tokens_cache_write_total\", \"\", \"\") or label_replace((increase(pi_tokens_output_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_output_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_tokens_output_total{user_email=~\"$user\"}[$__range]) unless (pi_tokens_output_total{user_email=~\"$user\"} offset $__range)), \"metric_source\", \"pi_tokens_output_total\", \"\", \"\")))",
+          "expr": "topk(10, sum by (user_email) (label_replace((increase(pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)), \"metric_source\", \"pi_tokens_input_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)), \"metric_source\", \"pi_tokens_cache_read_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)), \"metric_source\", \"pi_tokens_cache_write_total\", \"\", \"\") or label_replace((increase(pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)), \"metric_source\", \"pi_tokens_output_total\", \"\", \"\")))",
           "legendFormat": "{{user_email}}",
           "instant": true,
           "range": false
@@ -1109,7 +1109,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "topk(10, sum by (pi_repo_slug) ((increase(pi_session_cost_USD_sum{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_session_cost_USD_sum{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range)) or (max_over_time(pi_session_cost_USD_sum{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) unless (pi_session_cost_USD_sum{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range))))",
+          "expr": "topk(10, sum by (pi_repo_slug) ((increase(pi_session_cost_USD_sum{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_session_cost_USD_sum{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__range)) or (max_over_time(pi_session_cost_USD_sum{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__range]) unless (pi_session_cost_USD_sum{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__range))))",
           "legendFormat": "{{pi_repo_slug}}",
           "instant": true,
           "range": false
@@ -1156,7 +1156,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "topk(10, sum by (gen_ai_request_model) ((increase(pi_cost_USD_total{user_email=~\"$user\"}[$__range]) and (pi_cost_USD_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_cost_USD_total{user_email=~\"$user\"}[$__range]) unless (pi_cost_USD_total{user_email=~\"$user\"} offset $__range))))",
+          "expr": "topk(10, sum by (gen_ai_request_model) ((increase(pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range))))",
           "legendFormat": "{{gen_ai_request_model}}",
           "instant": true,
           "range": false
@@ -1216,7 +1216,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (gen_ai_request_model) ((increase(pi_cost_USD_total{user_email=~\"$user\"}[$__interval]) and (pi_cost_USD_total{user_email=~\"$user\"} offset $__interval)) or (max_over_time(pi_cost_USD_total{user_email=~\"$user\"}[$__interval]) unless (pi_cost_USD_total{user_email=~\"$user\"} offset $__interval)))",
+          "expr": "sum by (gen_ai_request_model) ((increase(pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) and (pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)) or (max_over_time(pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) unless (pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)))",
           "legendFormat": "{{gen_ai_request_model}}"
         }
       ],
@@ -1266,7 +1266,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (pi_usage_source) ((increase(pi_cost_USD_total{user_email=~\"$user\"}[$__range]) and (pi_cost_USD_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_cost_USD_total{user_email=~\"$user\"}[$__range]) unless (pi_cost_USD_total{user_email=~\"$user\"} offset $__range)))",
+          "expr": "sum by (pi_usage_source) ((increase(pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)))",
           "legendFormat": "{{pi_usage_source}}",
           "instant": true,
           "range": false
@@ -1313,22 +1313,22 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum ((increase(pi_tokens_input_total{user_email=~\"$user\"}[$__interval]) and (pi_tokens_input_total{user_email=~\"$user\"} offset $__interval)) or (max_over_time(pi_tokens_input_total{user_email=~\"$user\"}[$__interval]) unless (pi_tokens_input_total{user_email=~\"$user\"} offset $__interval)))",
+          "expr": "sum ((increase(pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) and (pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)) or (max_over_time(pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) unless (pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)))",
           "legendFormat": "Input (uncached)"
         },
         {
           "refId": "B",
-          "expr": "sum ((increase(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__interval]) and (pi_tokens_cache_read_total{user_email=~\"$user\"} offset $__interval)) or (max_over_time(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__interval]) unless (pi_tokens_cache_read_total{user_email=~\"$user\"} offset $__interval)))",
+          "expr": "sum ((increase(pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) and (pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)) or (max_over_time(pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) unless (pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)))",
           "legendFormat": "Cache read"
         },
         {
           "refId": "C",
-          "expr": "sum ((increase(pi_tokens_cache_write_total{user_email=~\"$user\"}[$__interval]) and (pi_tokens_cache_write_total{user_email=~\"$user\"} offset $__interval)) or (max_over_time(pi_tokens_cache_write_total{user_email=~\"$user\"}[$__interval]) unless (pi_tokens_cache_write_total{user_email=~\"$user\"} offset $__interval)))",
+          "expr": "sum ((increase(pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) and (pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)) or (max_over_time(pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) unless (pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)))",
           "legendFormat": "Cache write"
         },
         {
           "refId": "D",
-          "expr": "sum ((increase(pi_tokens_output_total{user_email=~\"$user\"}[$__interval]) and (pi_tokens_output_total{user_email=~\"$user\"} offset $__interval)) or (max_over_time(pi_tokens_output_total{user_email=~\"$user\"}[$__interval]) unless (pi_tokens_output_total{user_email=~\"$user\"} offset $__interval)))",
+          "expr": "sum ((increase(pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) and (pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)) or (max_over_time(pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) unless (pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)))",
           "legendFormat": "Output (incl. reasoning)"
         }
       ],
@@ -1378,28 +1378,28 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum ((increase(pi_tokens_input_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_input_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_tokens_input_total{user_email=~\"$user\"}[$__range]) unless (pi_tokens_input_total{user_email=~\"$user\"} offset $__range)))",
+          "expr": "sum ((increase(pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)))",
           "legendFormat": "Input (uncached)",
           "instant": true,
           "range": false
         },
         {
           "refId": "B",
-          "expr": "sum ((increase(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_cache_read_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]) unless (pi_tokens_cache_read_total{user_email=~\"$user\"} offset $__range)))",
+          "expr": "sum ((increase(pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)))",
           "legendFormat": "Cache read",
           "instant": true,
           "range": false
         },
         {
           "refId": "C",
-          "expr": "sum ((increase(pi_tokens_cache_write_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_cache_write_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_tokens_cache_write_total{user_email=~\"$user\"}[$__range]) unless (pi_tokens_cache_write_total{user_email=~\"$user\"} offset $__range)))",
+          "expr": "sum ((increase(pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)))",
           "legendFormat": "Cache write",
           "instant": true,
           "range": false
         },
         {
           "refId": "D",
-          "expr": "sum ((increase(pi_tokens_output_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_output_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_tokens_output_total{user_email=~\"$user\"}[$__range]) unless (pi_tokens_output_total{user_email=~\"$user\"} offset $__range)))",
+          "expr": "sum ((increase(pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)))",
           "legendFormat": "Output",
           "instant": true,
           "range": false
@@ -1446,7 +1446,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (gen_ai_request_model) ((increase(pi_cost_USD_total{user_email=~\"$user\"}[$__range]) and (pi_cost_USD_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_cost_USD_total{user_email=~\"$user\"}[$__range]) unless (pi_cost_USD_total{user_email=~\"$user\"} offset $__range)))",
+          "expr": "sum by (gen_ai_request_model) ((increase(pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)))",
           "legendFormat": "",
           "instant": true,
           "range": false,
@@ -1454,7 +1454,7 @@
         },
         {
           "refId": "B",
-          "expr": "sum by (gen_ai_request_model) ((increase(pi_llm_requests_total{user_email=~\"$user\"}[$__range]) and (pi_llm_requests_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_llm_requests_total{user_email=~\"$user\"}[$__range]) unless (pi_llm_requests_total{user_email=~\"$user\"} offset $__range)))",
+          "expr": "sum by (gen_ai_request_model) ((increase(pi_llm_requests_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_llm_requests_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_llm_requests_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_llm_requests_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)))",
           "legendFormat": "",
           "instant": true,
           "range": false,
@@ -1462,7 +1462,7 @@
         },
         {
           "refId": "C",
-          "expr": "sum by (gen_ai_request_model) (label_replace((increase(pi_tokens_input_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_input_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_tokens_input_total{user_email=~\"$user\"}[$__range]) unless (pi_tokens_input_total{user_email=~\"$user\"} offset $__range)), \"metric_source\", \"pi_tokens_input_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_cache_read_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]) unless (pi_tokens_cache_read_total{user_email=~\"$user\"} offset $__range)), \"metric_source\", \"pi_tokens_cache_read_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_write_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_cache_write_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_tokens_cache_write_total{user_email=~\"$user\"}[$__range]) unless (pi_tokens_cache_write_total{user_email=~\"$user\"} offset $__range)), \"metric_source\", \"pi_tokens_cache_write_total\", \"\", \"\"))",
+          "expr": "sum by (gen_ai_request_model) (label_replace((increase(pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)), \"metric_source\", \"pi_tokens_input_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)), \"metric_source\", \"pi_tokens_cache_read_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)), \"metric_source\", \"pi_tokens_cache_write_total\", \"\", \"\"))",
           "legendFormat": "",
           "instant": true,
           "range": false,
@@ -1470,7 +1470,7 @@
         },
         {
           "refId": "D",
-          "expr": "sum by (gen_ai_request_model) ((increase(pi_tokens_output_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_output_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_tokens_output_total{user_email=~\"$user\"}[$__range]) unless (pi_tokens_output_total{user_email=~\"$user\"} offset $__range)))",
+          "expr": "sum by (gen_ai_request_model) ((increase(pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)))",
           "legendFormat": "",
           "instant": true,
           "range": false,
@@ -1478,7 +1478,7 @@
         },
         {
           "refId": "E",
-          "expr": "sum by (gen_ai_request_model) ((increase(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_cache_read_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]) unless (pi_tokens_cache_read_total{user_email=~\"$user\"} offset $__range))) / sum by (gen_ai_request_model) (label_replace((increase(pi_tokens_input_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_input_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_tokens_input_total{user_email=~\"$user\"}[$__range]) unless (pi_tokens_input_total{user_email=~\"$user\"} offset $__range)), \"metric_source\", \"pi_tokens_input_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_cache_read_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]) unless (pi_tokens_cache_read_total{user_email=~\"$user\"} offset $__range)), \"metric_source\", \"pi_tokens_cache_read_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_write_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_cache_write_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_tokens_cache_write_total{user_email=~\"$user\"}[$__range]) unless (pi_tokens_cache_write_total{user_email=~\"$user\"} offset $__range)), \"metric_source\", \"pi_tokens_cache_write_total\", \"\", \"\"))",
+          "expr": "sum by (gen_ai_request_model) ((increase(pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range))) / sum by (gen_ai_request_model) (label_replace((increase(pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)), \"metric_source\", \"pi_tokens_input_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)), \"metric_source\", \"pi_tokens_cache_read_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)), \"metric_source\", \"pi_tokens_cache_write_total\", \"\", \"\"))",
           "legendFormat": "",
           "instant": true,
           "range": false,
@@ -1486,7 +1486,7 @@
         },
         {
           "refId": "F",
-          "expr": "sum by (gen_ai_request_model) ((increase(pi_cost_USD_total{user_email=~\"$user\"}[$__range]) and (pi_cost_USD_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_cost_USD_total{user_email=~\"$user\"}[$__range]) unless (pi_cost_USD_total{user_email=~\"$user\"} offset $__range))) / sum by (gen_ai_request_model) ((increase(pi_llm_requests_total{user_email=~\"$user\"}[$__range]) and (pi_llm_requests_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_llm_requests_total{user_email=~\"$user\"}[$__range]) unless (pi_llm_requests_total{user_email=~\"$user\"} offset $__range)))",
+          "expr": "sum by (gen_ai_request_model) ((increase(pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range))) / sum by (gen_ai_request_model) ((increase(pi_llm_requests_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_llm_requests_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_llm_requests_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_llm_requests_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)))",
           "legendFormat": "",
           "instant": true,
           "range": false,
@@ -1494,7 +1494,7 @@
         },
         {
           "refId": "G",
-          "expr": "count by (gen_ai_request_model) (count by (gen_ai_request_model, user_email) (count_over_time(pi_llm_requests_total{user_email=~\"$user\"}[$__range])))",
+          "expr": "count by (gen_ai_request_model) (count by (gen_ai_request_model, user_email) (count_over_time(pi_llm_requests_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range])))",
           "legendFormat": "",
           "instant": true,
           "range": false,
@@ -1698,7 +1698,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (gen_ai_request_model) ((increase(pi_llm_requests_total{user_email=~\"$user\"}[$__range]) and (pi_llm_requests_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_llm_requests_total{user_email=~\"$user\"}[$__range]) unless (pi_llm_requests_total{user_email=~\"$user\"} offset $__range)))",
+          "expr": "sum by (gen_ai_request_model) ((increase(pi_llm_requests_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_llm_requests_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_llm_requests_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_llm_requests_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)))",
           "legendFormat": "{{gen_ai_request_model}}",
           "instant": true,
           "range": false
@@ -1745,7 +1745,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (pi_thinking_level) ((increase(pi_llm_requests_total{user_email=~\"$user\"}[$__range]) and (pi_llm_requests_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_llm_requests_total{user_email=~\"$user\"}[$__range]) unless (pi_llm_requests_total{user_email=~\"$user\"} offset $__range)))",
+          "expr": "sum by (pi_thinking_level) ((increase(pi_llm_requests_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_llm_requests_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_llm_requests_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_llm_requests_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)))",
           "legendFormat": "{{pi_thinking_level}}",
           "instant": true,
           "range": false
@@ -1792,7 +1792,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (pi_thinking_level) ((increase(pi_cost_USD_total{user_email=~\"$user\",pi_usage_source=\"assistant\"}[$__range]) and (pi_cost_USD_total{user_email=~\"$user\",pi_usage_source=\"assistant\"} offset $__range)) or (max_over_time(pi_cost_USD_total{user_email=~\"$user\",pi_usage_source=\"assistant\"}[$__range]) unless (pi_cost_USD_total{user_email=~\"$user\",pi_usage_source=\"assistant\"} offset $__range)))",
+          "expr": "sum by (pi_thinking_level) ((increase(pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_usage_source=\"assistant\"}[$__range]) and (pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_usage_source=\"assistant\"} offset $__range)) or (max_over_time(pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_usage_source=\"assistant\"}[$__range]) unless (pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_usage_source=\"assistant\"} offset $__range)))",
           "legendFormat": "{{pi_thinking_level}}",
           "instant": true,
           "range": false
@@ -1839,7 +1839,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (pi_thinking_level) ((increase(pi_llm_requests_total{user_email=~\"$user\"}[$__interval]) and (pi_llm_requests_total{user_email=~\"$user\"} offset $__interval)) or (max_over_time(pi_llm_requests_total{user_email=~\"$user\"}[$__interval]) unless (pi_llm_requests_total{user_email=~\"$user\"} offset $__interval)))",
+          "expr": "sum by (pi_thinking_level) ((increase(pi_llm_requests_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) and (pi_llm_requests_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)) or (max_over_time(pi_llm_requests_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) unless (pi_llm_requests_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)))",
           "legendFormat": "{{pi_thinking_level}}"
         }
       ],
@@ -1889,7 +1889,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (gen_ai_request_model) ((increase(pi_tokens_reasoning_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_reasoning_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_tokens_reasoning_total{user_email=~\"$user\"}[$__range]) unless (pi_tokens_reasoning_total{user_email=~\"$user\"} offset $__range))) / sum by (gen_ai_request_model) ((increase(pi_tokens_output_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_output_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_tokens_output_total{user_email=~\"$user\"}[$__range]) unless (pi_tokens_output_total{user_email=~\"$user\"} offset $__range)))",
+          "expr": "sum by (gen_ai_request_model) ((increase(pi_tokens_reasoning_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_tokens_reasoning_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_tokens_reasoning_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_tokens_reasoning_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range))) / sum by (gen_ai_request_model) ((increase(pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)))",
           "legendFormat": "{{gen_ai_request_model}}",
           "instant": true,
           "range": false
@@ -1936,7 +1936,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.95, sum by (le, gen_ai_request_model) (rate(gen_ai_client_operation_duration_seconds_bucket{user_email=~\"$user\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le, gen_ai_request_model) (rate(gen_ai_client_operation_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__rate_interval])))",
           "legendFormat": "{{gen_ai_request_model}}"
         }
       ],
@@ -1979,7 +1979,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.95, sum(rate(pi_context_utilization_percent_bucket{user_email=~\"$user\"}[5m])) by (le, gen_ai_request_model))",
+          "expr": "histogram_quantile(0.95, sum(rate(pi_context_utilization_percent_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[5m])) by (le, gen_ai_request_model))",
           "legendFormat": "{{gen_ai_request_model}}"
         }
       ],
@@ -2027,7 +2027,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (terminal_type) ((increase(pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range)) or (max_over_time(pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) unless (pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range)))",
+          "expr": "sum by (terminal_type) ((increase(pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__range)) or (max_over_time(pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__range]) unless (pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__range)))",
           "legendFormat": "{{terminal_type}}",
           "instant": true,
           "range": false
@@ -2074,7 +2074,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (pi_mode) ((increase(pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range)) or (max_over_time(pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) unless (pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range)))",
+          "expr": "sum by (pi_mode) ((increase(pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__range)) or (max_over_time(pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__range]) unless (pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__range)))",
           "legendFormat": "{{pi_mode}}",
           "instant": true,
           "range": false
@@ -2121,7 +2121,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "topk(10, sum by (pi_repo_slug) ((increase(pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range)) or (max_over_time(pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) unless (pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range))))",
+          "expr": "topk(10, sum by (pi_repo_slug) ((increase(pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__range)) or (max_over_time(pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__range]) unless (pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__range))))",
           "legendFormat": "{{pi_repo_slug}}",
           "instant": true,
           "range": false
@@ -2168,12 +2168,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.5, sum by (le) ((increase(pi_session_cost_USD_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_session_cost_USD_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_session_cost_USD_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_session_cost_USD_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
+          "expr": "histogram_quantile(0.5, sum by (le) ((increase(pi_session_cost_USD_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_session_cost_USD_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_session_cost_USD_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_session_cost_USD_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
           "legendFormat": "p50"
         },
         {
           "refId": "B",
-          "expr": "histogram_quantile(0.9, sum by (le) ((increase(pi_session_cost_USD_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_session_cost_USD_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_session_cost_USD_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_session_cost_USD_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
+          "expr": "histogram_quantile(0.9, sum by (le) ((increase(pi_session_cost_USD_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_session_cost_USD_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_session_cost_USD_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_session_cost_USD_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
           "legendFormat": "p90"
         }
       ],
@@ -2218,12 +2218,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.5, sum by (le) ((increase(pi_session_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_session_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_session_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_session_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
+          "expr": "histogram_quantile(0.5, sum by (le) ((increase(pi_session_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_session_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_session_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_session_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
           "legendFormat": "p50"
         },
         {
           "refId": "B",
-          "expr": "histogram_quantile(0.9, sum by (le) ((increase(pi_session_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_session_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_session_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_session_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
+          "expr": "histogram_quantile(0.9, sum by (le) ((increase(pi_session_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_session_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_session_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_session_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
           "legendFormat": "p90"
         }
       ],
@@ -2268,12 +2268,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.5, sum by (le) ((increase(pi_session_interactions_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_session_interactions_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_session_interactions_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_session_interactions_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
+          "expr": "histogram_quantile(0.5, sum by (le) ((increase(pi_session_interactions_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_session_interactions_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_session_interactions_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_session_interactions_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
           "legendFormat": "p50"
         },
         {
           "refId": "B",
-          "expr": "histogram_quantile(0.9, sum by (le) ((increase(pi_session_interactions_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_session_interactions_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_session_interactions_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_session_interactions_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
+          "expr": "histogram_quantile(0.9, sum by (le) ((increase(pi_session_interactions_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_session_interactions_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_session_interactions_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_session_interactions_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
           "legendFormat": "p90"
         }
       ],
@@ -2318,12 +2318,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.5, sum by (le) ((increase(pi_session_tokens_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_session_tokens_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_session_tokens_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_session_tokens_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
+          "expr": "histogram_quantile(0.5, sum by (le) ((increase(pi_session_tokens_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_session_tokens_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_session_tokens_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_session_tokens_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
           "legendFormat": "p50"
         },
         {
           "refId": "B",
-          "expr": "histogram_quantile(0.9, sum by (le) ((increase(pi_session_tokens_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_session_tokens_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_session_tokens_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_session_tokens_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
+          "expr": "histogram_quantile(0.9, sum by (le) ((increase(pi_session_tokens_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_session_tokens_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_session_tokens_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_session_tokens_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
           "legendFormat": "p90"
         }
       ],
@@ -2368,14 +2368,14 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (pi_session_reason) ((increase(pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range)) or (max_over_time(pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) unless (pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range)))",
+          "expr": "sum by (pi_session_reason) ((increase(pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__range)) or (max_over_time(pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__range]) unless (pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__range)))",
           "legendFormat": "start · {{pi_session_reason}}",
           "instant": true,
           "range": false
         },
         {
           "refId": "B",
-          "expr": "sum by (pi_session_reason) ((increase(pi_session_ended_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_session_ended_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range)) or (max_over_time(pi_session_ended_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) unless (pi_session_ended_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range)))",
+          "expr": "sum by (pi_session_reason) ((increase(pi_session_ended_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_session_ended_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__range)) or (max_over_time(pi_session_ended_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__range]) unless (pi_session_ended_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__range)))",
           "legendFormat": "end · {{pi_session_reason}}",
           "instant": true,
           "range": false
@@ -2422,7 +2422,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (pi_input_source, pi_input_streaming_behavior) ((increase(pi_user_input_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_user_input_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range)) or (max_over_time(pi_user_input_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) unless (pi_user_input_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range)))",
+          "expr": "sum by (pi_input_source, pi_input_streaming_behavior) ((increase(pi_user_input_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_user_input_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__range)) or (max_over_time(pi_user_input_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__range]) unless (pi_user_input_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__range)))",
           "legendFormat": "{{pi_input_source}} {{pi_input_streaming_behavior}}",
           "instant": true,
           "range": false
@@ -2476,7 +2476,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (kind) ((increase(pi_user_intervention_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_user_intervention_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range)) or (max_over_time(pi_user_intervention_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) unless (pi_user_intervention_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range)))",
+          "expr": "sum by (kind) ((increase(pi_user_intervention_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_user_intervention_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__range)) or (max_over_time(pi_user_intervention_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__range]) unless (pi_user_intervention_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__range)))",
           "legendFormat": "{{kind}}",
           "instant": true,
           "range": false
@@ -2530,22 +2530,22 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum ((increase(pi_agent_run_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_agent_run_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_agent_run_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_agent_run_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval)))",
+          "expr": "sum ((increase(pi_agent_run_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_agent_run_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_agent_run_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_agent_run_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)))",
           "legendFormat": "Agent runs"
         },
         {
           "refId": "B",
-          "expr": "sum ((increase(pi_turn_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_turn_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_turn_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_turn_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval)))",
+          "expr": "sum ((increase(pi_turn_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_turn_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_turn_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_turn_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)))",
           "legendFormat": "Turns"
         },
         {
           "refId": "C",
-          "expr": "sum ((increase(pi_agent_run_repeated_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_agent_run_repeated_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_agent_run_repeated_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_agent_run_repeated_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval)))",
+          "expr": "sum ((increase(pi_agent_run_repeated_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_agent_run_repeated_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_agent_run_repeated_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_agent_run_repeated_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)))",
           "legendFormat": "Repeated runs"
         },
         {
           "refId": "D",
-          "expr": "sum ((increase(pi_user_input_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_user_input_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_user_input_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_user_input_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval)))",
+          "expr": "sum ((increase(pi_user_input_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_user_input_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_user_input_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_user_input_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)))",
           "legendFormat": "User inputs"
         }
       ],
@@ -2589,22 +2589,22 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.5, sum by (le) ((increase(gen_ai_invoke_agent_inference_calls_bucket{user_email=~\"$user\"}[$__interval]) and (gen_ai_invoke_agent_inference_calls_bucket{user_email=~\"$user\"} offset $__interval)) or (max_over_time(gen_ai_invoke_agent_inference_calls_bucket{user_email=~\"$user\"}[$__interval]) unless (gen_ai_invoke_agent_inference_calls_bucket{user_email=~\"$user\"} offset $__interval))))",
+          "expr": "histogram_quantile(0.5, sum by (le) ((increase(gen_ai_invoke_agent_inference_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) and (gen_ai_invoke_agent_inference_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)) or (max_over_time(gen_ai_invoke_agent_inference_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) unless (gen_ai_invoke_agent_inference_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval))))",
           "legendFormat": "LLM calls p50"
         },
         {
           "refId": "B",
-          "expr": "histogram_quantile(0.9, sum by (le) ((increase(gen_ai_invoke_agent_inference_calls_bucket{user_email=~\"$user\"}[$__interval]) and (gen_ai_invoke_agent_inference_calls_bucket{user_email=~\"$user\"} offset $__interval)) or (max_over_time(gen_ai_invoke_agent_inference_calls_bucket{user_email=~\"$user\"}[$__interval]) unless (gen_ai_invoke_agent_inference_calls_bucket{user_email=~\"$user\"} offset $__interval))))",
+          "expr": "histogram_quantile(0.9, sum by (le) ((increase(gen_ai_invoke_agent_inference_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) and (gen_ai_invoke_agent_inference_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)) or (max_over_time(gen_ai_invoke_agent_inference_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) unless (gen_ai_invoke_agent_inference_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval))))",
           "legendFormat": "LLM calls p90"
         },
         {
           "refId": "C",
-          "expr": "histogram_quantile(0.5, sum by (le) ((increase(gen_ai_invoke_agent_tool_calls_bucket{user_email=~\"$user\"}[$__interval]) and (gen_ai_invoke_agent_tool_calls_bucket{user_email=~\"$user\"} offset $__interval)) or (max_over_time(gen_ai_invoke_agent_tool_calls_bucket{user_email=~\"$user\"}[$__interval]) unless (gen_ai_invoke_agent_tool_calls_bucket{user_email=~\"$user\"} offset $__interval))))",
+          "expr": "histogram_quantile(0.5, sum by (le) ((increase(gen_ai_invoke_agent_tool_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) and (gen_ai_invoke_agent_tool_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)) or (max_over_time(gen_ai_invoke_agent_tool_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) unless (gen_ai_invoke_agent_tool_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval))))",
           "legendFormat": "Tool calls p50"
         },
         {
           "refId": "D",
-          "expr": "histogram_quantile(0.9, sum by (le) ((increase(gen_ai_invoke_agent_tool_calls_bucket{user_email=~\"$user\"}[$__interval]) and (gen_ai_invoke_agent_tool_calls_bucket{user_email=~\"$user\"} offset $__interval)) or (max_over_time(gen_ai_invoke_agent_tool_calls_bucket{user_email=~\"$user\"}[$__interval]) unless (gen_ai_invoke_agent_tool_calls_bucket{user_email=~\"$user\"} offset $__interval))))",
+          "expr": "histogram_quantile(0.9, sum by (le) ((increase(gen_ai_invoke_agent_tool_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) and (gen_ai_invoke_agent_tool_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)) or (max_over_time(gen_ai_invoke_agent_tool_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) unless (gen_ai_invoke_agent_tool_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval))))",
           "legendFormat": "Tool calls p90"
         }
       ],
@@ -2649,22 +2649,22 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.5, sum by (le) ((increase(pi_turn_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_turn_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_turn_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_turn_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
+          "expr": "histogram_quantile(0.5, sum by (le) ((increase(pi_turn_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_turn_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_turn_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_turn_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
           "legendFormat": "Turn p50"
         },
         {
           "refId": "B",
-          "expr": "histogram_quantile(0.95, sum by (le) ((increase(pi_turn_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_turn_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_turn_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_turn_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
+          "expr": "histogram_quantile(0.95, sum by (le) ((increase(pi_turn_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_turn_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_turn_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_turn_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
           "legendFormat": "Turn p95"
         },
         {
           "refId": "C",
-          "expr": "histogram_quantile(0.5, sum by (le) ((increase(pi_agent_run_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_agent_run_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_agent_run_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_agent_run_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
+          "expr": "histogram_quantile(0.5, sum by (le) ((increase(pi_agent_run_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_agent_run_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_agent_run_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_agent_run_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
           "legendFormat": "Run p50"
         },
         {
           "refId": "D",
-          "expr": "histogram_quantile(0.95, sum by (le) ((increase(pi_agent_run_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_agent_run_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_agent_run_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_agent_run_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
+          "expr": "histogram_quantile(0.95, sum by (le) ((increase(pi_agent_run_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_agent_run_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_agent_run_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_agent_run_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
           "legendFormat": "Run p95"
         }
       ],
@@ -2709,7 +2709,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.95, sum by (le, gen_ai_tool_name) ((increase(gen_ai_execute_tool_duration_seconds_bucket{user_email=~\"$user\"}[$__interval]) and (gen_ai_execute_tool_duration_seconds_bucket{user_email=~\"$user\"} offset $__interval)) or (max_over_time(gen_ai_execute_tool_duration_seconds_bucket{user_email=~\"$user\"}[$__interval]) unless (gen_ai_execute_tool_duration_seconds_bucket{user_email=~\"$user\"} offset $__interval))))",
+          "expr": "histogram_quantile(0.95, sum by (le, gen_ai_tool_name) ((increase(gen_ai_execute_tool_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) and (gen_ai_execute_tool_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)) or (max_over_time(gen_ai_execute_tool_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) unless (gen_ai_execute_tool_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval))))",
           "legendFormat": "{{gen_ai_tool_name}}"
         }
       ],
@@ -2754,7 +2754,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (outcome) ((increase(pi_turn_duration_seconds_count{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_turn_duration_seconds_count{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range)) or (max_over_time(pi_turn_duration_seconds_count{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) unless (pi_turn_duration_seconds_count{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range)))",
+          "expr": "sum by (outcome) ((increase(pi_turn_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_turn_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__range)) or (max_over_time(pi_turn_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__range]) unless (pi_turn_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__range)))",
           "legendFormat": "{{outcome}}",
           "instant": true,
           "range": false
@@ -2801,7 +2801,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (pi_stop_reason) ((increase(pi_agent_run_duration_seconds_count{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_agent_run_duration_seconds_count{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range)) or (max_over_time(pi_agent_run_duration_seconds_count{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) unless (pi_agent_run_duration_seconds_count{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range)))",
+          "expr": "sum by (pi_stop_reason) ((increase(pi_agent_run_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_agent_run_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__range)) or (max_over_time(pi_agent_run_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__range]) unless (pi_agent_run_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__range)))",
           "legendFormat": "{{pi_stop_reason}}",
           "instant": true,
           "range": false
@@ -2848,7 +2848,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (outcome) ((increase(pi_user_wait_duration_seconds_count{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_user_wait_duration_seconds_count{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range)) or (max_over_time(pi_user_wait_duration_seconds_count{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) unless (pi_user_wait_duration_seconds_count{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range)))",
+          "expr": "sum by (outcome) ((increase(pi_user_wait_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_user_wait_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__range)) or (max_over_time(pi_user_wait_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__range]) unless (pi_user_wait_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__range)))",
           "legendFormat": "{{outcome}}",
           "instant": true,
           "range": false
@@ -2895,12 +2895,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.5, sum by (le) ((increase(pi_user_wait_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_user_wait_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_user_wait_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_user_wait_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
+          "expr": "histogram_quantile(0.5, sum by (le) ((increase(pi_user_wait_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_user_wait_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_user_wait_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_user_wait_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
           "legendFormat": "p50"
         },
         {
           "refId": "B",
-          "expr": "histogram_quantile(0.95, sum by (le) ((increase(pi_user_wait_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_user_wait_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_user_wait_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_user_wait_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
+          "expr": "histogram_quantile(0.95, sum by (le) ((increase(pi_user_wait_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_user_wait_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_user_wait_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_user_wait_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
           "legendFormat": "p95"
         }
       ],
@@ -2958,17 +2958,17 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (error_type) ((increase(pi_llm_errors_total{user_email=~\"$user\"}[$__interval]) and (pi_llm_errors_total{user_email=~\"$user\"} offset $__interval)) or (max_over_time(pi_llm_errors_total{user_email=~\"$user\"}[$__interval]) unless (pi_llm_errors_total{user_email=~\"$user\"} offset $__interval)))",
+          "expr": "sum by (error_type) ((increase(pi_llm_errors_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) and (pi_llm_errors_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)) or (max_over_time(pi_llm_errors_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) unless (pi_llm_errors_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)))",
           "legendFormat": "LLM {{error_type}}"
         },
         {
           "refId": "B",
-          "expr": "sum by (gen_ai_tool_name) ((increase(pi_tool_errors_total{user_email=~\"$user\"}[$__interval]) and (pi_tool_errors_total{user_email=~\"$user\"} offset $__interval)) or (max_over_time(pi_tool_errors_total{user_email=~\"$user\"}[$__interval]) unless (pi_tool_errors_total{user_email=~\"$user\"} offset $__interval)))",
+          "expr": "sum by (gen_ai_tool_name) ((increase(pi_tool_errors_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) and (pi_tool_errors_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)) or (max_over_time(pi_tool_errors_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) unless (pi_tool_errors_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)))",
           "legendFormat": "Tool {{gen_ai_tool_name}}"
         },
         {
           "refId": "C",
-          "expr": "sum ((increase(pi_llm_truncated_total{user_email=~\"$user\"}[$__interval]) and (pi_llm_truncated_total{user_email=~\"$user\"} offset $__interval)) or (max_over_time(pi_llm_truncated_total{user_email=~\"$user\"}[$__interval]) unless (pi_llm_truncated_total{user_email=~\"$user\"} offset $__interval)))",
+          "expr": "sum ((increase(pi_llm_truncated_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) and (pi_llm_truncated_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)) or (max_over_time(pi_llm_truncated_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) unless (pi_llm_truncated_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)))",
           "legendFormat": "Truncated responses"
         }
       ],
@@ -3014,7 +3014,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "topk(15, sum by (gen_ai_tool_name) ((increase(pi_tool_calls_total{user_email=~\"$user\"}[$__range]) and (pi_tool_calls_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_tool_calls_total{user_email=~\"$user\"}[$__range]) unless (pi_tool_calls_total{user_email=~\"$user\"} offset $__range))))",
+          "expr": "topk(15, sum by (gen_ai_tool_name) ((increase(pi_tool_calls_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_tool_calls_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_tool_calls_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_tool_calls_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range))))",
           "legendFormat": "{{gen_ai_tool_name}}",
           "instant": true,
           "range": false
@@ -3060,17 +3060,17 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.95, sum(rate(pi_interaction_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(pi_interaction_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[5m])) by (le))",
           "legendFormat": "Interaction"
         },
         {
           "refId": "B",
-          "expr": "histogram_quantile(0.95, sum(rate(pi_llm_duration_seconds_bucket{user_email=~\"$user\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(pi_llm_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[5m])) by (le))",
           "legendFormat": "LLM"
         },
         {
           "refId": "C",
-          "expr": "histogram_quantile(0.95, sum(rate(pi_tool_duration_seconds_bucket{user_email=~\"$user\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(pi_tool_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[5m])) by (le))",
           "legendFormat": "Tool"
         }
       ],
@@ -3104,17 +3104,17 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(pi_telemetry_export_errors_total{user_email=~\"$user\"}[5m])) by (otel_signal) or vector(0)",
+          "expr": "sum(increase(pi_telemetry_export_errors_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[5m])) by (otel_signal) or vector(0)",
           "legendFormat": "export errors {{otel_signal}}"
         },
         {
           "refId": "B",
-          "expr": "sum(increase(pi_telemetry_dropped_total{user_email=~\"$user\"}[5m])) by (otel_signal, reason) or vector(0)",
+          "expr": "sum(increase(pi_telemetry_dropped_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[5m])) by (otel_signal, reason) or vector(0)",
           "legendFormat": "dropped {{otel_signal}} {{reason}}"
         },
         {
           "refId": "C",
-          "expr": "sum(increase(pi_llm_truncated_total{user_email=~\"$user\"}[5m])) or vector(0)",
+          "expr": "sum(increase(pi_llm_truncated_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[5m])) or vector(0)",
           "legendFormat": "truncated responses"
         }
       ],
@@ -3167,7 +3167,7 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "sum by (stage, outcome) ((increase(axon_recommender_events_total{user_email=~\"$user\",component=\"cli\"}[$__range]) and (axon_recommender_events_total{user_email=~\"$user\",component=\"cli\"} offset $__range)) or (max_over_time(axon_recommender_events_total{user_email=~\"$user\",component=\"cli\"}[$__range]) unless (axon_recommender_events_total{user_email=~\"$user\",component=\"cli\"} offset $__range)))",
+              "expr": "sum by (stage, outcome) ((increase(axon_recommender_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__range]) and (axon_recommender_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__range)) or (max_over_time(axon_recommender_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__range]) unless (axon_recommender_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__range)))",
               "legendFormat": "{{stage}} · {{outcome}}",
               "instant": true,
               "range": false
@@ -3214,7 +3214,7 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "sum by (model, selected_rank, outcome) ((increase(axon_recommender_events_total{user_email=~\"$user\",component=\"cli\",stage=\"decision\"}[$__range]) and (axon_recommender_events_total{user_email=~\"$user\",component=\"cli\",stage=\"decision\"} offset $__range)) or (max_over_time(axon_recommender_events_total{user_email=~\"$user\",component=\"cli\",stage=\"decision\"}[$__range]) unless (axon_recommender_events_total{user_email=~\"$user\",component=\"cli\",stage=\"decision\"} offset $__range)))",
+              "expr": "sum by (model, selected_rank, outcome) ((increase(axon_recommender_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"decision\"}[$__range]) and (axon_recommender_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"decision\"} offset $__range)) or (max_over_time(axon_recommender_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"decision\"}[$__range]) unless (axon_recommender_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"decision\"} offset $__range)))",
               "legendFormat": "{{model}} · rank {{selected_rank}} · {{outcome}}",
               "instant": true,
               "range": false
@@ -3253,7 +3253,7 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "histogram_quantile(0.95, sum by (le, component) ((increase(axon_recommender_duration_seconds_bucket{user_email=~\"$user\",stage=\"request\"}[$__interval]) and (axon_recommender_duration_seconds_bucket{user_email=~\"$user\",stage=\"request\"} offset $__interval)) or (max_over_time(axon_recommender_duration_seconds_bucket{user_email=~\"$user\",stage=\"request\"}[$__interval]) unless (axon_recommender_duration_seconds_bucket{user_email=~\"$user\",stage=\"request\"} offset $__interval))))",
+              "expr": "histogram_quantile(0.95, sum by (le, component) ((increase(axon_recommender_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",stage=\"request\"}[$__interval]) and (axon_recommender_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",stage=\"request\"} offset $__interval)) or (max_over_time(axon_recommender_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",stage=\"request\"}[$__interval]) unless (axon_recommender_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",stage=\"request\"} offset $__interval))))",
               "legendFormat": "{{component}} request"
             }
           ],
@@ -3288,12 +3288,12 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "histogram_quantile(0.50, sum by (le) ((increase(axon_recommender_complexity_bucket{user_email=~\"$user\",component=\"cli\"}[$__interval]) and (axon_recommender_complexity_bucket{user_email=~\"$user\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_recommender_complexity_bucket{user_email=~\"$user\",component=\"cli\"}[$__interval]) unless (axon_recommender_complexity_bucket{user_email=~\"$user\",component=\"cli\"} offset $__interval))))",
+              "expr": "histogram_quantile(0.50, sum by (le) ((increase(axon_recommender_complexity_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) and (axon_recommender_complexity_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_recommender_complexity_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) unless (axon_recommender_complexity_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval))))",
               "legendFormat": "Complexity p50 (0–3)"
             },
             {
               "refId": "B",
-              "expr": "histogram_quantile(0.50, sum by (le) ((increase(axon_recommender_confidence_bucket{user_email=~\"$user\",component=\"cli\"}[$__interval]) and (axon_recommender_confidence_bucket{user_email=~\"$user\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_recommender_confidence_bucket{user_email=~\"$user\",component=\"cli\"}[$__interval]) unless (axon_recommender_confidence_bucket{user_email=~\"$user\",component=\"cli\"} offset $__interval))))",
+              "expr": "histogram_quantile(0.50, sum by (le) ((increase(axon_recommender_confidence_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) and (axon_recommender_confidence_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_recommender_confidence_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) unless (axon_recommender_confidence_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval))))",
               "legendFormat": "Confidence p50 (0–1)"
             }
           ],
@@ -3328,7 +3328,7 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "sum by (stage, reason) ((increase(axon_recommender_events_total{user_email=~\"$user\",component=\"cli\",outcome=~\"failed|skipped|cancelled\"}[$__interval]) and (axon_recommender_events_total{user_email=~\"$user\",component=\"cli\",outcome=~\"failed|skipped|cancelled\"} offset $__interval)) or (max_over_time(axon_recommender_events_total{user_email=~\"$user\",component=\"cli\",outcome=~\"failed|skipped|cancelled\"}[$__interval]) unless (axon_recommender_events_total{user_email=~\"$user\",component=\"cli\",outcome=~\"failed|skipped|cancelled\"} offset $__interval)))",
+              "expr": "sum by (stage, reason) ((increase(axon_recommender_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",outcome=~\"failed|skipped|cancelled\"}[$__interval]) and (axon_recommender_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",outcome=~\"failed|skipped|cancelled\"} offset $__interval)) or (max_over_time(axon_recommender_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",outcome=~\"failed|skipped|cancelled\"}[$__interval]) unless (axon_recommender_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",outcome=~\"failed|skipped|cancelled\"} offset $__interval)))",
               "legendFormat": "{{stage}} · {{reason}}"
             }
           ],
@@ -3371,7 +3371,7 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "sum by (model) ((increase(axon_recommender_events_total{user_email=~\"$user\",component=\"cli\",stage=\"override\"}[$__range]) and (axon_recommender_events_total{user_email=~\"$user\",component=\"cli\",stage=\"override\"} offset $__range)) or (max_over_time(axon_recommender_events_total{user_email=~\"$user\",component=\"cli\",stage=\"override\"}[$__range]) unless (axon_recommender_events_total{user_email=~\"$user\",component=\"cli\",stage=\"override\"} offset $__range)))",
+              "expr": "sum by (model) ((increase(axon_recommender_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"override\"}[$__range]) and (axon_recommender_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"override\"} offset $__range)) or (max_over_time(axon_recommender_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"override\"}[$__range]) unless (axon_recommender_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"override\"} offset $__range)))",
               "legendFormat": "{{model}}",
               "instant": true,
               "range": false
@@ -3411,17 +3411,17 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "histogram_quantile(0.5, sum by (le) ((increase(axon_recommender_high_complexity_probability_bucket{user_email=~\"$user\",component=\"cli\"}[$__interval]) and (axon_recommender_high_complexity_probability_bucket{user_email=~\"$user\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_recommender_high_complexity_probability_bucket{user_email=~\"$user\",component=\"cli\"}[$__interval]) unless (axon_recommender_high_complexity_probability_bucket{user_email=~\"$user\",component=\"cli\"} offset $__interval))))",
+              "expr": "histogram_quantile(0.5, sum by (le) ((increase(axon_recommender_high_complexity_probability_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) and (axon_recommender_high_complexity_probability_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_recommender_high_complexity_probability_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) unless (axon_recommender_high_complexity_probability_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval))))",
               "legendFormat": "high complexity probability"
             },
             {
               "refId": "B",
-              "expr": "histogram_quantile(0.5, sum by (le) ((increase(axon_recommender_needs_deep_reasoning_bucket{user_email=~\"$user\",component=\"cli\"}[$__interval]) and (axon_recommender_needs_deep_reasoning_bucket{user_email=~\"$user\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_recommender_needs_deep_reasoning_bucket{user_email=~\"$user\",component=\"cli\"}[$__interval]) unless (axon_recommender_needs_deep_reasoning_bucket{user_email=~\"$user\",component=\"cli\"} offset $__interval))))",
+              "expr": "histogram_quantile(0.5, sum by (le) ((increase(axon_recommender_needs_deep_reasoning_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) and (axon_recommender_needs_deep_reasoning_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_recommender_needs_deep_reasoning_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) unless (axon_recommender_needs_deep_reasoning_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval))))",
               "legendFormat": "needs deep reasoning"
             },
             {
               "refId": "C",
-              "expr": "histogram_quantile(0.5, sum by (le) ((increase(axon_recommender_prioritizes_speed_bucket{user_email=~\"$user\",component=\"cli\"}[$__interval]) and (axon_recommender_prioritizes_speed_bucket{user_email=~\"$user\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_recommender_prioritizes_speed_bucket{user_email=~\"$user\",component=\"cli\"}[$__interval]) unless (axon_recommender_prioritizes_speed_bucket{user_email=~\"$user\",component=\"cli\"} offset $__interval))))",
+              "expr": "histogram_quantile(0.5, sum by (le) ((increase(axon_recommender_prioritizes_speed_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) and (axon_recommender_prioritizes_speed_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_recommender_prioritizes_speed_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) unless (axon_recommender_prioritizes_speed_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval))))",
               "legendFormat": "prioritizes speed"
             }
           ],
@@ -3466,12 +3466,12 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "histogram_quantile(0.5, sum by (le) ((increase(axon_recommender_candidate_count_bucket{user_email=~\"$user\",component=\"cli\"}[$__interval]) and (axon_recommender_candidate_count_bucket{user_email=~\"$user\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_recommender_candidate_count_bucket{user_email=~\"$user\",component=\"cli\"}[$__interval]) unless (axon_recommender_candidate_count_bucket{user_email=~\"$user\",component=\"cli\"} offset $__interval))))",
+              "expr": "histogram_quantile(0.5, sum by (le) ((increase(axon_recommender_candidate_count_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) and (axon_recommender_candidate_count_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_recommender_candidate_count_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) unless (axon_recommender_candidate_count_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval))))",
               "legendFormat": "p50"
             },
             {
               "refId": "B",
-              "expr": "histogram_quantile(0.95, sum by (le) ((increase(axon_recommender_candidate_count_bucket{user_email=~\"$user\",component=\"cli\"}[$__interval]) and (axon_recommender_candidate_count_bucket{user_email=~\"$user\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_recommender_candidate_count_bucket{user_email=~\"$user\",component=\"cli\"}[$__interval]) unless (axon_recommender_candidate_count_bucket{user_email=~\"$user\",component=\"cli\"} offset $__interval))))",
+              "expr": "histogram_quantile(0.95, sum by (le) ((increase(axon_recommender_candidate_count_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) and (axon_recommender_candidate_count_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_recommender_candidate_count_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) unless (axon_recommender_candidate_count_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval))))",
               "legendFormat": "p95"
             }
           ],
@@ -3529,7 +3529,7 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "sum by (stage, outcome) ((increase(axon_backup_events_total{user_email=~\"$user\",component=\"cli\"}[$__interval]) and (axon_backup_events_total{user_email=~\"$user\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_backup_events_total{user_email=~\"$user\",component=\"cli\"}[$__interval]) unless (axon_backup_events_total{user_email=~\"$user\",component=\"cli\"} offset $__interval)))",
+              "expr": "sum by (stage, outcome) ((increase(axon_backup_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) and (axon_backup_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_backup_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) unless (axon_backup_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval)))",
               "legendFormat": "{{stage}} · {{outcome}}"
             }
           ],
@@ -3564,7 +3564,7 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "sum by (stage, outcome) ((increase(axon_restore_events_total{user_email=~\"$user\",component=\"cli\"}[$__interval]) and (axon_restore_events_total{user_email=~\"$user\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_restore_events_total{user_email=~\"$user\",component=\"cli\"}[$__interval]) unless (axon_restore_events_total{user_email=~\"$user\",component=\"cli\"} offset $__interval)))",
+              "expr": "sum by (stage, outcome) ((increase(axon_restore_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) and (axon_restore_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_restore_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) unless (axon_restore_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval)))",
               "legendFormat": "{{stage}} · {{outcome}}"
             }
           ],
@@ -3599,12 +3599,12 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "histogram_quantile(0.95, sum by (le, stage) ((increase(axon_backup_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\"}[$__interval]) and (axon_backup_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_backup_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\"}[$__interval]) unless (axon_backup_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\"} offset $__interval))))",
+              "expr": "histogram_quantile(0.95, sum by (le, stage) ((increase(axon_backup_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) and (axon_backup_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_backup_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) unless (axon_backup_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval))))",
               "legendFormat": "Backup {{stage}}"
             },
             {
               "refId": "B",
-              "expr": "histogram_quantile(0.95, sum by (le, stage) ((increase(axon_restore_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\"}[$__interval]) and (axon_restore_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_restore_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\"}[$__interval]) unless (axon_restore_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\"} offset $__interval))))",
+              "expr": "histogram_quantile(0.95, sum by (le, stage) ((increase(axon_restore_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) and (axon_restore_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_restore_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) unless (axon_restore_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval))))",
               "legendFormat": "Restore {{stage}}"
             }
           ],
@@ -3639,12 +3639,12 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "histogram_quantile(0.95, sum by (le) ((increase(axon_backup_transfer_bytes_bucket{user_email=~\"$user\",component=\"cli\",stage=\"upload\",outcome=\"success\"}[$__interval]) and (axon_backup_transfer_bytes_bucket{user_email=~\"$user\",component=\"cli\",stage=\"upload\",outcome=\"success\"} offset $__interval)) or (max_over_time(axon_backup_transfer_bytes_bucket{user_email=~\"$user\",component=\"cli\",stage=\"upload\",outcome=\"success\"}[$__interval]) unless (axon_backup_transfer_bytes_bucket{user_email=~\"$user\",component=\"cli\",stage=\"upload\",outcome=\"success\"} offset $__interval))))",
+              "expr": "histogram_quantile(0.95, sum by (le) ((increase(axon_backup_transfer_bytes_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"upload\",outcome=\"success\"}[$__interval]) and (axon_backup_transfer_bytes_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"upload\",outcome=\"success\"} offset $__interval)) or (max_over_time(axon_backup_transfer_bytes_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"upload\",outcome=\"success\"}[$__interval]) unless (axon_backup_transfer_bytes_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"upload\",outcome=\"success\"} offset $__interval))))",
               "legendFormat": "Uploaded archive"
             },
             {
               "refId": "B",
-              "expr": "histogram_quantile(0.95, sum by (le) ((increase(axon_restore_transfer_bytes_bucket{user_email=~\"$user\",component=\"cli\",stage=\"download\",outcome=\"success\"}[$__interval]) and (axon_restore_transfer_bytes_bucket{user_email=~\"$user\",component=\"cli\",stage=\"download\",outcome=\"success\"} offset $__interval)) or (max_over_time(axon_restore_transfer_bytes_bucket{user_email=~\"$user\",component=\"cli\",stage=\"download\",outcome=\"success\"}[$__interval]) unless (axon_restore_transfer_bytes_bucket{user_email=~\"$user\",component=\"cli\",stage=\"download\",outcome=\"success\"} offset $__interval))))",
+              "expr": "histogram_quantile(0.95, sum by (le) ((increase(axon_restore_transfer_bytes_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"download\",outcome=\"success\"}[$__interval]) and (axon_restore_transfer_bytes_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"download\",outcome=\"success\"} offset $__interval)) or (max_over_time(axon_restore_transfer_bytes_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"download\",outcome=\"success\"}[$__interval]) unless (axon_restore_transfer_bytes_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"download\",outcome=\"success\"} offset $__interval))))",
               "legendFormat": "Downloaded archive"
             }
           ],
@@ -3693,7 +3693,7 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "histogram_quantile(0.95, sum by (le, stage) ((increase(axon_startup_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\"}[$__interval]) and (axon_startup_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_startup_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\"}[$__interval]) unless (axon_startup_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\"} offset $__interval))))",
+              "expr": "histogram_quantile(0.95, sum by (le, stage) ((increase(axon_startup_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) and (axon_startup_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_startup_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) unless (axon_startup_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval))))",
               "legendFormat": "{{stage}}"
             }
           ],
@@ -3728,12 +3728,12 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "sum by (stage, outcome) ((increase(axon_auth_events_total{user_email=~\"$user\",component=\"cli\"}[$__interval]) and (axon_auth_events_total{user_email=~\"$user\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_auth_events_total{user_email=~\"$user\",component=\"cli\"}[$__interval]) unless (axon_auth_events_total{user_email=~\"$user\",component=\"cli\"} offset $__interval)))",
+              "expr": "sum by (stage, outcome) ((increase(axon_auth_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) and (axon_auth_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_auth_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) unless (axon_auth_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval)))",
               "legendFormat": "Auth {{stage}} · {{outcome}}"
             },
             {
               "refId": "B",
-              "expr": "sum by (outcome, reason) ((increase(axon_config_events_total{user_email=~\"$user\",component=\"cli\"}[$__interval]) and (axon_config_events_total{user_email=~\"$user\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_config_events_total{user_email=~\"$user\",component=\"cli\"}[$__interval]) unless (axon_config_events_total{user_email=~\"$user\",component=\"cli\"} offset $__interval)))",
+              "expr": "sum by (outcome, reason) ((increase(axon_config_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) and (axon_config_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_config_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) unless (axon_config_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval)))",
               "legendFormat": "Config {{outcome}} · {{reason}}"
             }
           ],
@@ -3768,7 +3768,7 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "sum by (stage, outcome, reason) ((increase(axon_update_events_total{user_email=~\"$user\",component=\"cli\"}[$__interval]) and (axon_update_events_total{user_email=~\"$user\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_update_events_total{user_email=~\"$user\",component=\"cli\"}[$__interval]) unless (axon_update_events_total{user_email=~\"$user\",component=\"cli\"} offset $__interval)))",
+              "expr": "sum by (stage, outcome, reason) ((increase(axon_update_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) and (axon_update_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_update_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) unless (axon_update_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval)))",
               "legendFormat": "{{stage}} · {{outcome}} · {{reason}}"
             }
           ],
@@ -3818,7 +3818,7 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "sum by (trigger) ((increase(pi_compaction_count_total{user_email=~\"$user\"}[$__range]) and (pi_compaction_count_total{user_email=~\"$user\"} offset $__range)) or (max_over_time(pi_compaction_count_total{user_email=~\"$user\"}[$__range]) unless (pi_compaction_count_total{user_email=~\"$user\"} offset $__range)))",
+              "expr": "sum by (trigger) ((increase(pi_compaction_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) and (pi_compaction_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)) or (max_over_time(pi_compaction_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) unless (pi_compaction_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__range)))",
               "legendFormat": "{{trigger}}",
               "instant": true,
               "range": false
@@ -3865,7 +3865,7 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "sum by (outcome, reason) ((increase(axon_compaction_events_total{user_email=~\"$user\",component=\"cli\",stage=\"complete\"}[$__range]) and (axon_compaction_events_total{user_email=~\"$user\",component=\"cli\",stage=\"complete\"} offset $__range)) or (max_over_time(axon_compaction_events_total{user_email=~\"$user\",component=\"cli\",stage=\"complete\"}[$__range]) unless (axon_compaction_events_total{user_email=~\"$user\",component=\"cli\",stage=\"complete\"} offset $__range)))",
+              "expr": "sum by (outcome, reason) ((increase(axon_compaction_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"complete\"}[$__range]) and (axon_compaction_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"complete\"} offset $__range)) or (max_over_time(axon_compaction_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"complete\"}[$__range]) unless (axon_compaction_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"complete\"} offset $__range)))",
               "legendFormat": "{{outcome}} {{reason}}",
               "instant": true,
               "range": false
@@ -3912,7 +3912,7 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "sum by (gen_ai_request_model) ((increase(pi_cost_USD_total{user_email=~\"$user\",pi_usage_source=\"compaction\"}[$__range]) and (pi_cost_USD_total{user_email=~\"$user\",pi_usage_source=\"compaction\"} offset $__range)) or (max_over_time(pi_cost_USD_total{user_email=~\"$user\",pi_usage_source=\"compaction\"}[$__range]) unless (pi_cost_USD_total{user_email=~\"$user\",pi_usage_source=\"compaction\"} offset $__range)))",
+              "expr": "sum by (gen_ai_request_model) ((increase(pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_usage_source=\"compaction\"}[$__range]) and (pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_usage_source=\"compaction\"} offset $__range)) or (max_over_time(pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_usage_source=\"compaction\"}[$__range]) unless (pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_usage_source=\"compaction\"} offset $__range)))",
               "legendFormat": "{{gen_ai_request_model}}",
               "instant": true,
               "range": false
@@ -3959,12 +3959,12 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "histogram_quantile(0.95, sum by (le, trigger) ((increase(pi_compaction_duration_seconds_bucket{user_email=~\"$user\"}[$__interval]) and (pi_compaction_duration_seconds_bucket{user_email=~\"$user\"} offset $__interval)) or (max_over_time(pi_compaction_duration_seconds_bucket{user_email=~\"$user\"}[$__interval]) unless (pi_compaction_duration_seconds_bucket{user_email=~\"$user\"} offset $__interval))))",
+              "expr": "histogram_quantile(0.95, sum by (le, trigger) ((increase(pi_compaction_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) and (pi_compaction_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)) or (max_over_time(pi_compaction_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) unless (pi_compaction_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval))))",
               "legendFormat": "{{trigger}}"
             },
             {
               "refId": "B",
-              "expr": "histogram_quantile(0.95, sum by (le) ((increase(axon_compaction_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\",stage=\"summarize\"}[$__interval]) and (axon_compaction_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\",stage=\"summarize\"} offset $__interval)) or (max_over_time(axon_compaction_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\",stage=\"summarize\"}[$__interval]) unless (axon_compaction_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\",stage=\"summarize\"} offset $__interval))))",
+              "expr": "histogram_quantile(0.95, sum by (le) ((increase(axon_compaction_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"summarize\"}[$__interval]) and (axon_compaction_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"summarize\"} offset $__interval)) or (max_over_time(axon_compaction_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"summarize\"}[$__interval]) unless (axon_compaction_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"summarize\"} offset $__interval))))",
               "legendFormat": "Axon summarizer"
             }
           ],
@@ -4009,7 +4009,7 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "sum by (stage, outcome, reason) ((increase(axon_compaction_events_total{user_email=~\"$user\",component=\"cli\",outcome=~\"failed|skipped|cancelled\"}[$__range]) and (axon_compaction_events_total{user_email=~\"$user\",component=\"cli\",outcome=~\"failed|skipped|cancelled\"} offset $__range)) or (max_over_time(axon_compaction_events_total{user_email=~\"$user\",component=\"cli\",outcome=~\"failed|skipped|cancelled\"}[$__range]) unless (axon_compaction_events_total{user_email=~\"$user\",component=\"cli\",outcome=~\"failed|skipped|cancelled\"} offset $__range)))",
+              "expr": "sum by (stage, outcome, reason) ((increase(axon_compaction_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",outcome=~\"failed|skipped|cancelled\"}[$__range]) and (axon_compaction_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",outcome=~\"failed|skipped|cancelled\"} offset $__range)) or (max_over_time(axon_compaction_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",outcome=~\"failed|skipped|cancelled\"}[$__range]) unless (axon_compaction_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",outcome=~\"failed|skipped|cancelled\"} offset $__range)))",
               "legendFormat": "{{stage}} · {{outcome}} · {{reason}}",
               "instant": true,
               "range": false
@@ -4056,7 +4056,7 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "sum by (model, outcome) ((increase(axon_compaction_events_total{user_email=~\"$user\",component=\"cli\",stage=\"summarize\",outcome!=\"pending\"}[$__range]) and (axon_compaction_events_total{user_email=~\"$user\",component=\"cli\",stage=\"summarize\",outcome!=\"pending\"} offset $__range)) or (max_over_time(axon_compaction_events_total{user_email=~\"$user\",component=\"cli\",stage=\"summarize\",outcome!=\"pending\"}[$__range]) unless (axon_compaction_events_total{user_email=~\"$user\",component=\"cli\",stage=\"summarize\",outcome!=\"pending\"} offset $__range)))",
+              "expr": "sum by (model, outcome) ((increase(axon_compaction_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"summarize\",outcome!=\"pending\"}[$__range]) and (axon_compaction_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"summarize\",outcome!=\"pending\"} offset $__range)) or (max_over_time(axon_compaction_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"summarize\",outcome!=\"pending\"}[$__range]) unless (axon_compaction_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"summarize\",outcome!=\"pending\"} offset $__range)))",
               "legendFormat": "{{model}} · {{outcome}}",
               "instant": true,
               "range": false
@@ -4117,7 +4117,7 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "sum by (outcome, reason) ((increase(axon_terminal_events_total{user_email=~\"$user\",component=\"cli\",stage=\"decision\"}[$__range]) and (axon_terminal_events_total{user_email=~\"$user\",component=\"cli\",stage=\"decision\"} offset $__range)) or (max_over_time(axon_terminal_events_total{user_email=~\"$user\",component=\"cli\",stage=\"decision\"}[$__range]) unless (axon_terminal_events_total{user_email=~\"$user\",component=\"cli\",stage=\"decision\"} offset $__range)))",
+              "expr": "sum by (outcome, reason) ((increase(axon_terminal_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"decision\"}[$__range]) and (axon_terminal_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"decision\"} offset $__range)) or (max_over_time(axon_terminal_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"decision\"}[$__range]) unless (axon_terminal_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"decision\"} offset $__range)))",
               "legendFormat": "{{outcome}} · {{reason}}",
               "instant": true,
               "range": false
@@ -4164,7 +4164,7 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "sum by (outcome, reason) ((increase(axon_terminal_events_total{user_email=~\"$user\",component=\"cli\",stage=\"approval\",outcome!=\"pending\"}[$__range]) and (axon_terminal_events_total{user_email=~\"$user\",component=\"cli\",stage=\"approval\",outcome!=\"pending\"} offset $__range)) or (max_over_time(axon_terminal_events_total{user_email=~\"$user\",component=\"cli\",stage=\"approval\",outcome!=\"pending\"}[$__range]) unless (axon_terminal_events_total{user_email=~\"$user\",component=\"cli\",stage=\"approval\",outcome!=\"pending\"} offset $__range)))",
+              "expr": "sum by (outcome, reason) ((increase(axon_terminal_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"approval\",outcome!=\"pending\"}[$__range]) and (axon_terminal_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"approval\",outcome!=\"pending\"} offset $__range)) or (max_over_time(axon_terminal_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"approval\",outcome!=\"pending\"}[$__range]) unless (axon_terminal_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"approval\",outcome!=\"pending\"} offset $__range)))",
               "legendFormat": "{{outcome}} · {{reason}}",
               "instant": true,
               "range": false
@@ -4211,12 +4211,12 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "histogram_quantile(0.5, sum by (le) ((increase(axon_terminal_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\",stage=\"approval\"}[$__interval]) and (axon_terminal_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\",stage=\"approval\"} offset $__interval)) or (max_over_time(axon_terminal_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\",stage=\"approval\"}[$__interval]) unless (axon_terminal_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\",stage=\"approval\"} offset $__interval))))",
+              "expr": "histogram_quantile(0.5, sum by (le) ((increase(axon_terminal_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"approval\"}[$__interval]) and (axon_terminal_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"approval\"} offset $__interval)) or (max_over_time(axon_terminal_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"approval\"}[$__interval]) unless (axon_terminal_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"approval\"} offset $__interval))))",
               "legendFormat": "p50"
             },
             {
               "refId": "B",
-              "expr": "histogram_quantile(0.95, sum by (le) ((increase(axon_terminal_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\",stage=\"approval\"}[$__interval]) and (axon_terminal_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\",stage=\"approval\"} offset $__interval)) or (max_over_time(axon_terminal_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\",stage=\"approval\"}[$__interval]) unless (axon_terminal_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\",stage=\"approval\"} offset $__interval))))",
+              "expr": "histogram_quantile(0.95, sum by (le) ((increase(axon_terminal_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"approval\"}[$__interval]) and (axon_terminal_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"approval\"} offset $__interval)) or (max_over_time(axon_terminal_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"approval\"}[$__interval]) unless (axon_terminal_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"approval\"} offset $__interval))))",
               "legendFormat": "p95"
             }
           ],
@@ -4261,7 +4261,7 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "sum by (terminal_shell, terminal_source) ((increase(axon_terminal_events_total{user_email=~\"$user\",component=\"cli\",stage=\"approval\",outcome=\"pending\"}[$__range]) and (axon_terminal_events_total{user_email=~\"$user\",component=\"cli\",stage=\"approval\",outcome=\"pending\"} offset $__range)) or (max_over_time(axon_terminal_events_total{user_email=~\"$user\",component=\"cli\",stage=\"approval\",outcome=\"pending\"}[$__range]) unless (axon_terminal_events_total{user_email=~\"$user\",component=\"cli\",stage=\"approval\",outcome=\"pending\"} offset $__range)))",
+              "expr": "sum by (terminal_shell, terminal_source) ((increase(axon_terminal_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"approval\",outcome=\"pending\"}[$__range]) and (axon_terminal_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"approval\",outcome=\"pending\"} offset $__range)) or (max_over_time(axon_terminal_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"approval\",outcome=\"pending\"}[$__range]) unless (axon_terminal_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"approval\",outcome=\"pending\"} offset $__range)))",
               "legendFormat": "{{terminal_shell}} · {{terminal_source}}",
               "instant": true,
               "range": false
@@ -4308,12 +4308,12 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "count(count by (user_email) (max_over_time(axon_terminal_events_total{user_email=~\"$user\",component=\"cli\",stage=\"policy\",outcome=\"success\"}[$__interval])))",
+              "expr": "count(count by (user_email) (max_over_time(axon_terminal_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"policy\",outcome=\"success\"}[$__interval])))",
               "legendFormat": "Policy loaded"
             },
             {
               "refId": "B",
-              "expr": "count(count by (user_email) (max_over_time(axon_terminal_events_total{user_email=~\"$user\",component=\"cli\",stage=\"policy\",outcome=\"success\",yolo_mode=\"true\"}[$__interval])))",
+              "expr": "count(count by (user_email) (max_over_time(axon_terminal_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=\"policy\",outcome=\"success\",yolo_mode=\"true\"}[$__interval])))",
               "legendFormat": "YOLO on"
             }
           ],
@@ -4358,7 +4358,7 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "sum by (stage, outcome, reason) ((increase(axon_terminal_events_total{user_email=~\"$user\",component=\"cli\",stage=~\"policy|yolo\"}[$__range]) and (axon_terminal_events_total{user_email=~\"$user\",component=\"cli\",stage=~\"policy|yolo\"} offset $__range)) or (max_over_time(axon_terminal_events_total{user_email=~\"$user\",component=\"cli\",stage=~\"policy|yolo\"}[$__range]) unless (axon_terminal_events_total{user_email=~\"$user\",component=\"cli\",stage=~\"policy|yolo\"} offset $__range)))",
+              "expr": "sum by (stage, outcome, reason) ((increase(axon_terminal_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=~\"policy|yolo\"}[$__range]) and (axon_terminal_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=~\"policy|yolo\"} offset $__range)) or (max_over_time(axon_terminal_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=~\"policy|yolo\"}[$__range]) unless (axon_terminal_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=~\"policy|yolo\"} offset $__range)))",
               "legendFormat": "{{stage}} · {{outcome}} · {{reason}}",
               "instant": true,
               "range": false
@@ -4405,7 +4405,7 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "topk(10, sum by (user_email) ((increase(axon_terminal_events_total{user_email=~\"$user\",component=\"cli\",stage=~\"decision|approval\",outcome=\"blocked\"}[$__range]) and (axon_terminal_events_total{user_email=~\"$user\",component=\"cli\",stage=~\"decision|approval\",outcome=\"blocked\"} offset $__range)) or (max_over_time(axon_terminal_events_total{user_email=~\"$user\",component=\"cli\",stage=~\"decision|approval\",outcome=\"blocked\"}[$__range]) unless (axon_terminal_events_total{user_email=~\"$user\",component=\"cli\",stage=~\"decision|approval\",outcome=\"blocked\"} offset $__range))))",
+              "expr": "topk(10, sum by (user_email) ((increase(axon_terminal_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=~\"decision|approval\",outcome=\"blocked\"}[$__range]) and (axon_terminal_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=~\"decision|approval\",outcome=\"blocked\"} offset $__range)) or (max_over_time(axon_terminal_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=~\"decision|approval\",outcome=\"blocked\"}[$__range]) unless (axon_terminal_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",stage=~\"decision|approval\",outcome=\"blocked\"} offset $__range))))",
               "legendFormat": "{{user_email}}",
               "instant": true,
               "range": false
@@ -4463,6 +4463,21 @@
         "refresh": 1
       },
       {
+        "name": "workflow",
+        "label": "Workflow",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "query": "label_values({__name__=~\"pi_interaction_count_total|axon_.*_events_total\",user_email=~\"$user\",axon_workflow_name!=\"\"}, axon_workflow_name)",
+        "definition": "label_values({__name__=~\"pi_interaction_count_total|axon_.*_events_total\",user_email=~\"$user\",axon_workflow_name!=\"\"}, axon_workflow_name)",
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1
+      },
+      {
         "name": "repo",
         "label": "Repository",
         "type": "query",
@@ -4470,8 +4485,8 @@
           "type": "prometheus",
           "uid": "${DS_PROMETHEUS}"
         },
-        "query": "label_values(pi_interaction_count_total{user_email=~\"$user\"}, pi_repo_slug)",
-        "definition": "label_values(pi_interaction_count_total{user_email=~\"$user\"}, pi_repo_slug)",
+        "query": "label_values(pi_interaction_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}, pi_repo_slug)",
+        "definition": "label_values(pi_interaction_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}, pi_repo_slug)",
         "includeAll": true,
         "allValue": ".*",
         "multi": true,

@@ -31,6 +31,35 @@ interface CompactionConfig {
 }
 
 const FAILURE_COOLDOWN_MS = 30_000;
+// Keep this bus contract in sync with request-context.ts; this extension ships standalone.
+const REQUEST_CONTEXT_CHANNEL = "axon:request-context";
+const REQUEST_CONTEXT_READY_CHANNEL = "axon:request-context-ready";
+
+interface RequestContext {
+  tags(callKind: "compaction"): string;
+  metadata(callKind: "compaction"): Readonly<Record<string, string>>;
+}
+
+function isRequestContext(value: unknown): value is RequestContext {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof Reflect.get(value, "tags") === "function" &&
+    typeof Reflect.get(value, "metadata") === "function"
+  );
+}
+
+/** Pi's header hook never runs for this request, so tag it here. Only LiteLLM receives the context. */
+function requestHeaders(
+  context: RequestContext | undefined,
+  model: SummaryModel,
+): Record<string, string> | undefined {
+  if (context === undefined || model.provider !== "litellm") return undefined;
+  return {
+    "x-litellm-tags": context.tags("compaction"),
+    "x-litellm-spend-logs-metadata": JSON.stringify(context.metadata("compaction")),
+  };
+}
 
 function setting(name: string): string | undefined {
   return process.env[`PI_COMPACTION_${name}`]?.trim() || undefined;
@@ -112,6 +141,7 @@ async function summarize(
   model: SummaryModel,
   preparation: CompactionPreparation,
   signal: AbortSignal,
+  headers: Record<string, string> | undefined,
   customInstructions?: string,
 ) {
   const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(config.timeoutMs ?? 120_000)]);
@@ -137,7 +167,7 @@ async function summarize(
     preparation,
     model,
     undefined,
-    undefined,
+    headers,
     customInstructions,
     requestSignal,
     ctx.thinkingLevel ?? "off",
@@ -189,7 +219,16 @@ export default function compactionExtension(pi: ExtensionAPI): void {
   let lastOutcome: "completed" | "aborted" | "error" | undefined;
   let summaryOutcome: "success" | "failed" | "skipped" | "cancelled" | undefined;
   let summaryReason: string | undefined;
+  let requestContext: RequestContext | undefined;
+  let readyRequestContext: (() => Promise<RequestContext>) | undefined;
   const warnings = new Set<string>();
+
+  pi.events.on(REQUEST_CONTEXT_CHANNEL, (data) => {
+    if (isRequestContext(data)) requestContext = data;
+  });
+  pi.events.on(REQUEST_CONTEXT_READY_CHANNEL, (data) => {
+    if (typeof data === "function") readyRequestContext = data as () => Promise<RequestContext>;
+  });
 
   // Match the recommender's content-free product-event contract. Never send summaries,
   // custom instructions, file metadata, credentials, or raw exception text.
@@ -211,6 +250,7 @@ export default function compactionExtension(pi: ExtensionAPI): void {
     try {
       return readConfig();
     } catch (error) {
+      // Configuration validation boundary: report invalid overrides and cancel, never fall back.
       warn(ctx, error instanceof Error ? error.message : "Invalid compaction configuration");
       return undefined;
     }
@@ -279,6 +319,12 @@ export default function compactionExtension(pi: ExtensionAPI): void {
       const model = summaryModel(ctx, config);
       modelId = `${model.provider}/${model.id}`;
       emit("summarize", "pending", { trigger, model: modelId });
+      // RPC can compact a resumed session before the initial Git read has published a snapshot.
+      const context =
+        model.provider === "litellm" && readyRequestContext
+          ? await readyRequestContext()
+          : requestContext;
+      event.signal.throwIfAborted();
       const compaction = await summarize(
         pi,
         ctx,
@@ -286,12 +332,15 @@ export default function compactionExtension(pi: ExtensionAPI): void {
         model,
         event.preparation,
         event.signal,
+        requestHeaders(context, model),
         event.customInstructions,
       );
       // Native session_compact remains authoritative for durable completion and usage.
       finish("success");
       return { compaction };
     } catch (error: unknown) {
+      // Compaction boundary: context/model/provider failures and cancellation keep history intact.
+      // Return an explicit cancellation rather than sending an unattributed request or falling back.
       lastFailureAt = Date.now();
       finish(
         event.signal.aborted ? "cancelled" : "failed",
@@ -390,6 +439,7 @@ export default function compactionExtension(pi: ExtensionAPI): void {
         const resolved = summaryModel(ctx, config);
         model = `${resolved.provider}/${resolved.id}`;
       } catch (error) {
+        // Diagnostic-command boundary: render model lookup/auth failures as status, not a request.
         model = error instanceof Error ? error.message : "Unavailable";
       }
       ctx.ui.notify(

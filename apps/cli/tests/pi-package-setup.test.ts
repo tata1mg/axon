@@ -233,9 +233,9 @@ describe("Pi package manifest", () => {
       },
       {
         id: "pi-provider-litellm",
-        installTarget: "npm:pi-provider-litellm@4.7.2",
+        installTarget: "npm:pi-provider-litellm@4.7.3",
         updateOwner: "axon",
-        versionPolicy: { kind: "exact", version: "4.7.2" },
+        versionPolicy: { kind: "exact", version: "4.7.3" },
       },
       {
         id: "pi-review",
@@ -1021,6 +1021,7 @@ describe("package and resource locks", () => {
       "web-search.ts",
       "git-ai.ts",
       "compaction.ts",
+      "request-context.mjs",
       "terminal-permissions.mjs",
       "axon-dark.json",
       "axon-light.json",

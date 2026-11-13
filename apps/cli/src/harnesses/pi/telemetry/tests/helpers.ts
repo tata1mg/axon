@@ -12,7 +12,9 @@ import type { LogSeverity, TelemetryRuntime } from "../src/telemetry-types.ts";
 /** Keep fallback tests independent of the Axon session running the test command. */
 export function isolateTelemetryEnvironment(): void {
   const isTelemetryVariable = (name: string) =>
-    /^(OTEL_|PI_ORG_OTEL_)/.test(name) || name === "PI_AXON_CLI_VERSION";
+    /^(OTEL_|PI_ORG_OTEL_)/.test(name) ||
+    name === "PI_AXON_CLI_VERSION" ||
+    name === "AXON_WORKFLOW";
   let previous: NodeJS.ProcessEnv = {};
   beforeEach(() => {
     previous = {};

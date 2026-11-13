@@ -44,6 +44,12 @@ export const AXON_ENVIRONMENT_REGISTRY = Object.freeze({
     mayReachHarness: false,
     safeToPrint: true,
   },
+  AXON_WORKFLOW: {
+    owner: "public",
+    consumers: ["launcher product telemetry", "Pi org telemetry (workflow label)"],
+    mayReachHarness: true,
+    safeToPrint: true,
+  },
   AXON_DEBUG: {
     owner: "public-launcher",
     consumers: ["launcher"],

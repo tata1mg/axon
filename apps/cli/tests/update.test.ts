@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { chmod, mkdir, mkdtemp, readdir, realpath, rm, stat } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readdir, realpath, rename, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { BUILD_INFO } from "../src/build-info.ts";
+import { BUILD_INFO, type BuildInfo } from "../src/build-info.ts";
 import { LAUNCHER_EXIT_STATUS } from "../src/launcher/exit-status.ts";
+import { withFileLock } from "../src/launcher/file-lock.ts";
 import { resolveAxonPaths } from "../src/product/paths.ts";
 import {
   formatReleaseChecksums,
@@ -14,8 +15,9 @@ import {
 } from "../src/product/release-targets.ts";
 import { type UpdateProgressView, withUpdateProgress } from "../src/updater/progress.ts";
 import { latestReleaseVersion, releaseHashes } from "../src/updater/release.ts";
-import { runStartupUpdate } from "../src/updater/startup.ts";
+import { runStartupUpdate, scheduleBackgroundUpdate } from "../src/updater/startup.ts";
 import {
+  automaticUpdatesAllowed,
   checkForUpdate,
   installUpdate,
   runBackgroundUpdate,
@@ -28,6 +30,8 @@ const version = "0.2.0";
 // Updates install only the host's native target, so Intel CI exercises darwin-x64.
 const target = hostReleaseTarget() ?? "darwin-arm64";
 const assets = releaseAssetNames(target);
+// The installed launcher answers --version like a real release; updates refuse unknown versions.
+const oldBinary = "#!/bin/sh\nprintf '%s\\n' '0.1.0'\n";
 
 function sha256(bytes: Uint8Array): string {
   return new Bun.CryptoHasher("sha256").update(bytes).digest("hex");
@@ -52,7 +56,7 @@ async function fixture(
   await mkdir(paths.bin, { recursive: true, mode: 0o700 });
   await chmod(paths.home, 0o700);
   await chmod(paths.bin, 0o700);
-  await Bun.write(paths.managedBinary, "old binary\n");
+  await Bun.write(paths.managedBinary, oldBinary);
   await chmod(paths.managedBinary, 0o700);
   const script = `#!/bin/sh\nif [ "$1" = "--version" ]; then printf '%s\\n' '${binaryVersion}'; exit 0; fi\n${launchScript}\n`;
   const binary = new TextEncoder().encode(script);
@@ -157,7 +161,7 @@ describe("startup updates", () => {
       expect(await startup(f)).toEqual({ messages: [], warnings: [], restarts: [] });
     }
     expect(f.requests).toHaveLength(3);
-    expect(await Bun.file(f.paths.managedBinary).text()).toBe("old binary\n");
+    expect(await Bun.file(f.paths.managedBinary).text()).toBe(oldBinary);
   });
 
   test("warns and allows the old version on discovery, checksum, or managed-path failure", async () => {
@@ -174,8 +178,53 @@ describe("startup updates", () => {
       expect(result.messages).toEqual([]);
       expect(result.warnings).toHaveLength(1);
       expect(result.warnings[0]).toContain("continuing with the current version");
-      expect(await Bun.file(f.paths.managedBinary).text()).toBe("old binary\n");
+      expect(await Bun.file(f.paths.managedBinary).text()).toBe(oldBinary);
     }
+  });
+
+  test("does not wait behind another updater's download or report it as a failure", async () => {
+    const f = await fixture();
+    await mkdir(f.paths.locks, { recursive: true, mode: 0o700 });
+    let release = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let acquired = () => {};
+    const ready = new Promise<void>((resolve) => {
+      acquired = resolve;
+    });
+    const other = withFileLock(join(f.paths.locks, "update.lock"), async () => {
+      acquired();
+      await held;
+    });
+    await ready;
+    try {
+      const startedAt = Date.now();
+      expect(await startup(f)).toEqual({ warnings: [], restarts: [] });
+      expect(Date.now() - startedAt).toBeLessThan(5_000);
+      expect(await Bun.file(f.paths.managedBinary).text()).toBe(oldBinary);
+    } finally {
+      release();
+      await other;
+    }
+  });
+
+  test("continues on a release another process already installed, without downloading it", async () => {
+    const f = await fixture();
+    // The background worker renames a newer release over the binary this launcher runs.
+    const replacement = join(f.paths.bin, "replacement");
+    await Bun.write(replacement, `#!/bin/sh\nprintf '%s\\n' '${version}'\n`);
+    await chmod(replacement, 0o700);
+    await rename(replacement, f.paths.managedBinary);
+    const args = ["hello"];
+    const result = await startup(f, args);
+    expect(result.restarts).toEqual([["pi", ...args]]);
+    expect(result.warnings).toEqual([
+      `axon: updated to ${version}; continuing with the new version.`,
+    ]);
+    expect(f.requests.some((path) => path.endsWith(assets.archive) || path === "/archive")).toBe(
+      false,
+    );
   });
 
   test("shows check, download, and verify progress, clearing it before the outcome", async () => {
@@ -354,6 +403,8 @@ describe("CLI manual and background updates", () => {
         progress,
       ),
     ).toBe(version);
+    // Start over from the old release; an already-installed version is not downloaded again.
+    await Bun.write(f.paths.managedBinary, oldBinary);
     f.setHash("0".repeat(64));
     await expect(
       withUpdateProgress((onProgress) => installUpdate({ ...f.context, onProgress }), progress),
@@ -375,7 +426,7 @@ describe("CLI manual and background updates", () => {
     const f = await fixture();
     expect(await installUpdate(f.context)).toBe(version);
     expect(await Bun.file(f.paths.managedBinary).text()).toContain(version);
-    expect(await Bun.file(f.paths.previousBinary).text()).toBe("old binary\n");
+    expect(await Bun.file(f.paths.previousBinary).text()).toBe(oldBinary);
     expect(f.requests).toContain(`/api/v1/cli/releases/${version}/${assets.checksums}`);
     expect(f.requests).toContain("/archive");
     expect((await readdir(f.paths.bin)).filter((name) => name.startsWith(".axon-update-"))).toEqual(
@@ -400,14 +451,14 @@ describe("CLI manual and background updates", () => {
     await expect(installUpdate(badHash.context)).rejects.toMatchObject({
       exitStatus: LAUNCHER_EXIT_STATUS.updateFailure,
     });
-    expect(await Bun.file(badHash.paths.managedBinary).text()).toBe("old binary\n");
+    expect(await Bun.file(badHash.paths.managedBinary).text()).toBe(oldBinary);
     expect(await Bun.file(badHash.paths.previousBinary).exists()).toBe(false);
 
     const wrongVersion = await fixture("0.3.0");
     await expect(installUpdate(wrongVersion.context)).rejects.toMatchObject({
       exitStatus: LAUNCHER_EXIT_STATUS.updateFailure,
     });
-    expect(await Bun.file(wrongVersion.paths.managedBinary).text()).toBe("old binary\n");
+    expect(await Bun.file(wrongVersion.paths.managedBinary).text()).toBe(oldBinary);
   });
 
   test("restores the original executable if the backup path cannot be replaced", async () => {
@@ -416,7 +467,7 @@ describe("CLI manual and background updates", () => {
     await expect(installUpdate(f.context)).rejects.toMatchObject({
       exitStatus: LAUNCHER_EXIT_STATUS.updateFailure,
     });
-    expect(await Bun.file(f.paths.managedBinary).text()).toBe("old binary\n");
+    expect(await Bun.file(f.paths.managedBinary).text()).toBe(oldBinary);
     expect((await stat(f.paths.previousBinary)).isDirectory()).toBe(true);
   });
 
@@ -429,7 +480,21 @@ describe("CLI manual and background updates", () => {
     });
     f.setVersion("0.0.9");
     expect(await installUpdate(f.context)).toBeUndefined();
-    expect(await Bun.file(f.paths.managedBinary).text()).toBe("old binary\n");
+    expect(await Bun.file(f.paths.managedBinary).text()).toBe(oldBinary);
+  });
+
+  test("fails instead of replacing a binary whose installed version cannot be determined", async () => {
+    for (const installed of ["#!/bin/sh\nexit 1\n", "#!/bin/sh\nprintf 'not-a-version\\n'\n"]) {
+      const f = await fixture();
+      await Bun.write(f.paths.managedBinary, installed);
+      await expect(installUpdate(f.context)).rejects.toMatchObject({
+        exitStatus: LAUNCHER_EXIT_STATUS.updateFailure,
+      });
+      expect(await Bun.file(f.paths.managedBinary).text()).toBe(installed);
+      expect(f.requests.some((path) => path.endsWith(assets.archive) || path === "/archive")).toBe(
+        false,
+      );
+    }
   });
 
   test("refuses to install a release built for another architecture", async () => {
@@ -439,7 +504,7 @@ describe("CLI manual and background updates", () => {
       installUpdate({ ...f.context, build: { ...f.context.build, target: String(otherTarget) } }),
     ).rejects.toMatchObject({ exitStatus: LAUNCHER_EXIT_STATUS.updateFailure });
     expect(f.requests).toEqual([]);
-    expect(await Bun.file(f.paths.managedBinary).text()).toBe("old binary\n");
+    expect(await Bun.file(f.paths.managedBinary).text()).toBe(oldBinary);
   });
 
   test("background worker verifies once and respects the check interval", async () => {
@@ -457,6 +522,135 @@ describe("CLI manual and background updates", () => {
     } finally {
       if (oldCI !== undefined) process.env[ciVariable] = oldCI;
     }
+  });
+  test("a worker that loses the lock defers further workers instead of leaving the check due", async () => {
+    const f = await fixture();
+    const ciVariable = "CI";
+    const oldCI = process.env[ciVariable];
+    delete process.env[ciVariable];
+    await mkdir(f.paths.locks, { recursive: true, mode: 0o700 });
+    let release = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let acquired = () => {};
+    const ready = new Promise<void>((resolve) => {
+      acquired = resolve;
+    });
+    // A foreground `axon update` holds the lock for its whole download and writes no state.
+    const other = withFileLock(join(f.paths.locks, "update.lock"), async () => {
+      acquired();
+      await held;
+    });
+    await ready;
+    try {
+      const startedAt = Date.now();
+      await runBackgroundUpdate(f.context);
+      const { nextCheckAt } = await Bun.file(f.paths.updateState).json();
+      expect(nextCheckAt).toBeGreaterThan(startedAt);
+      expect(nextCheckAt).toBeLessThanOrEqual(Date.now() + 60 * 60 * 1000);
+      const spawned: (readonly string[])[] = [];
+      await scheduleBackgroundUpdate(["--mode", "rpc"], {
+        build: f.context.build,
+        environment: {},
+        invocation: { ci: false, stdinIsTty: false, stdoutIsTty: false },
+        paths: f.paths,
+        spawn: (command) => spawned.push(command),
+      });
+      expect(spawned).toEqual([]);
+      expect(f.requests).toEqual([]);
+
+      // A later deadline, such as the holder's own 24-hour throttle, is never shortened.
+      const later = Date.now() + 86_400_000;
+      await Bun.write(f.paths.updateState, JSON.stringify({ nextCheckAt: later }));
+      await runBackgroundUpdate(f.context);
+      expect((await Bun.file(f.paths.updateState).json()).nextCheckAt).toBe(later);
+    } finally {
+      release();
+      await other;
+      if (oldCI !== undefined) process.env[ciVariable] = oldCI;
+    }
+  });
+});
+
+describe("background update scheduling", () => {
+  const piped = { ci: false, stdinIsTty: false, stdoutIsTty: false };
+  const build: BuildInfo = { ...BUILD_INFO, kind: "binary", target };
+
+  async function schedule(
+    args: readonly string[],
+    invocation = piped,
+    environment: NodeJS.ProcessEnv = {},
+    buildInfo = build,
+    paths = resolveAxonPaths({}, join(tmpdir(), `axon-schedule-missing-${crypto.randomUUID()}`)),
+  ): Promise<(readonly string[])[]> {
+    const spawned: (readonly string[])[] = [];
+    await scheduleBackgroundUpdate(args, {
+      build: buildInfo,
+      environment,
+      invocation,
+      paths,
+      spawn: (command) => spawned.push(command),
+    });
+    return spawned;
+  }
+
+  test("spawns the detached worker for RPC, JSON, print, and piped launches", async () => {
+    for (const args of [["--mode", "rpc"], ["--mode", "json", "hi"], ["-p", "hi"], []]) {
+      expect(await schedule(args)).toEqual([[process.execPath, "__background-update"]]);
+    }
+    expect(await schedule(["--mode", "rpc"], interactive)).toHaveLength(1);
+  });
+
+  test("skips interactive, administrative, offline, opted-out, CI, and source launches", async () => {
+    expect(await schedule([], interactive)).toEqual([]);
+    for (const args of [["--help"], ["--version"], ["auth"], ["--mode", "rpc", "--offline"]]) {
+      expect(await schedule(args)).toEqual([]);
+    }
+    expect(await schedule(["--mode", "rpc"], piped, { AXON_NO_UPDATE: "1" })).toEqual([]);
+    expect(await schedule(["--mode", "rpc"], piped, { PI_OFFLINE: "1" })).toEqual([]);
+    expect(await schedule(["--mode", "rpc"], { ...piped, ci: true })).toEqual([]);
+    expect(await schedule(["--mode", "rpc"], piped, {}, { ...build, kind: "dev" })).toEqual([]);
+  });
+
+  test("does not start a worker while the check interval has not elapsed", async () => {
+    const root = await mkdtemp(join(tmpdir(), "axon-schedule-"));
+    roots.push(root);
+    const paths = resolveAxonPaths({}, root);
+    await Bun.write(paths.updateState, JSON.stringify({ nextCheckAt: Date.now() + 60_000 }));
+    expect(await schedule(["--mode", "rpc"], piped, {}, build, paths)).toEqual([]);
+    await Bun.write(paths.updateState, JSON.stringify({ nextCheckAt: Date.now() - 1 }));
+    expect(await schedule(["--mode", "rpc"], piped, {}, build, paths)).toHaveLength(1);
+  });
+
+  test("a failing spawn never affects the launch", async () => {
+    expect(
+      await scheduleBackgroundUpdate(["--mode", "rpc"], {
+        build,
+        environment: {},
+        invocation: piped,
+        paths: resolveAxonPaths({}, join(tmpdir(), `axon-schedule-missing-${crypto.randomUUID()}`)),
+        spawn: () => {
+          throw new Error("spawn failed");
+        },
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("automatic update gate", () => {
+  const build: BuildInfo = { ...BUILD_INFO, kind: "binary", target };
+
+  test("scheduler, startup, and worker share one CI and opt-out interpretation", () => {
+    expect(automaticUpdatesAllowed(build, {})).toBe(true);
+    for (const ci of ["0", "false", "no", ""]) {
+      expect(automaticUpdatesAllowed(build, { CI: ci })).toBe(true);
+    }
+    for (const ci of ["1", "true", "TRUE", "yes"]) {
+      expect(automaticUpdatesAllowed(build, { CI: ci })).toBe(false);
+    }
+    expect(automaticUpdatesAllowed(build, { AXON_NO_UPDATE: "1" })).toBe(false);
+    expect(automaticUpdatesAllowed({ ...build, kind: "dev" }, {})).toBe(false);
   });
 });
 

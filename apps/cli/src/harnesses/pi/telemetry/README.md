@@ -113,6 +113,13 @@ environment-fallback records without email are not shown. Repository filtering a
 activity metrics, session-summary histograms, and interaction traces, not token, cost, LLM, tool,
 or telemetry-health metrics.
 
+The **Workflow** selector filters every metrics panel, including token, cost, and product-event
+panels, by `axon_workflow_name`, which comes from `AXON_WORKFLOW` on workflow-driven launches.
+Its **All** value is `.*`, which in Prometheus also matches series with no workflow label, so
+ordinary sessions stay visible. Picking a workflow shows only tagged sessions. Trace panels do not
+filter by workflow: in TraceQL, comparing an attribute that is missing never matches, so the filter
+would hide untagged traces. Filter traces by hand with `resource."axon.workflow.name" = "<name>"`.
+
 ## Product tracking
 
 Content-free recommender, backup/restore, startup, auth/config, compaction, terminal-permission,

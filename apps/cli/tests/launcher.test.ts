@@ -108,10 +108,14 @@ process.exit(Number(process.env.FAKE_EXIT_CODE ?? "0"));
   await chmod(fakeHarnessPath, 0o755);
   for (const [home, version] of [
     [join(fixtureDirectory, ".axon"), PI_INSTALL_VERSION],
-    ...["managed home", "resource home", "print home", "setup home", "signal home"].map((name) => [
-      join(fixtureDirectory, name),
-      PI_INSTALL_VERSION,
-    ]),
+    ...[
+      "managed home",
+      "resource home",
+      "print home",
+      "setup home",
+      "signal home",
+      "locked settings home",
+    ].map((name) => [join(fixtureDirectory, name), PI_INSTALL_VERSION]),
     [join(fixtureDirectory, "dev home"), DEVELOPMENT_VERSION],
   ]) {
     if (home === undefined || version === undefined) throw new Error("invalid Pi test fixture");
@@ -209,6 +213,16 @@ describe("harness environment", () => {
       PATH: "/bin",
       ANTHROPIC_API_KEY: "provider-secret",
     });
+  });
+
+  test("forwards only the workflow tag among Axon variables", () => {
+    const environment = createHarnessEnvironment({
+      PATH: "/bin",
+      AXON_WORKFLOW: "pr-review",
+      AXON_DEBUG: "1",
+    });
+
+    expect(environment).toEqual({ PATH: "/bin", AXON_WORKFLOW: "pr-review" });
   });
 
   test("applies ordered overrides and explicit removals without mutating inputs", () => {
@@ -356,6 +370,8 @@ describe("launcher dispatch", () => {
       "--extension",
       join(axonHome, "runtime", activeRuntime, "pi", "extensions", "compaction.ts"),
       "--extension",
+      join(axonHome, "runtime", activeRuntime, "pi", "extensions", "request-context.mjs"),
+      "--extension",
       join(axonHome, "runtime", activeRuntime, "pi", "extensions", "terminal-permissions.mjs"),
       "--theme",
       join(axonHome, "runtime", activeRuntime, "pi", "themes", "axon-dark.json"),
@@ -375,6 +391,60 @@ describe("launcher dispatch", () => {
       PI_INSTALL_VERSION,
     );
   });
+
+  test("recovers dead Pi settings locks and explains live locks without debug mode", async () => {
+    const axonHome = join(fixtureDirectory, "locked settings home");
+    const environment = { AXON_HOME: axonHome, AXON_DEBUG: "0" };
+    await installEmbeddedPiPackages(axonHome);
+    // Seed verified package state so startup proceeds directly to settings preparation.
+    const initial = runLauncher(["pi", "hello"], environment);
+    const [initialStderr, initialStatus] = await Promise.all([
+      new Response(initial.stderr).text(),
+      initial.exited,
+    ]);
+    expect(initialStderr).toBe("");
+    expect(initialStatus).toBe(0);
+
+    const lockPath = resolveAxonPaths(environment).piPackageLock;
+    await mkdir(lockPath);
+    const owner = {
+      createdAt: Date.now(),
+      pid: 999_999_999,
+      token: "private-lock-token",
+    };
+    await Bun.write(join(lockPath, "owner.json"), JSON.stringify(owner));
+    const recovered = runLauncher(["pi", "hello"], environment);
+    const [recoveredStdout, recoveredStderr, recoveredStatus] = await Promise.all([
+      new Response(recovered.stdout).json() as Promise<{ arguments: string[] }>,
+      new Response(recovered.stderr).text(),
+      recovered.exited,
+    ]);
+    expect(recoveredStatus).toBe(0);
+    expect(recoveredStdout.arguments.at(-1)).toBe("hello");
+    expect(recoveredStderr).toBe("");
+    expect(await Bun.file(join(lockPath, "owner.json")).exists()).toBe(false);
+
+    // Live owners still block startup and receive the actionable warning.
+    await mkdir(lockPath);
+    const liveOwner = { ...owner, pid: process.pid };
+    await Bun.write(join(lockPath, "owner.json"), JSON.stringify(liveOwner));
+    const subprocess = runLauncher(["pi", "hello"], environment);
+    const [stderr, status] = await Promise.all([
+      new Response(subprocess.stderr).text(),
+      subprocess.exited,
+    ]);
+
+    expect(status).toBe(123);
+    expect(stderr).toContain("Could not prepare Axon's Pi startup settings safely");
+    expect(stderr).toContain(`timed out waiting for lock: ${lockPath}`);
+    expect(stderr).toContain(`owner process (PID ${process.pid}) is still running`);
+    expect(stderr).toContain("Remediation: Wait for the other operation");
+    expect(stderr).not.toContain("remove the abandoned lock automatically");
+    expect(stderr).not.toContain("Run axon doctor pi");
+    expect(stderr).not.toContain(owner.token);
+    expect(stderr).not.toContain("launcher-fixture-session");
+    expect(await Bun.file(join(lockPath, "owner.json")).json()).toEqual(liveOwner);
+  }, 20_000);
 
   test("forwards Pi auth commands without setup arguments", async () => {
     const subprocess = runLauncher(["pi", "auth", "print-api-key", "--provider", "openai"]);
