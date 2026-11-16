@@ -11,7 +11,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = ROOT / "scripts/build-backend-image.sh"
-PRIVATE_IMAGE = "831059512818.dkr.ecr.ap-south-1.amazonaws.com/python:wolfi-3.12.16-r1-test1"
+PRIVATE_IMAGE = "831059512818.dkr.ecr.ap-south-1.amazonaws.com/wolfi:20261023"
 PUBLIC_IMAGE = "cgr.dev/chainguard/wolfi-base:latest"
 
 
@@ -51,7 +51,7 @@ def test_ci_selects_pullable_base_and_preserves_build_failure(
             "--file",
             str(ROOT / "Dockerfile"),
             "--build-arg",
-            f"PYTHON_BASE_IMAGE={PRIVATE_IMAGE if pull_status == 0 else PUBLIC_IMAGE}",
+            f"BASE_IMAGE={PRIVATE_IMAGE if pull_status == 0 else PUBLIC_IMAGE}",
             "--build-arg",
             "SERVICE_NAME=axon-backend",
             "--label",
@@ -65,13 +65,14 @@ def test_ci_selects_pullable_base_and_preserves_build_failure(
 
 def test_python_stages_share_private_base_without_bundled_dbmate() -> None:
     dockerfile = (ROOT / "Dockerfile").read_text()
-    assert f"ARG PYTHON_BASE_IMAGE={PRIVATE_IMAGE}" in dockerfile
-    assert "FROM --platform=linux/amd64 ${PYTHON_BASE_IMAGE} AS python-base" in dockerfile
+    assert f"ARG BASE_IMAGE={PRIVATE_IMAGE}" in dockerfile
+    assert "FROM --platform=linux/amd64 ${BASE_IMAGE} AS python-base" in dockerfile
     for stage in ["builder", "runtime"]:
         assert f"FROM python-base AS {stage}" in dockerfile
     assert "ARG SERVICE_NAME" not in dockerfile
     assert "dbmate" not in dockerfile.lower()
-    assert dockerfile.count("if [ ! -x /usr/bin/python3.12 ]") == 1
+    assert dockerfile.count("apk add --no-cache python-3.14") == 1
+    assert "--python /usr/bin/python3.14" in dockerfile
 
 
 def test_backend_service_name_is_synchronized() -> None:

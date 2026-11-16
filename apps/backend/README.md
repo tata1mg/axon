@@ -4,7 +4,7 @@ The centralized management API for Axon CLI installations. It also serves the `a
 
 ## Prerequisites
 
-- Python 3.12
+- Python 3.14
 - [uv](https://docs.astral.sh/uv/)
 
 ## Setup
@@ -822,7 +822,7 @@ The image builds the frontend and embeds it, so **the build context is the repos
 docker build -t axon-backend .
 ```
 
-The shared Python base stage defaults to the private base `831059512818.dkr.ecr.ap-south-1.amazonaws.com/python:wolfi-3.12.16-r1-test1`. Internal builds do not need to pass `PYTHON_BASE_IMAGE`, but the build runner must have ECR pull permissions and log in before building:
+The shared Python base stage defaults to the private bare Wolfi base `831059512818.dkr.ecr.ap-south-1.amazonaws.com/wolfi:20261023` (the same base as `deputydev-extension-backend`). Internal builds do not need to pass `BASE_IMAGE`, but the build runner must have ECR pull permissions and log in before building:
 
 ```bash
 aws ecr get-login-password --region ap-south-1 | \
@@ -837,11 +837,11 @@ Use the public Wolfi base explicitly; no AWS credentials are required:
 
 ```bash
 docker build \
-  --build-arg PYTHON_BASE_IMAGE=cgr.dev/chainguard/wolfi-base:latest \
+  --build-arg BASE_IMAGE=cgr.dev/chainguard/wolfi-base:latest \
   -t axon-backend .
 ```
 
-The builder and runtime inherit the selected image and shared Python setup. The private base already supplies Python 3.12.14; the public base installs Wolfi's `python-3.12` package. The frontend stage remains `node:24-alpine`.
+The builder and runtime inherit the selected image and shared Python setup. Neither base ships Python: both install Wolfi's `python-3.14` package, intentionally unpinned so every build gets the latest patched 3.14 release, and the build fails fast if the interpreter or its core shared libraries are broken. The frontend stage remains `node:24-alpine`.
 
 ### Optional private-first fallback wrapper
 
