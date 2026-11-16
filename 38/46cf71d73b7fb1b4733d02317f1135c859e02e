@@ -1,0 +1,52 @@
+apps/cli/tests/compaction-launch-preferences.test.ts
+  s_c323034104d0ac::t_b55261bbde7a76 69-73,204,211,216,220-221,262
+apps/cli/src/harnesses/pi/resources/extensions/axon-changelog.ts
+  s_c323034104d0ac::t_1845507097c404 21-29
+  s_91f21fe436495a::t_8765eb655b0141 20
+apps/cli/package.json
+  s_c323034104d0ac::t_976e294b702e28 3
+apps/cli/src/harnesses/pi/resources/extensions/compaction.ts
+  s_c323034104d0ac::t_764b2f4f76ce9f 54-60,64,66-77,79
+  s_c323034104d0ac::t_b4b263e3e97074 353
+  s_91f21fe436495a::t_e065484be5e5cf 41,49-50
+apps/cli/tests/axon-changelog.test.ts
+  s_c323034104d0ac::t_33e7bd2f618ac8 41,232,241,248,323,329
+apps/cli/README.md
+  s_91f21fe436495a::t_c8fa886b1b96b5 104
+apps/cli/src/harnesses/pi/resources/extensions/request-context.mjs
+  s_91f21fe436495a::t_17acf39c41ad00 2
+apps/cli/src/harnesses/pi/resources/extensions/request-context.ts
+  s_91f21fe436495a::t_cc7ad9896eff4c 8-12,26,43-45,157-161,166,193-203,215,226-227,268,278,299-300
+apps/cli/src/harnesses/pi/resources/extensions/web-search.ts
+  s_91f21fe436495a::t_9e41797ff997f0 111,119-120,537-539
+apps/cli/tests/request-context.test.ts
+  s_91f21fe436495a::t_082f433b95d786 415-445,449,453,457
+apps/cli/tests/web-search.test.ts
+  s_91f21fe436495a::t_16b81385ae6e96 139,147-148
+bun.lock
+  s_91f21fe436495a::t_d193852e73773c 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3846cf71d73b7fb1b4733d02317f1135c859e02e",
+  "prompts": {},
+  "sessions": {
+    "s_91f21fe436495a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1a601e8d-384a-4276-8bb7-844e95fa4cc4",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_c323034104d0ac": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7e4f7b1b-fcd6-4361-971a-8921686c9c47",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
