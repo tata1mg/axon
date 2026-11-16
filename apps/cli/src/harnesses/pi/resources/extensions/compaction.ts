@@ -38,6 +38,7 @@ const REQUEST_CONTEXT_READY_CHANNEL = "axon:request-context-ready";
 interface RequestContext {
   tags(callKind: "compaction"): string;
   metadata(callKind: "compaction"): Readonly<Record<string, string>>;
+  traceHeaders(): Readonly<Record<string, string>>;
 }
 
 function isRequestContext(value: unknown): value is RequestContext {
@@ -45,20 +46,37 @@ function isRequestContext(value: unknown): value is RequestContext {
     typeof value === "object" &&
     value !== null &&
     typeof Reflect.get(value, "tags") === "function" &&
-    typeof Reflect.get(value, "metadata") === "function"
+    typeof Reflect.get(value, "metadata") === "function" &&
+    typeof Reflect.get(value, "traceHeaders") === "function"
   );
 }
 
-/** Pi's header hook never runs for this request, so tag it here. Only LiteLLM receives the context. */
+const SESSION_ID = /^[A-Za-z0-9._:/-]{1,128}$/;
+
+/**
+ * Pi's header hook never runs for this request, so tag it here. Only LiteLLM receives the context.
+ * pi-provider-litellm sets x-litellm-session-id in that hook, so set it here too; without it
+ * Langfuse files the summary outside the session's other requests.
+ */
 function requestHeaders(
   context: RequestContext | undefined,
   model: SummaryModel,
+  sessionId: string | undefined,
 ): Record<string, string> | undefined {
-  if (context === undefined || model.provider !== "litellm") return undefined;
-  return {
-    "x-litellm-tags": context.tags("compaction"),
-    "x-litellm-spend-logs-metadata": JSON.stringify(context.metadata("compaction")),
+  if (model.provider !== "litellm") return undefined;
+  const headers: Record<string, string> = {
+    ...(sessionId !== undefined && SESSION_ID.test(sessionId)
+      ? { "x-litellm-session-id": sessionId }
+      : {}),
+    ...(context === undefined
+      ? {}
+      : {
+          "x-litellm-tags": context.tags("compaction"),
+          "x-litellm-spend-logs-metadata": JSON.stringify(context.metadata("compaction")),
+          ...context.traceHeaders(),
+        }),
   };
+  return Object.keys(headers).length === 0 ? undefined : headers;
 }
 
 function setting(name: string): string | undefined {
@@ -332,7 +350,7 @@ export default function compactionExtension(pi: ExtensionAPI): void {
         model,
         event.preparation,
         event.signal,
-        requestHeaders(context, model),
+        requestHeaders(context, model, ctx.sessionManager.getSessionId()),
         event.customInstructions,
       );
       // Native session_compact remains authoritative for durable completion and usage.

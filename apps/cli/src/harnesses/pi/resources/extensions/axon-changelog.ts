@@ -18,6 +18,16 @@ const STATE_FILE = "axon-changelog.json";
 /** Axon's release notes, newest first. Keep these independent of Pi's releases. */
 export const AXON_RELEASES = [
   {
+    version: "1.0.5",
+    markdown: `## 1.0.5
+
+### Changed
+- Each prompt's LLM calls, compaction, and web searches are grouped into one Langfuse trace.
+
+### Fixed
+- Summaries from configured compaction now appear in the session's Langfuse session.`,
+  },
+  {
     version: "1.0.4",
     markdown: `## 1.0.4
 

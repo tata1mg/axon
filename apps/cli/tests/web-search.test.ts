@@ -136,6 +136,7 @@ describe("standalone LiteLLM web search", () => {
         { repo: "tata1mg/app", repoDir: ".", piMode: "tui" },
         { branch: "main", commit: "a1b2c3d" },
         { AXON_WORKFLOW: "pr-review" },
+        () => "0123456789abcdef0123456789abcdef",
       ),
     );
     await tool?.execute("call-1", { query: "Current docs" }, undefined);
@@ -143,6 +144,8 @@ describe("standalone LiteLLM web search", () => {
     expect(requestHeaders().get("x-litellm-tags")).toBe(
       "axon_workflow:pr-review,repo:tata1mg/app,pi_mode:tui,call_kind:web_search",
     );
+    expect(requestHeaders().get("langfuse_trace_id")).toBe("0123456789abcdef0123456789abcdef");
+    expect(requestHeaders().get("langfuse_trace_name")).toBe("axon-prompt");
     const metadata = sentPayload()["metadata"] as Record<string, unknown>;
     expect(metadata["spend_logs_metadata"]).toMatchObject({
       repo: "tata1mg/app",

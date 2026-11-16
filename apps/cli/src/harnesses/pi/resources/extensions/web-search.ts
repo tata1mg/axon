@@ -108,6 +108,7 @@ const REQUEST_CONTEXT_CHANNEL = "axon:request-context";
 interface RequestContext {
   tags(callKind: "web_search"): string;
   metadata(callKind: "web_search"): Readonly<Record<string, string>>;
+  traceHeaders(): Readonly<Record<string, string>>;
 }
 
 function isRequestContext(value: unknown): value is RequestContext {
@@ -115,7 +116,8 @@ function isRequestContext(value: unknown): value is RequestContext {
     typeof value === "object" &&
     value !== null &&
     typeof Reflect.get(value, "tags") === "function" &&
-    typeof Reflect.get(value, "metadata") === "function"
+    typeof Reflect.get(value, "metadata") === "function" &&
+    typeof Reflect.get(value, "traceHeaders") === "function"
   );
 }
 
@@ -532,6 +534,9 @@ async function search(
       const tags = requestContext.tags("web_search");
       const existingTags = headers.get("x-litellm-tags");
       headers.set("x-litellm-tags", existingTags ? `${existingTags},${tags}` : tags);
+      for (const [name, value] of Object.entries(requestContext.traceHeaders())) {
+        headers.set(name, value);
+      }
     }
     if (connection.apiKey) headers.set("authorization", `Bearer ${connection.apiKey}`);
     response = await fetch(connection.url, {

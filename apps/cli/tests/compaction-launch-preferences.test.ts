@@ -66,7 +66,11 @@ function setup(policy: unknown, failure?: "auth" | "missing" | "empty" | "timeou
     hasUI: true,
     thinkingLevel: "off",
     ui: { notify: () => {} },
-    sessionManager: { getBranch: () => [], getLeafId: () => "leaf" },
+    sessionManager: {
+      getBranch: () => [],
+      getLeafId: () => "leaf",
+      getSessionId: () => "session-1",
+    },
     modelRegistry: {
       find(provider: string, id: string) {
         finds.push([provider, id]);
@@ -197,20 +201,24 @@ test("managed model/output/timeout environment is consumed by the pinned Pi comp
 test("summary requests to LiteLLM carry the session's request context as compaction", async () => {
   const fixture = setup({ model: "litellm/team/summary" });
   await fixture.compact("manual");
-  expect(fixture.requests[0]?.headers).toBeUndefined();
+  expect(fixture.requests[0]?.headers).toEqual({ "x-litellm-session-id": "session-1" });
 
   fixture.publishContext(
     buildRequestContext(
       { repo: "tata1mg/app", repoDir: ".", piMode: "tui" },
       { branch: "main", commit: "a1b2c3d" },
       { AXON_WORKFLOW: "pr-review" },
+      () => "0123456789abcdef0123456789abcdef",
     ),
   );
   await fixture.compact("manual");
   const headers = fixture.requests[1]?.headers ?? {};
+  expect(headers["x-litellm-session-id"]).toBe("session-1");
   expect(headers["x-litellm-tags"]).toBe(
     "axon_workflow:pr-review,repo:tata1mg/app,pi_mode:tui,call_kind:compaction",
   );
+  expect(headers["langfuse_trace_id"]).toBe("0123456789abcdef0123456789abcdef");
+  expect(headers["langfuse_trace_name"]).toBe("axon-prompt");
   expect(JSON.parse(headers["x-litellm-spend-logs-metadata"] as string)).toMatchObject({
     repo: "tata1mg/app",
     branch: "main",
@@ -251,6 +259,7 @@ test("immediate resumed-session compaction awaits attribution from delayed Git",
   expect(result.compaction?.summary).toContain("safe summary");
   expect(fixture.requests).toHaveLength(1);
   const headers = fixture.requests[0]?.headers;
+  expect(headers?.["x-litellm-session-id"]).toBe("session-1");
   expect(headers?.["x-litellm-tags"]).toContain("repo:tata1mg/app");
   expect(headers?.["x-litellm-tags"]).toEndWith(",call_kind:compaction");
   expect(JSON.parse(headers?.["x-litellm-spend-logs-metadata"] as string)).toMatchObject({

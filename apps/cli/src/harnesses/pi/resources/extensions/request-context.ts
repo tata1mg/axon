@@ -5,10 +5,11 @@ import { normalizeWorkflowName, WORKFLOW_ENV } from "../../workflow.ts";
 
 /**
  * Tags and spend-log metadata on every LiteLLM request, so LiteLLM request logs and Langfuse
- * traces can be split by workflow, repo, and Axon version. Git is read once per session (repo,
- * directory) and in the background when a prompt starts and ends (branch, commit). Git wrappers
- * such as git-ai make each call take ~100ms, so only a session's first request waits for git;
- * later requests use the newest finished read.
+ * traces can be split by workflow, repo, and Axon version. Every request a prompt causes shares
+ * one Langfuse trace id; without it LiteLLM logs each request as its own trace. Git is read once
+ * per session (repo, directory) and in the background when a prompt starts and ends (branch,
+ * commit). Git wrappers such as git-ai make each call take ~100ms, so only a session's first
+ * request waits for git; later requests use the newest finished read.
  *
  * Requests that bypass Pi's header hook (web search, Axon compaction) read the context from
  * REQUEST_CONTEXT_CHANNEL. Keep that contract in sync with web-search.ts and compaction.ts.
@@ -22,6 +23,7 @@ export type CallKind = "main" | "compaction" | "web_search";
 export interface RequestContext {
   tags(callKind: CallKind): string;
   metadata(callKind: CallKind): Readonly<Record<string, string>>;
+  traceHeaders(): Readonly<Record<string, string>>;
 }
 
 interface Session {
@@ -38,6 +40,9 @@ interface Revision {
 const LITELLM_PROVIDER = "litellm";
 const TAGS_HEADER = "x-litellm-tags";
 const METADATA_HEADER = "x-litellm-spend-logs-metadata";
+const LANGFUSE_TRACE_ID_HEADER = "langfuse_trace_id";
+const LANGFUSE_TRACE_NAME_HEADER = "langfuse_trace_name";
+const LANGFUSE_TRACE_NAME = "axon-prompt";
 const GIT_TIMEOUT_MS = 1000;
 const MAX_VALUE_LENGTH = 200;
 const CLI_VERSION = /^[a-zA-Z0-9][a-zA-Z0-9.+-]{0,79}$/;
@@ -149,10 +154,16 @@ function definedEntries(fields: Record<string, string | undefined>): Record<stri
   );
 }
 
+/** Langfuse requires 32 lowercase hex characters, which a UUID without dashes is. */
+function newPromptTraceId(): string {
+  return crypto.randomUUID().replaceAll("-", "");
+}
+
 export function buildRequestContext(
   session: Session,
   revision: Revision,
   environment: Readonly<Record<string, string | undefined>> = process.env,
+  promptTraceId: () => string | undefined = () => undefined,
 ): RequestContext {
   const workflow = normalizeWorkflowName(environment[WORKFLOW_ENV]);
   const rawVersion = environment["PI_AXON_CLI_VERSION"];
@@ -179,6 +190,17 @@ export function buildRequestContext(
   return Object.freeze({
     tags: (callKind: CallKind) => [...baseTags, `call_kind:${callKind}`].join(","),
     metadata: (callKind: CallKind) => Object.freeze({ ...base, call_kind: callKind }),
+    traceHeaders: () => {
+      const traceId = promptTraceId();
+      return Object.freeze(
+        traceId === undefined
+          ? {}
+          : {
+              [LANGFUSE_TRACE_ID_HEADER]: traceId,
+              [LANGFUSE_TRACE_NAME_HEADER]: LANGFUSE_TRACE_NAME,
+            },
+      );
+    },
   });
 }
 
@@ -190,6 +212,7 @@ export default function requestContext(pi: ExtensionAPI): void {
   let started = 0;
   let published = 0;
   let callKind: CallKind = "main";
+  let promptTraceId: string | undefined;
 
   /** Reads can finish out of order; an older read never replaces a newer one. */
   const refresh = (cwd: string): Promise<PromiseSettledResult<RequestContext>> => {
@@ -200,6 +223,8 @@ export default function requestContext(pi: ExtensionAPI): void {
       buildRequestContext(
         resolved,
         resolved.repoDir === undefined ? {} : await readRevision(pi, cwd),
+        process.env,
+        () => promptTraceId,
       ),
     );
     // This is the background-I/O boundary: retain failures as explicit results, then rethrow
@@ -240,6 +265,7 @@ export default function requestContext(pi: ExtensionAPI): void {
 
   pi.on("session_start", (_event, ctx) => {
     resetCallKind();
+    promptTraceId = undefined;
     latest = undefined;
     published = started;
     session = undefined;
@@ -249,6 +275,7 @@ export default function requestContext(pi: ExtensionAPI): void {
   });
   pi.on("before_agent_start", (_event, ctx) => {
     resetCallKind();
+    promptTraceId = newPromptTraceId();
     void refresh(ctx.cwd);
   });
   pi.on("agent_end", (_event, ctx) => {
@@ -269,5 +296,7 @@ export default function requestContext(pi: ExtensionAPI): void {
     const existingTags = event.headers[TAGS_HEADER];
     event.headers[TAGS_HEADER] = existingTags ? `${existingTags},${tags}` : tags;
     event.headers[METADATA_HEADER] ??= JSON.stringify(context.metadata(callKind));
+    for (const [name, value] of Object.entries(context.traceHeaders()))
+      event.headers[name] ??= value;
   });
 }

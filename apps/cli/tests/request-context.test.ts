@@ -412,15 +412,49 @@ test("native compaction requests are tagged until the compaction ends", async ()
   }
 });
 
+test("every request a prompt causes shares one Langfuse trace, and each prompt starts a new one", async () => {
+  const fixture = setup();
+  await fixture.fire("session_start");
+  const beforePrompt = await fixture.request();
+  expect(beforePrompt["langfuse_trace_id"]).toBeUndefined();
+  expect(beforePrompt["langfuse_trace_name"]).toBeUndefined();
+  const publishedBeforePrompt = fixture.published.at(-1) as RequestContext;
+
+  await fixture.fire("before_agent_start");
+  const first = await fixture.request();
+  const traceId = first["langfuse_trace_id"];
+  expect(traceId).toMatch(/^[0-9a-f]{32}$/);
+  expect(first["langfuse_trace_name"]).toBe("axon-prompt");
+  await fixture.fire("turn_start");
+  expect((await fixture.request())["langfuse_trace_id"]).toBe(traceId);
+  await fixture.fire("session_before_compact");
+  expect((await fixture.request())["langfuse_trace_id"]).toBe(traceId);
+  expect(publishedBeforePrompt.traceHeaders()).toEqual({
+    langfuse_trace_id: traceId as string,
+    langfuse_trace_name: "axon-prompt",
+  });
+
+  await fixture.fire("before_agent_start");
+  const next = (await fixture.request())["langfuse_trace_id"];
+  expect(next).toMatch(/^[0-9a-f]{32}$/);
+  expect(next).not.toBe(traceId);
+
+  await fixture.fire("session_start");
+  expect((await fixture.request())["langfuse_trace_id"]).toBeUndefined();
+});
+
 test("headers configured elsewhere are kept", async () => {
   const fixture = setup();
   await fixture.fire("session_start");
+  await fixture.fire("before_agent_start");
   const headers = await fixture.request("litellm", {
     "x-litellm-tags": "team:search",
     "x-litellm-spend-logs-metadata": '{"owner":"search"}',
+    langfuse_trace_id: "0123456789abcdef0123456789abcdef",
   });
   expect(headers["x-litellm-tags"]).toStartWith("team:search,axon_workflow:pr-review,");
   expect(headers["x-litellm-spend-logs-metadata"]).toBe('{"owner":"search"}');
+  expect(headers["langfuse_trace_id"]).toBe("0123456789abcdef0123456789abcdef");
 });
 
 test("invalid launch values are dropped and branch names stay printable ASCII", async () => {
