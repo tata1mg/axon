@@ -1,0 +1,19 @@
+apps/cli/src/harnesses/pi/resources/extensions/terminal-permissions.mjs
+  s_625732883a6d95::t_e99b6a89f58e56 2-5,7-9,13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c2d4bdb7e10dd2253069c4c6e802a0f3ed44679b",
+  "prompts": {},
+  "sessions": {
+    "s_625732883a6d95": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "019f6238-7404-44c7-918f-d6732ea68170",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}

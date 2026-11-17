@@ -1,0 +1,53 @@
+Dockerfile
+  s_92f6c1850c047a::t_5fcfe23ae68da3 4,19,21-26,39
+  h_cbc19accedcd8a 3
+scripts/build-backend-image.sh
+  s_92f6c1850c047a::t_5fcfe23ae68da3 7,11,13-14,17,20
+apps/backend/tests/test_build_backend_image.py
+  s_92f6c1850c047a::t_5fcfe23ae68da3 14,54,68-69,74-75
+apps/backend/pyproject.toml
+  s_92f6c1850c047a::t_5fcfe23ae68da3 7
+docs/github-actions-core-ci.md
+  s_92f6c1850c047a::t_5fcfe23ae68da3 15,117
+apps/backend/ruff.toml
+  s_92f6c1850c047a::t_5fcfe23ae68da3 1
+README.md
+  s_92f6c1850c047a::t_5fcfe23ae68da3 26,40,115
+CLAUDE.md
+  s_92f6c1850c047a::t_5fcfe23ae68da3 125
+apps/backend/README.md
+  s_92f6c1850c047a::t_5fcfe23ae68da3 7,825,840,844
+.github/workflows/ci.yml
+  s_92f6c1850c047a::t_5fcfe23ae68da3 109
+apps/backend/uv.lock
+  s_91f21fe436495a::t_554d81d471fb59 2-3,51-68,170-193,211-247,307-319,404-413,444-469,817-847,923-940,1104-1115,1157-1170,1179-1218,1228-1249
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "79bdfd29ef2a894b09c9d06085bee8588f9a1bac",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_91f21fe436495a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1a601e8d-384a-4276-8bb7-844e95fa4cc4",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_92f6c1850c047a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ead210d7-cad2-4e48-89e3-774c83a97bf2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
