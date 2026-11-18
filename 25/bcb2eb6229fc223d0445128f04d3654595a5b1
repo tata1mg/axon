@@ -1,0 +1,14 @@
+bun.lock
+  h_dc688f708c4675 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "25bcb2eb6229fc223d0445128f04d3654595a5b1",
+  "prompts": {},
+  "humans": {
+    "h_dc688f708c4675": {
+      "author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  }
+}
