@@ -1,0 +1,47 @@
+apps/cli/src/harnesses/pi/setup/tools.ts
+  s_2b3c97cb7de019::t_b73bb65e0aceb5 11,13-15,19-24,27,40-50,61,66-67,72,79,84-85,88
+apps/cli/src/axon-safehouse/environment.ts
+  s_2b3c97cb7de019::t_904b771d21dbe0 3,6-20
+  s_2b3c97cb7de019::t_9ad23470ec7e61 21
+apps/cli/src/axon-safehouse/launch.ts
+  s_2b3c97cb7de019::t_4e68075178fb9b 709
+  s_2b3c97cb7de019::t_c8c29ba46257c5 13,458
+apps/cli/src/cli/commands/setup.ts
+  s_2b3c97cb7de019::t_0126c38e2aa8d6 5,94,104-106,112
+apps/cli/src/harnesses/pi/resources/extensions/axon-changelog.ts
+  s_2b3c97cb7de019::t_f08c6d25213a57 21-22,29-30
+  s_2b3c97cb7de019::t_392c6ddbc68159 24-28
+  s_2b3c97cb7de019::t_37e4dabdb00894 20
+  s_2b3c97cb7de019::t_d10133050cb432 23
+apps/cli/src/harnesses/pi/setup/index.ts
+  s_2b3c97cb7de019::t_458d58416f3e0a 16,118-133
+apps/cli/src/launcher/contracts.ts
+  s_2b3c97cb7de019::t_f19985cae454a1 50-54
+apps/cli/package.json
+  h_dc688f708c4675 3
+apps/cli/src/axon-safehouse/session.ts
+  s_2b3c97cb7de019::t_06102500824908 14,224-226,229-235,303-323,329
+apps/cli/src/harnesses/pi/adapter.ts
+  s_2b3c97cb7de019::t_b461f5b2def2bf 176-177,284-286
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8ce40253cb8aee6625f992ee2252e90d53dd0c35",
+  "prompts": {},
+  "humans": {
+    "h_dc688f708c4675": {
+      "author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_2b3c97cb7de019": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "507668",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  }
+}
