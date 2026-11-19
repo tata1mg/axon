@@ -26,6 +26,7 @@ export const AXON_RELEASES = [
 - Discover and install organization-published MCP servers with guided setup.
 
 ### Changed
+- Updated the managed LiteLLM provider to 4.8.0.
 - Organization MCP servers are now opt-in through the Hub instead of being added as disabled defaults at launch.
 - Each prompt's LLM calls, compaction, and web searches are grouped into one Langfuse trace.
 

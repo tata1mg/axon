@@ -7,7 +7,7 @@
 Implemented:
 
 - Embedded, schema-validated manifest with typed `pi.install` actions and exact, minimum, and floating policies.
-- Required floating entry for `@juicesharp/rpiv-ask-user-question` and an exact `3.0.1` entry for `pi-provider-litellm`. The legacy `pi-mcp-adapter` is retired and removed by package reconciliation when verified as Axon-managed.
+- Required entries for `@juicesharp/rpiv-ask-user-question` and `pi-provider-litellm`, pinned in the embedded manifest. The legacy `pi-mcp-adapter` is retired and removed by package reconciliation when verified as Axon-managed.
 - Content-addressed Axon Pi resource materialization with checksum verification, atomic `runtime/current` activation, and a separately typechecked core extension.
 - Local settings/package inspection, enforced required entries, package provenance state, same-user locks, direct Pi install/remove subprocesses, exact-version fallback, minimum floors, and Pi/user-owned floating updates.
 - Automatic interactive provisioning, local-only non-interactive validation, forwarded Pi administration exemptions, explicit `axon setup pi --sync-packages`, and package-aware doctor output.
