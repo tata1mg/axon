@@ -1,0 +1,181 @@
+apps/cli/tests/launcher.test.ts
+  h_dc688f708c4675 48-49,147,316,386,544-564
+  h_dc688f708c4675 565-566
+apps/backend/app/core/axon_safehouse.py
+  h_dc688f708c4675 3-4,6,8-9,15-27,37-41,48-49,54-71,80-82
+apps/backend/app/routers/cli_config.py
+  h_dc688f708c4675 41-45
+apps/backend/config_template.json
+  h_dc688f708c4675 127,131-133
+apps/backend/pyproject.toml
+  h_dc688f708c4675 3
+apps/backend/tests/test_cli_config.py
+  h_dc688f708c4675 63-64,129-183
+apps/backend/uv.lock
+  h_dc688f708c4675 2,64
+apps/cli/package.json
+  h_dc688f708c4675 3,17-18,30-31,34,39
+apps/cli/scripts/update-safehouse.ts
+  h_dc688f708c4675 1-184
+apps/cli/src/axon-safehouse/access-relay.ts
+  h_dc688f708c4675 8-12,15,66,162,166,168
+apps/cli/src/axon-safehouse/access-requests.ts
+  h_dc688f708c4675 9,18,23,27-30,32-41,49-55,74,76,81-84,87,89,91,93,111,114,116-118,123,130-131,133,157-161,163-175,177-178,183-232,235-254,256-257,260-263,265-268,270,273,281-299,301-306,311-324,330-422,434-435,437-450,456,459-460,462,466-469,471-475,477-478,480,482,485-489,491-492,497-501,503-561,564-565,567
+apps/cli/src/axon-safehouse/configuration-relay.ts
+  h_dc688f708c4675 12-16,60-61,80,126
+apps/cli/src/axon-safehouse/contracts.ts
+  h_dc688f708c4675 3-15,23-28
+apps/cli/src/axon-safehouse/environment.ts
+  h_dc688f708c4675 94-107,127-129
+apps/cli/src/axon-safehouse/filesystem.ts
+  h_dc688f708c4675 138-142,171-172,177,179-184,212-223,232-264,270-286,293-303,440
+apps/cli/src/axon-safehouse/launch.ts
+  h_dc688f708c4675 1,3,7,33,95-102,147-151,161-190,207-210,243,272-276,332-333,341,396-404,485,508-510,512-516,530-538,547,632,647-649,696-698,706-720,722-737,744-745
+apps/cli/src/axon-safehouse/policy.ts
+  h_dc688f708c4675 11,26,32-37,46-50,64-67,71-74,79-82,85-86,88-91
+apps/cli/src/axon-safehouse/rpc-configuration.ts
+  h_dc688f708c4675 249,287-289
+apps/cli/src/axon-safehouse/runtime.ts
+  h_dc688f708c4675 5,10-11,14,16-17,29,32,41-57,64,114
+apps/cli/src/axon-safehouse/session.ts
+  h_dc688f708c4675 14,23-28,74-116,121,149-152,185,198-202,206,362-363
+apps/cli/src/axon-safehouse/telemetry.ts
+  h_dc688f708c4675 1,4-14,16-135
+apps/cli/src/axon-safehouse/tooling.ts
+  h_dc688f708c4675 1-43
+apps/cli/src/axon-safehouse/vendor/LICENSE
+  h_dc688f708c4675 1-202
+apps/cli/src/axon-safehouse/vendor/safehouse.sh
+  h_dc688f708c4675 1-10803
+apps/cli/src/cli/auth/request-relay.ts
+  h_dc688f708c4675 471-472,487,496
+apps/cli/src/cli/commands/axon-safehouse.ts
+  h_dc688f708c4675 4,14,56,63-71,85-98,165-166,188-190,194-199,202,207-210,292,297-304,399,428,430-431,438-441
+apps/cli/src/cli/commands/doctor.ts
+  h_dc688f708c4675 3-11,19,262-290,294,296-305,308-324,333-356,360-369,466
+apps/cli/src/cli/commands/setup.ts
+  h_dc688f708c4675 61-63
+apps/cli/src/cli/dispatch.ts
+  h_dc688f708c4675 94
+apps/cli/src/cli/launcher-program.ts
+  h_dc688f708c4675 3,67,182,236,303
+apps/cli/src/harnesses/pi/adapter.ts
+  h_dc688f708c4675 3,80,188-190,267-268,272-277,283-292,323-326
+apps/cli/src/harnesses/pi/environment.ts
+  h_dc688f708c4675 77
+apps/cli/src/harnesses/pi/resources/extensions/axon-changelog.ts
+  h_dc688f708c4675 20-53
+apps/cli/src/harnesses/pi/resources/extensions/axon.ts
+  h_dc688f708c4675 54-68,160-163,165,167,191-193,197,201-219,270,273,276,294,298-299,488-496,577-592,599-600,602,604,606,616,618,633-634,636-637,643,661-662,666,691,704,726-728,735-744,760,819,821-827,841,845,849,856,882-884,892-895,977,981-984
+apps/cli/src/harnesses/pi/resources/extensions/pi-org-telemetry.mjs
+  h_dc688f708c4675 231,233,235,238-240,242,245,247,249,251-252,256,258,261,264-269
+apps/cli/src/harnesses/pi/resources/extensions/session-backup.mjs
+  h_dc688f708c4675 2,6,56,58
+apps/cli/src/harnesses/pi/resources/extensions/terminal-permissions.mjs
+  h_dc688f708c4675 2-9,13-14
+apps/cli/src/harnesses/pi/resources/extensions/terminal-permissions.ts
+  h_dc688f708c4675 603,607,657-658
+apps/cli/src/harnesses/pi/settings-defaults.ts
+  h_dc688f708c4675 50,86-90
+apps/cli/src/harnesses/pi/setup/index.ts
+  h_dc688f708c4675 12,17,41-44,123-124,127
+apps/cli/src/harnesses/pi/setup/tools.ts
+  h_dc688f708c4675 1-81
+apps/cli/src/harnesses/pi/telemetry/docs/product-telemetry.md
+  h_dc688f708c4675 19,37-38
+apps/cli/src/harnesses/pi/telemetry/docs/telemetry-schema.md
+  h_dc688f708c4675 29,38,121
+apps/cli/src/harnesses/pi/telemetry/grafana-metrics-only.json
+  h_dc688f708c4675 4446-4738
+apps/cli/src/harnesses/pi/telemetry/grafana.json
+  h_dc688f708c4675 4586-4878
+apps/cli/src/harnesses/pi/telemetry/src/attributes.ts
+  h_dc688f708c4675 13
+apps/cli/src/harnesses/pi/telemetry/src/environment.ts
+  h_dc688f708c4675 11-12,68-79,83,85
+apps/cli/src/harnesses/pi/telemetry/src/otel/product-instruments.ts
+  h_dc688f708c4675 12-13
+apps/cli/src/harnesses/pi/telemetry/src/otel/runtime.ts
+  h_dc688f708c4675 48,340-341,362
+apps/cli/src/harnesses/pi/telemetry/src/product.ts
+  h_dc688f708c4675 22-23
+apps/cli/src/harnesses/pi/telemetry/tests/grafana.test.ts
+  h_dc688f708c4675 54-56
+apps/cli/src/harnesses/pi/telemetry/tests/product.test.ts
+  h_dc688f708c4675 10,111-140
+apps/cli/src/harnesses/pi/terminal-permissions/preferences.ts
+  h_dc688f708c4675 8
+apps/cli/src/hash.ts
+  h_dc688f708c4675 1-9
+apps/cli/src/launcher/contracts.ts
+  h_dc688f708c4675 11-15,70-71
+apps/cli/src/launcher/launch-harness.ts
+  h_dc688f708c4675 7,44-46,48,53-55,70
+apps/cli/src/product/paths.ts
+  h_dc688f708c4675 49-50,65
+apps/cli/src/product/project-paths.ts
+  h_dc688f708c4675 4,6,24
+apps/cli/src/product/release-channel.ts
+  h_dc688f708c4675 1-2
+apps/cli/src/sessions/backup.ts
+  h_dc688f708c4675 7,87,248,253,259,310-311,317,521
+apps/cli/src/sessions/relay.ts
+  h_dc688f708c4675 2,20,26-28,54-55
+apps/cli/src/telemetry/client.ts
+  h_dc688f708c4675 16-24,79-84,88,106-115
+apps/cli/src/telemetry/product-events.ts
+  h_dc688f708c4675 24-32,36-45,66-67,147-172,228-234
+apps/cli/src/types/assets.d.ts
+  h_dc688f708c4675 11-16
+apps/cli/src/updater/startup.ts
+  h_dc688f708c4675 34-35,83-88
+apps/cli/src/updater/update.ts
+  h_dc688f708c4675 170-175,180-183
+apps/cli/tests/axon-changelog.test.ts
+  h_dc688f708c4675 245-247,326-331
+apps/cli/tests/axon-header.test.ts
+  h_dc688f708c4675 24,145,162-187,509-540,753-770
+apps/cli/tests/axon-safehouse-certificates.test.ts
+  h_dc688f708c4675 1-60
+apps/cli/tests/axon-safehouse-environment.test.ts
+  h_dc688f708c4675 1-37
+apps/cli/tests/axon-safehouse-launch.test.ts
+  h_dc688f708c4675 4,44-45,93-229
+apps/cli/tests/axon-safehouse-menu.test.ts
+  h_dc688f708c4675 1-103
+apps/cli/tests/axon-safehouse-opt-out.test.ts
+  h_dc688f708c4675 1-109
+apps/cli/tests/axon-safehouse-runtime.test.ts
+  h_dc688f708c4675 1-153
+apps/cli/tests/compiled-pi-resources.test.ts
+  h_dc688f708c4675 59-60
+apps/cli/tests/pi-client-config.test.ts
+  h_dc688f708c4675 120,140,367-393
+apps/cli/tests/request-relay.test.ts
+  h_dc688f708c4675 1603-1638
+apps/cli/tests/safehouse-access-prompt.test.ts
+  h_dc688f708c4675 1-216
+apps/cli/tests/safehouse-permissions-format.test.ts
+  h_dc688f708c4675 1-29
+apps/cli/tests/safehouse-telemetry.test.ts
+  h_dc688f708c4675 1-253
+apps/cli/tests/session-backup-relay.test.ts
+  h_dc688f708c4675 1-56
+apps/cli/tests/terminal-permissions.test.ts
+  h_dc688f708c4675 316
+apps/cli/tests/update.test.ts
+  h_dc688f708c4675 125,140,159-166,241-255
+bun.lock
+  h_dc688f708c4675 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "02df5e56eb7ccd6ea4993c3937d7459207347958",
+  "prompts": {},
+  "humans": {
+    "h_dc688f708c4675": {
+      "author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  }
+}

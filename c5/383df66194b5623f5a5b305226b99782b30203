@@ -1,0 +1,29 @@
+apps/cli/src/harnesses/pi/resources/extensions/axon-changelog.ts
+  s_024dfb0c59006d::t_8dba2ea1715ac0 21-26
+  s_024dfb0c59006d::t_50bbc02a4c1682 20
+apps/cli/package.json
+  h_dc688f708c4675 3
+bun.lock
+  h_dc688f708c4675 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c5383df66194b5623f5a5b305226b99782b30203",
+  "prompts": {},
+  "humans": {
+    "h_dc688f708c4675": {
+      "author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_024dfb0c59006d": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "507406",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  }
+}
