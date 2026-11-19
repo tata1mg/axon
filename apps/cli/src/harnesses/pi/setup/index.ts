@@ -4,7 +4,6 @@ import { LauncherError } from "../../../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../../launcher/exit-status.ts";
 import { PRODUCT_IDENTITY } from "../../../product/identity.ts";
 import { AXON_MANIFEST, EMBEDDED_PI_RESOURCES } from "../../../product/manifest.ts";
-import { synchronizePiMcpConfig } from "./mcp-config.ts";
 import {
   classifyPiInvocation,
   currentPiInvocationEnvironment,
@@ -21,46 +20,6 @@ export interface PiSetupResult {
   readonly offline: boolean;
   /** Present for every non-administrative launch. */
   readonly materialization?: PiResourceMaterializationResult;
-}
-
-interface PiSetupCheckResult {
-  readonly summary: string;
-  readonly warning?: string;
-}
-
-interface PiSetupCheck {
-  readonly id: string;
-  run(context: HarnessLaunchContext): Promise<PiSetupCheckResult>;
-}
-
-// Best-effort organization defaults. They run only for interactive, online
-// launches so scripted, piped, CI, and offline sessions never wait on the network.
-const PI_INTERACTIVE_SETUP_CHECKS: readonly PiSetupCheck[] = Object.freeze([
-  {
-    id: "mcp-config",
-    async run(context) {
-      const syncResult = await synchronizePiMcpConfig({
-        environment: context.environment,
-        stampPath: context.paths.piMcpSyncState,
-      });
-      const added =
-        syncResult.addedServers.length === 0
-          ? "no organization MCP servers added"
-          : `added disabled MCP servers: ${syncResult.addedServers.join(", ")}`;
-
-      return {
-        summary: `${syncResult.status}; ${added}; path ${syncResult.configPath}`,
-        ...(syncResult.warning === undefined ? {} : { warning: syncResult.warning }),
-      };
-    },
-  },
-]);
-
-function printDebugResult(check: PiSetupCheck, result: PiSetupCheckResult): void {
-  console.error(`${PRODUCT_IDENTITY.command}: pi setup ${check.id}: ${result.summary}`);
-  if (result.warning !== undefined) {
-    console.error(`${PRODUCT_IDENTITY.command}: pi setup ${check.id} warning: ${result.warning}`);
-  }
 }
 
 async function prepareRequiredResources(
@@ -119,28 +78,6 @@ export async function preparePiSetup(
     invocationKind === "interactive" && !offline,
     debug,
   );
-
-  if (invocationKind === "interactive" && !offline) {
-    for (const check of PI_INTERACTIVE_SETUP_CHECKS) {
-      try {
-        const checkResult = await check.run(context);
-        if (debug) {
-          printDebugResult(check, checkResult);
-        }
-      } catch (error) {
-        // Organization defaults are additive convenience configuration. A setup
-        // check must never prevent Pi from starting or risk replacing user data.
-        if (debug) {
-          const message = error instanceof Error ? error.message : String(error);
-          console.error(`${PRODUCT_IDENTITY.command}: pi setup ${check.id} failed: ${message}`);
-        }
-      }
-    }
-  } else if (debug) {
-    console.error(
-      `${PRODUCT_IDENTITY.command}: pi setup checks skipped (${offline ? "offline" : invocationKind})`,
-    );
-  }
 
   return { invocationKind, offline, materialization };
 }

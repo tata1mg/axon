@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 
 import { BUILD_INFO } from "../../build-info.ts";
 import { applyPiDefaults } from "../../harnesses/pi/settings-defaults.ts";
+import type { PiHub } from "../../hub/pi-hub.ts";
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../../product/endpoints.ts";
 import type { AxonPaths } from "../../product/paths.ts";
 import { emitProductEvent } from "../../telemetry/product-events.ts";
@@ -461,6 +462,7 @@ export function startAuthenticatedRequestRelay(
   paths: AxonPaths,
   options: {
     readonly allowPiConfigRefresh?: boolean;
+    readonly piHub?: PiHub;
     readonly signedOut?: SessionRecoveryOptions["signedOut"];
   } = {},
 ): AuthenticatedRequestRelay {
@@ -482,11 +484,35 @@ export function startAuthenticatedRequestRelay(
       await diagnostics.serverFailure(error);
       return relayError(503, "Axon could not process this request safely");
     },
-    async fetch(request) {
+    async fetch(request, server) {
       if (!authorizedLocalRequest(request, capability)) {
         return relayError(401, "Invalid local Axon request credential");
       }
       const url = new URL(request.url);
+      // This is a launcher control call, not a browser endpoint or an upstream route.
+      if (url.pathname === "/_axon/hub/open") {
+        if (!options.piHub || request.method !== "POST" || url.search) {
+          return relayError(404, "Axon endpoint is not available");
+        }
+        if (
+          url.origin !== server.url.origin ||
+          request.headers.get("host") !== server.url.host ||
+          request.headers.has("origin") ||
+          request.headers.has("sec-fetch-site")
+        ) {
+          return relayError(403, "A local Pi request is required");
+        }
+        try {
+          const launchUrl = await options.piHub.open();
+          const headers = { "Cache-Control": "no-store" };
+          return launchUrl === undefined
+            ? new Response(null, { status: 204, headers })
+            : Response.json({ launchUrl }, { headers });
+        } catch {
+          // Never log or serialize a browser error containing a private link.
+          return relayError(503, "Could not open Axon Hub");
+        }
+      }
       const diagnostic = diagnostics.start(request, url);
       try {
         // Control calls never wait for authentication work so Pi can approve a pending login.
@@ -533,6 +559,7 @@ export function startAuthenticatedRequestRelay(
     diagnosticsLogFile: diagnostics.logFile,
     diagnosticsLogLabel: diagnostics.logLabel,
     dispose: () => {
+      options.piHub?.dispose();
       recovery.dispose();
       void server.stop(true);
     },

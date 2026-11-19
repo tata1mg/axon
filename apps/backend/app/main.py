@@ -21,7 +21,7 @@ app = FastAPI(
     debug=settings.debug,
     lifespan=lifespan,
     description="Centralized management API for Axon CLI installations",
-    version="0.2.1",
+    version="0.4.0",
     telemetry=NATIVE_TELEMETRY_DISABLED,
 )
 app.add_middleware(SessionRefreshResponseMiddleware)

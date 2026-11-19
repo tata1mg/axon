@@ -12,6 +12,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from sentry_sdk.utils import Dsn
 
+from app.core.admin_dashboard import AdminDashboardSettings, parse_admin_dashboard
 from app.core.axon_safehouse import AxonSafehouseSettings, parse_axon_safehouse
 from app.core.cli_config import (
     CliCompactionConfig,
@@ -215,6 +216,7 @@ class Settings:
     cli_litellm_client: CliLiteLLMClientConfig | None = None
     terminal_permissions: TerminalPermissionsSettings | None = None
     axon_safehouse: AxonSafehouseSettings = field(default_factory=AxonSafehouseSettings)
+    admin_dashboard: AdminDashboardSettings = field(default_factory=AdminDashboardSettings)
 
 
 def _cli_pi_settings(raw_config: dict[str, Any]) -> CliPiConfig | None:
@@ -597,6 +599,16 @@ def _axon_safehouse(raw: dict[str, Any]) -> AxonSafehouseSettings:
         raise ConfigurationError("config.AXON_SAFEHOUSE contains invalid settings") from None
 
 
+def _admin_dashboard(raw: dict[str, Any], *, auth_service_configured: bool) -> AdminDashboardSettings:
+    try:
+        return parse_admin_dashboard(raw, auth_service_configured=auth_service_configured)
+    except ValueError as exc:
+        # Parser messages name config keys only; they never echo member addresses or values.
+        raise ConfigurationError(f"config.{exc}") from None
+    except TypeError:
+        raise ConfigurationError("config.ADMIN_DASHBOARD contains invalid settings") from None
+
+
 @cache
 def get_settings() -> Settings:
     """Parse and cache the backend configuration from its project directory."""
@@ -796,6 +808,7 @@ def get_settings() -> Settings:
         model_recommender=_model_recommender(raw_config),
         terminal_permissions=terminal_permissions,
         axon_safehouse=_axon_safehouse(raw_config),
+        admin_dashboard=_admin_dashboard(raw_config, auth_service_configured=auth_service is not None),
         backend_telemetry=backend_telemetry,
         sentry=_sentry_settings(raw_config),
         log_level=log_level,

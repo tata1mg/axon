@@ -205,6 +205,15 @@
     "EVENT_LOOP_MONITOR_INTERVAL": 0.1,
     "EVENT_LOOP_MONITOR_BLOCKING_THRESHOLD": 0.05
   },
+  "ADMIN_DASHBOARD": {
+    "ENABLED": false,
+    "PUBLIC_BASE_PATH": "/axon",
+    "MEMBERS": {
+    },
+    "SESSION_TTL_SECONDS": 28800,
+    "LOGIN_TIMEOUT_SECONDS": 600,
+    "SECURE_COOKIES": true
+  },
   "AUTH_SERVICE": {
     "BASE_URL": "http://localhost:9355",
     "BROWSER_LOGIN_URL": "http://localhost:5173/external-auth",

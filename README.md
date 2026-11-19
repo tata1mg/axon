@@ -13,6 +13,7 @@ Follow the [CLI installation guide](apps/cli/README.md#installation) for your de
 ```bash
 axon pi                    # start a coding session; first use prompts for sign-in
 axon doctor                # check the local setup
+axon hub                   # manage user-level MCP servers in a local browser UI
 axon update --check        # check for a newer CLI release
 ```
 

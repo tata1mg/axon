@@ -166,7 +166,7 @@ Expected implementation paths; final names may be adjusted to existing module bo
 - `resolveExecutablePath()` and direct `Bun.spawn` patterns in `src/launcher/` rather than shell execution.
 - `BUILD_INFO` and the existing Bun compile-time define pipeline for binding the embedded manifest to a Axon release.
 - Existing temporary-home/fake-harness test patterns in `tests/launcher.test.ts` and MCP setup dependency-injection patterns in `tests/pi-mcp-setup.test.ts`.
-- The temporary-file, restrictive-mode, re-read, and atomic-rename patterns in `src/harnesses/pi/setup/mcp-config.ts`; extract a shared helper only if package settings/state need identical semantics.
+- The temporary-file, restrictive-mode, re-read, and atomic-rename patterns in `src/hub/mcp-store.ts` (the launch-time `mcp-config.ts` sync that used to show them was removed); extract a shared helper only if package settings/state need identical semantics.
 
 ## Steps
 

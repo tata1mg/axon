@@ -1,0 +1,303 @@
+/* Organization catalog: Discover sections, the install dialog, and step blocks. */
+
+/* List */
+.cat-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  overflow: hidden;
+}
+.page > .cat-list,
+.page > .banner + .cat-list {
+  margin-top: 24px;
+}
+/* Discover: one section per catalog kind, under the kind filter */
+.cat-body-spaced {
+  margin-top: 24px;
+}
+.cat-section + .cat-section {
+  margin-top: 32px;
+}
+.cat-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.cat-card {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: start;
+  padding: 18px 20px;
+}
+.cat-card + .cat-card {
+  border-top: 1px solid var(--border);
+}
+.cat-card.skeleton {
+  grid-template-columns: 36px 1fr;
+}
+.cat-avatar {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-weight: 650;
+}
+.cat-card[data-state="installed"] .cat-avatar {
+  background: var(--success-soft);
+  color: var(--success);
+}
+.cat-main {
+  min-width: 0;
+}
+.cat-skipped {
+  margin-top: 16px;
+}
+
+/* Tags used by the catalog and the "From catalog" marker on My MCP servers */
+.tag-ok {
+  border-color: color-mix(in srgb, var(--success) 40%, transparent);
+  background: var(--success-soft);
+  color: var(--success);
+}
+.tag-accent {
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+h1 .tag {
+  vertical-align: middle;
+  margin-left: 6px;
+}
+
+/* Install dialog */
+.cat-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.cat-dialog .field {
+  margin: 0;
+}
+.cat-dialog .alert {
+  margin: 0;
+}
+.cat-dialog .alert-error {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.cat-summary {
+  color: var(--text-2);
+}
+.cat-docs a,
+.cat-text a {
+  color: var(--accent-text);
+}
+.cat-note {
+  font-size: 13px;
+  color: var(--text-2);
+}
+.cat-steps,
+.cat-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cat-steps:empty {
+  display: none;
+}
+.cat-blocks {
+  margin-top: 8px;
+}
+.cat-text {
+  white-space: pre-line;
+}
+.cat-link {
+  align-self: flex-start;
+  gap: 6px;
+  text-decoration: none;
+}
+.cat-command-label {
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 550;
+}
+.cat-command-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px 6px 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-sunken);
+}
+.cat-command-box pre {
+  flex: 1;
+  min-width: 0;
+  margin: 6px 0;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.cat-callout {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-sunken);
+  font-size: 13px;
+}
+.cat-callout.warn {
+  border-color: var(--warn-border);
+  background: var(--warn-soft);
+}
+.cat-prereq {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.cat-prereq.missing {
+  border-color: var(--warn-border);
+  background: var(--warn-soft);
+}
+.cat-prereq-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cat-prereq-head strong {
+  flex: 1;
+  font-weight: 550;
+}
+.cat-prereq-path {
+  display: block;
+  margin: 4px 0 0 24px;
+  color: var(--text-3);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.cat-prereq .hint {
+  margin-left: 24px;
+}
+.cat-prereq .cat-blocks {
+  margin-left: 24px;
+}
+.cat-confirm {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.cat-confirm input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+.cat-review h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 550;
+}
+.cat-review dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 14px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-sunken);
+  font-size: 12.5px;
+}
+.cat-review dl > div {
+  display: contents;
+}
+.cat-review dt {
+  color: var(--text-3);
+}
+.cat-review dd {
+  margin: 0;
+  font-family: var(--mono);
+  overflow-wrap: anywhere;
+}
+.cat-success {
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--success) 40%, transparent);
+  border-radius: var(--radius);
+  background: var(--success-soft);
+}
+.cat-blocker {
+  margin: 0;
+  text-align: right;
+}
+
+/* Icons, from least to most specific */
+.cat-link .icon {
+  width: 14px;
+  height: 14px;
+}
+.cat-callout .icon {
+  margin-top: 2px;
+  color: var(--accent-text);
+}
+.cat-prereq-head .icon {
+  width: 16px;
+  height: 16px;
+  color: var(--text-3);
+}
+.cat-success .icon {
+  margin-top: 2px;
+  color: var(--success);
+}
+.cat-callout.warn .icon {
+  color: var(--warn);
+}
+.cat-prereq.found .cat-prereq-head .icon {
+  color: var(--success);
+}
+.cat-prereq.missing .cat-prereq-head .icon {
+  color: var(--warn);
+}
+
+@media (max-width: 720px) {
+  .cat-card {
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 12px;
+    padding: 16px;
+  }
+  .cat-avatar {
+    width: 32px;
+    height: 32px;
+  }
+  .cat-card .server-actions {
+    grid-column: 2;
+  }
+  .cat-review dl {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cat-review dd {
+    margin-bottom: 6px;
+  }
+  .cat-blocker {
+    text-align: left;
+  }
+}

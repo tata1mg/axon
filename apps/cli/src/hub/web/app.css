@@ -1,0 +1,240 @@
+/* App chrome: header, page layout, banners, empty/error states, footer. */
+
+/* Header */
+.app-header {
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.app-header-inner {
+  max-width: 1008px;
+  margin: 0 auto;
+  padding: 0 24px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 650;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 18px;
+  font-weight: 750;
+  line-height: 1;
+  padding-bottom: 2px;
+}
+.app-nav {
+  display: flex;
+  gap: 2px;
+  margin: 0 auto 0 28px;
+}
+.app-tab {
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--text-2);
+  font-weight: 500;
+}
+.app-tab:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.app-tab[aria-current="page"] {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+.local-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 0 3px var(--success-soft);
+}
+
+/* Page */
+.page {
+  max-width: 1008px;
+  margin: 0 auto;
+  padding: 40px 24px 64px;
+}
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+}
+h1 {
+  font-size: 26px;
+  line-height: 1.2;
+  font-weight: 650;
+  letter-spacing: -0.025em;
+}
+.lede {
+  margin-top: 6px;
+  color: var(--text-2);
+  max-width: 60ch;
+}
+
+/* Banner */
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 24px;
+  padding: 10px 8px 10px 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  background: var(--accent-soft);
+  border-radius: var(--radius);
+  color: var(--text);
+}
+.banner > .icon {
+  color: var(--accent-text);
+}
+.banner p {
+  flex: 1;
+  font-size: 13px;
+}
+
+/* Empty / fatal states */
+.state-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 56px 24px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+.page > .state-panel {
+  margin-top: 28px;
+}
+.state-panel h2 {
+  font-size: 17px;
+  font-weight: 600;
+}
+.state-panel p {
+  color: var(--text-2);
+  max-width: 46ch;
+}
+.state-panel .btn {
+  margin-top: 12px;
+}
+.state-panel .state-hint {
+  font-size: 13px;
+  margin-top: 4px;
+}
+.state-panel.compact {
+  padding: 28px 24px;
+}
+.state-panel.compact .btn {
+  margin-top: 4px;
+}
+.state-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 6px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+.state-icon .icon {
+  width: 22px;
+  height: 22px;
+}
+.state-icon.danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+/* Footer */
+.page-foot {
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  color: var(--text-3);
+  font-size: 12px;
+}
+.config-path {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 10px;
+  margin-bottom: 6px;
+}
+.foot-label {
+  font-weight: 600;
+  color: var(--text-2);
+}
+.config-path code {
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.page-foot p {
+  max-width: 80ch;
+}
+.page-foot p code {
+  background: none;
+  padding: 0;
+  color: inherit;
+}
+
+@media (max-width: 720px) {
+  .page {
+    padding: 28px 16px 48px;
+  }
+  .app-header-inner {
+    padding: 0 16px;
+    height: auto;
+    min-height: 56px;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    padding-block: 10px;
+  }
+  .app-nav {
+    order: 3;
+    width: 100%;
+    margin: 0;
+    overflow-x: auto;
+  }
+  .page-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+  h1 {
+    font-size: 23px;
+  }
+  .config-path {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .foot-label {
+    grid-column: 1 / -1;
+  }
+}

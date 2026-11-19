@@ -4,6 +4,7 @@ import {
 } from "../../cli/auth/request-relay.ts";
 import { loadEncryptedSession, refreshEncryptedSession } from "../../cli/auth/session.ts";
 import { type ClientConfig, fetchClientConfig } from "../../cli/client-config.ts";
+import { createPiHub } from "../../hub/pi-hub.ts";
 import type { HarnessAdapter } from "../../launcher/contracts.ts";
 import type { EnvironmentOverrides } from "../../launcher/environment.ts";
 import { LauncherError } from "../../launcher/errors.ts";
@@ -174,6 +175,9 @@ export function createPiAdapter(): HarnessAdapter {
         // live session for each request and owns refresh persistence and recovery.
         relay = startAuthenticatedRequestRelay(context.paths, {
           allowPiConfigRefresh: !setup.offline,
+          ...(setup.invocationKind === "interactive"
+            ? { piHub: createPiHub(context.paths, { offline: setup.offline }) }
+            : {}),
           ...(context.authenticationDeferred ? { signedOut: { session: encryptedSession } } : {}),
         });
         // Startup discovery seeds fresh models, but Pi restores its cached catalog over

@@ -297,6 +297,8 @@ Routing, in match order:
 | `/install.sh` | Public, unauthenticated CLI installer |
 | `/api/v1/auth/browser-login` | Existing public browser-login start POST and GET polling at `/{session_id}` |
 | `/api/v1/cli/config` | Session-authenticated, non-secret telemetry, search, and Pi preferences |
+| `/api/v1/admin/*` | Admin dashboard API (`ADMIN_DASHBOARD.ENABLED`); cookie-held axon-auth session plus config-listed role. 404 when disabled |
+| `/api/v1/catalog` | Session-authenticated, published organization catalog for `axon hub` (see [Organization catalog](#organization-catalog)) |
 | `/litellm/*` | Session-authenticated LiteLLM proxy; streaming, native identity, and model authorization |
 | `/litellm-admin/*` | Opt-in browser proxy (`LITELLM.UI_ENABLED`); LiteLLM's own login/auth, no backend credential injection |
 | `/api/v1/otel/v1/{traces,metrics,logs}` | Session-authenticated OTLP/HTTP proxy with authoritative identity |
@@ -319,6 +321,7 @@ For `https://deputydev.ai/axon/`, keep the public mount consistent across the CL
 | CLI build/publishing `AXON_SERVICE_ORIGIN` | `https://deputydev.ai/axon` (no trailing slash) |
 | Backend `CLI_INSTALL.RELEASES_URL` | `https://deputydev.ai/axon/api/v1/cli/releases` |
 | Backend `AUTH_SERVICE.BROWSER_LOGIN_URL` | The actual browser login application's HTTPS URL ending in `/external-auth`; include its mount if applicable |
+| Backend `ADMIN_DASHBOARD.PUBLIC_BASE_PATH` | `/axon`, so admin cookies are scoped to `/axon/api/v1/admin` |
 
 Ingress must strip `/axon` before forwarding to this app: `/axon/install.sh` becomes `/install.sh`, `/axon/api/v1/*` becomes `/api/v1/*`, and `/axon/litellm/*` becomes `/litellm/*`. Preserve HTTP methods, ordered queries, and streaming responses. Forward the entire mount, not only installer/release URLs. The backend's internal routes do not gain a hard-coded `/axon` prefix.
 
@@ -326,7 +329,7 @@ Restart the backend after changing its ignored `config.json` and rebuild the CLI
 
 The Dockerfile builds the console using `apps/frontend/config_template.json`, which sets `VITE_BASE_PATH` to `/axon/` and `BASE_API_URL` to `/axon`. Asset requests such as `/axon/assets/index-….js` must also have `/axon` stripped by ingress. No custom frontend build arguments are needed; change the template and rebuild the image for root hosting or another prefix. See [frontend build-time deployment paths](../frontend/README.md#build-time-deployment-paths).
 
-The current console is a scaffold, not the external-auth application. Only use `https://deputydev.ai/axon/external-auth` for `BROWSER_LOGIN_URL` if your deployment actually serves the login page there. The separate MCP catalog must likewise be available as JSON at `https://deputydev.ai/axon/v1/cli/pi/mcp.json`; the SPA fallback is not a catalog implementation.
+The console is not the external-auth application. Only use `https://deputydev.ai/axon/external-auth` for `BROWSER_LOGIN_URL` if your deployment actually serves the login page there.
 
 Public smoke checks after publication:
 
@@ -337,6 +340,62 @@ curl -i https://deputydev.ai/axon/api/v1/cli/releases/0.2.0/checksums.txt
 ```
 
 The release base URL itself has no GET route. An empty `LATEST_VERSION` intentionally makes `/latest/VERSION` return 503 until a verified release is promoted.
+
+### Admin dashboard
+
+The console serves an admin dashboard at `/admin` (`/axon/admin` in production). It is the home for organization-wide management; the first version provides sign-in, roles, and an audit log. It is disabled unless configured:
+
+```json
+"ADMIN_DASHBOARD": {
+  "ENABLED": true,
+  "PUBLIC_BASE_PATH": "/axon",
+  "MEMBERS": { "lead@example.com": "admin", "oncall@example.com": "viewer" },
+  "SESSION_TTL_SECONDS": 28800,
+  "LOGIN_TIMEOUT_SECONDS": 600,
+  "SECURE_COOKIES": true
+}
+```
+
+- **Access is configuration.** `MEMBERS` maps email addresses (case-insensitive) to `admin` (view and change) or `viewer` (view only). The dashboard can list members but never grant access; edit `config.json` and restart. Roles are re-read on every request, so removing someone ends their dashboard session on the next request. Enabling requires `AUTH_SERVICE` and at least one `admin`.
+- **Sign-in uses axon-auth.** The dashboard starts the same browser-login pairing as the CLI, opens `AUTH_SERVICE.BROWSER_LOGIN_URL` in a new tab, and polls. It is a separate, browser-bound exchange: the login cookie (HttpOnly) holds a random secret, and the browser URL carries only a pairing ID derived one-way from it. The dashboard poll needs the secret, and the public CLI poll route (`/api/v1/auth/browser-login/{id}`) refuses dashboard pairing IDs, so code that reads the login URL cannot collect the credential. This assumes axon-auth's own session lookup is reachable only from the backend. On success the backend verifies the axon-auth session, checks the email against `MEMBERS`, and stores that axon-auth session credential in an HttpOnly cookie. There is no dashboard session table.
+- **Every request is verified with axon-auth**, like a CLI bearer token. Credential rotations update the cookie on every response, error responses included, and are never exposed as a readable header. Signing out clears the cookie, even when the sign-out cannot be audited (that returns a 500 that still deletes the cookie); the dashboard shows "signed out" only after the server confirms the session is gone. the axon-auth session itself remains valid until axon-auth expires it. `SESSION_TTL_SECONDS` only caps how long the browser keeps the cookie.
+- **Cookies** are HttpOnly, `SameSite=Strict`, and scoped to `PUBLIC_BASE_PATH + /api/v1/admin`, so the LiteLLM proxies on the same origin never receive them; the LiteLLM UI proxy also strips them by name. Set `SECURE_COOKIES` to `false` only for local plain-HTTP development. A credential that cannot fit in a browser cookie (about 3.9 KB after encoding) fails sign-in with a clear 503 rather than silently.
+- **CSRF and cross-origin.** Every admin request must send `X-Axon-Admin: 1` and must not be `Sec-Fetch-Site: cross-site`. Together with `SameSite=Strict`, that blocks cross-site use without a separate CSRF token.
+- **Audit log.** `META_HARNESS_admin_audit_events` (migration `20261117120000`) records sign-ins, denied sign-ins, sign-outs, and catalog changes. New admin features must record every write with `AdminAuditLog.record(...)`.
+
+As with the CLI, anyone who completes a sign-in link started by someone else hands that browser their session. Only open sign-in tabs that you started.
+
+To add a dashboard feature: add routes on an `APIRouter` using `AdminRoute` and `dependencies=[Depends(require_admin_api)]` (see `app/routers/admin.py`), require a role with the `AnyAdmin`/`FullAdmin` dependencies from `app/services/admin/guards.py`, and register a page in `apps/frontend/src/admin/sections.ts`.
+
+For local development, set `PUBLIC_BASE_PATH` to `""` and `SECURE_COOKIES` to `false`, run the frontend with root-based paths, and open `http://localhost:8010/admin`.
+
+### Organization catalog
+
+Admins curate MCP servers (and, as a preview, skills) that developers install from `axon hub`. The
+design and the rollout plan are in [`docs/hub-catalog-plan.md`](../../docs/hub-catalog-plan.md).
+Migration `20261117160000` adds two tables; it seeds nothing, so admins create entries through the
+dashboard.
+
+- `META_HARNESS_catalog_items` holds one row per entry: `kind` (`mcp`, `skill`), `slug` (the name
+  users install under, unique per kind), `status` (`draft`, `published`, `archived`), and the
+  admin's working `draft`. Every write must send the row's current `lock_version`; a stale one
+  returns 409.
+- `META_HARNESS_catalog_item_revisions` is append-only. Publishing validates the draft, stores a
+  normalized copy as revision N+1, and points the item at it. Revisions cannot be deleted with their
+  item.
+- **Validation is structural.** Drafts may be saved incomplete; reads return their `errors` and
+  `warnings`. Publishing requires no errors. Warnings (unpinned `npx`/`uvx` packages, literal
+  credential values, `http://` URLs, missing descriptions or prerequisites, non-`codemode` exposure)
+  are guidance for the dashboard and never block publishing. Spec schemas, warnings, and install tiers
+  (`one_click`, `guided`, `manual`) live in `app/services/catalog/specs.py`.
+- **Admin routes** are under `/api/v1/admin/catalog` (viewers read, admins write): `items`
+  (list, create), `items/{id}` (get, `PATCH` the draft, slug, `featured` or `sort_order`, `DELETE`
+  only if never published), `items/{id}/publish`, `unpublish`, `archive`, `unarchive`,
+  `items/{id}/revisions[/{n}]`, `items/{id}/revisions/{n}/restore` (copies into the draft), and
+  `validate`. Each write records a `catalog.*` audit event in the same transaction as the change.
+- **Client route.** `GET /api/v1/catalog?kinds=mcp:1,skill:0` requires a CLI bearer session and
+  returns published items whose kind and spec version the client names (default `mcp:1`). Unknown
+  kinds are ignored, so older backends serve newer clients.
 
 ### Web search
 

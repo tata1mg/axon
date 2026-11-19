@@ -1,4 +1,13 @@
+import { AdminApp } from "@/admin/AdminApp";
+import { usePath } from "@/lib/router";
+
 export default function App() {
+  const path = usePath();
+  if (path === "/admin" || path.startsWith("/admin/")) return <AdminApp />;
+  return <InstallPage />;
+}
+
+function InstallPage() {
   const installerUrl = new URL("/axon/install.sh", window.location.origin).href;
   const installCommand = `curl --proto '=https' --tlsv1.2 -fsSL ${installerUrl} | sh`;
 

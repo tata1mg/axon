@@ -3,7 +3,10 @@
 from fastapi import APIRouter
 
 from app.proxies.otel import router as otel_router
+from app.routers.admin import router as admin_router
+from app.routers.admin_catalog import router as admin_catalog_router
 from app.routers.browser_login import router as browser_login_router
+from app.routers.catalog import router as catalog_router
 from app.routers.cli_config import router as cli_config_router
 from app.routers.cli_releases import router as cli_releases_router
 from app.routers.health import ping_router
@@ -22,4 +25,7 @@ ROUTERS: list[APIRouter] = [
     install_router,
     cli_releases_router,
     sessions_router,
+    admin_router,
+    admin_catalog_router,
+    catalog_router,
 ]

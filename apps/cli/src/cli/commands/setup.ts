@@ -1,4 +1,3 @@
-import { synchronizePiMcpConfig } from "../../harnesses/pi/setup/mcp-config.ts";
 import { synchronizePiPackages } from "../../harnesses/pi/setup/packages/sync.ts";
 import { materializePiResources } from "../../harnesses/pi/setup/resources.ts";
 import { loadHarnessAdapter, resolveHarnessRegistration } from "../../harnesses/registry.ts";
@@ -79,17 +78,9 @@ export async function runSetup(
     context,
     manifest: AXON_MANIFEST,
   });
-  const mcp = await synchronizePiMcpConfig({
-    environment,
-    force: true,
-    stampPath: context.paths.piMcpSyncState,
-  });
 
   for (const warning of packages.warnings) {
     console.error(`${PRODUCT_IDENTITY.command}: pi package warning: ${warning}`);
-  }
-  if (mcp.warning !== undefined) {
-    console.error(`${PRODUCT_IDENTITY.command}: pi mcp warning: ${mcp.warning}`);
   }
   console.log(`Pi executable: ${executable}`);
   console.log(`Pi resources ready: ${resources.runtimeDirectory}`);
@@ -97,10 +88,5 @@ export async function runSetup(
     packages.packages.length === 0
       ? "Pi required packages: none configured"
       : `Pi required packages ready: ${packages.packages.length}`,
-  );
-  console.log(
-    `Pi MCP defaults: ${mcp.status}${
-      mcp.addedServers.length === 0 ? "" : ` (added ${mcp.addedServers.join(", ")})`
-    }; ${mcp.configPath}`,
   );
 }

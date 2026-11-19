@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{ts,tsx,css,json}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,css,json}\"",
-    "typecheck": "tsc -b --noEmit"
+    "typecheck": "tsc -b --noEmit",
+    "test": "node --test 'tests/*.test.ts'"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",

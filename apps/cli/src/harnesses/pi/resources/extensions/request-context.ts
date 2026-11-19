@@ -8,8 +8,8 @@ import { normalizeWorkflowName, WORKFLOW_ENV } from "../../workflow.ts";
  * traces can be split by workflow, repo, and Axon version. Every request a prompt causes shares
  * one Langfuse trace id; without it LiteLLM logs each request as its own trace. Git is read once
  * per session (repo, directory) and in the background when a prompt starts and ends (branch,
- * commit). Git wrappers such as git-ai make each call take ~100ms, so only a session's first
- * request waits for git; later requests use the newest finished read.
+ * commit). Git wrappers can add latency, so only a session's first request waits for Git;
+ * later requests use the newest finished read.
  *
  * Requests that bypass Pi's header hook (web search, Axon compaction) read the context from
  * REQUEST_CONTEXT_CHANNEL. Keep that contract in sync with web-search.ts and compaction.ts.

@@ -1,3 +1,13 @@
+declare module "*.css" {
+  const text: string;
+  export default text;
+}
+
+declare module "*assets/hub.js" {
+  const text: string;
+  export default text;
+}
+
 declare module "*.mjs" {
   const assetPath: string;
   export default assetPath;

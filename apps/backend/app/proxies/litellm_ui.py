@@ -39,7 +39,17 @@ _REQUEST_EXCLUDED = PROTECTED_REQUEST_HEADERS - {
 }
 _REQUEST_EXCLUDED |= {b"forwarded", b"x-forwarded-prefix", b"x-forwarded-port", b"x-real-ip"}
 _RESPONSE_EXCLUDED = PROTECTED_RESPONSE_HEADERS - {b"set-cookie"}
-_AXON_COOKIE_NAMES = {"encrypted_session_data", "extension_auth_token", "session_refresh_token", "axon_session"}
+_AXON_COOKIE_NAMES = {
+    "encrypted_session_data",
+    "extension_auth_token",
+    "session_refresh_token",
+    "axon_session",
+    # Admin dashboard cookies are path-scoped to the admin API; strip them anyway.
+    "__secure-axon-admin-session",
+    "__secure-axon-admin-login",
+    "axon-admin-session",
+    "axon-admin-login",
+}
 
 
 def _browser_headers(scope: Scope, request_id: str) -> list[tuple[bytes, bytes]]:

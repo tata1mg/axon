@@ -150,13 +150,23 @@ async def run_dbmate(
     )
 
 
-def test_dbmate_default_ledger_up_down_up(disposable_db: str) -> None:
+def sessions_only(tmp_path: Path) -> Path:
+    """These tests pin the sessions migration's own ledger behavior, independent of later migrations."""
+    directory = tmp_path / "sessions-migrations"
+    directory.mkdir()
+    shutil.copy(MIGRATION, directory)
+    return directory
+
+
+def test_dbmate_default_ledger_up_down_up(disposable_db: str, tmp_path: Path) -> None:
+    directory = sessions_only(tmp_path)
+
     async def check() -> None:
         db = await asyncpg.connect(disposable_db)
         try:
             assert await db.fetchval("SELECT to_regclass('public.schema_migrations')") is None
             for operation in ["up", "up", "down", "up"]:
-                result = await run_dbmate(disposable_db, operation)
+                result = await run_dbmate(disposable_db, operation, directory=directory)
                 assert result.returncode == 0, result.stdout + result.stderr
                 assert await db.fetchval("SELECT count(*) FROM public.schema_migrations") == (
                     0 if operation == "down" else 1
@@ -187,7 +197,7 @@ def test_dbmate_migration_failure_rolls_back(disposable_db: str, tmp_path: Path)
             assert "division by zero" in result.stdout + result.stderr
             assert await db.fetchval("SELECT to_regclass('public.migration_failure')") is None
             assert await db.fetchval("SELECT count(*) FROM public.schema_migrations") == 0
-            result = await run_dbmate(disposable_db, "migrate")
+            result = await run_dbmate(disposable_db, "migrate", directory=sessions_only(tmp_path))
             assert result.returncode == 0, result.stdout + result.stderr
             assert await db.fetchval("SELECT count(*) FROM public.schema_migrations") == 1
         finally:
@@ -197,9 +207,11 @@ def test_dbmate_migration_failure_rolls_back(disposable_db: str, tmp_path: Path)
 
 
 @pytest.mark.parametrize("pointer", ["current", "pending"])
-def test_dbmate_rollback_requires_storage_cleanup(disposable_db: str, pointer: str) -> None:
+def test_dbmate_rollback_requires_storage_cleanup(disposable_db: str, pointer: str, tmp_path: Path) -> None:
+    directory = sessions_only(tmp_path)
+
     async def check() -> None:
-        result = await run_dbmate(disposable_db, "migrate")
+        result = await run_dbmate(disposable_db, "migrate", directory=directory)
         assert result.returncode == 0, result.stdout + result.stderr
         db = await asyncpg.connect(disposable_db)
         try:
@@ -228,7 +240,7 @@ def test_dbmate_rollback_requires_storage_cleanup(disposable_db: str, pointer: s
                     "resume_metadata='{}'::jsonb, last_committed_request_id=$1, last_backup_at=now()",
                     uuid4(),
                 )
-            result = await run_dbmate(disposable_db, "down")
+            result = await run_dbmate(disposable_db, "down", directory=directory)
             assert result.returncode != 0
             assert (
                 "Clean up session objects and pending reservations before rolling back" in result.stdout + result.stderr
@@ -237,7 +249,7 @@ def test_dbmate_rollback_requires_storage_cleanup(disposable_db: str, pointer: s
             assert await db.fetchval('SELECT count(*) FROM "META_HARNESS_sessions"') == 1
             # Synthetic metadata only: no real storage objects exist in this test.
             await db.execute('DELETE FROM "META_HARNESS_sessions"')
-            result = await run_dbmate(disposable_db, "down")
+            result = await run_dbmate(disposable_db, "down", directory=directory)
             assert result.returncode == 0, result.stdout + result.stderr
             assert await db.fetchval("SELECT count(*) FROM public.schema_migrations") == 0
         finally:

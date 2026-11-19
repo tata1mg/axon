@@ -18,6 +18,7 @@ import {
 } from "./commands/auth.ts";
 import { runDoctor } from "./commands/doctor.ts";
 import { printHarnesses } from "./commands/harnesses.ts";
+import { runHub } from "./commands/hub.ts";
 import { printPaths } from "./commands/paths.ts";
 import { runSessions, runSessionsInteractive } from "./commands/sessions.ts";
 import { runSetup, type SetupOptions } from "./commands/setup.ts";
@@ -53,6 +54,12 @@ function createLauncherProgram(): Command {
     .action(() => {
       printPaths(resolveAxonPaths());
     });
+
+  program
+    .command("hub")
+    .description("open the local browser hub to manage user-level MCP servers")
+    .option("--no-open", "print the private hub link without opening a browser")
+    .action((options: { open: boolean }) => runHub(resolveAxonPaths(), options));
 
   const auth = program.command("auth").description("manage the local Axon session");
   auth

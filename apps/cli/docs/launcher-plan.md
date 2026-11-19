@@ -97,13 +97,13 @@ Pass a Axon-owned variable into a harness only when the registry documents it as
 
 `AXON_SERVICE_ORIGIN` is build/development configuration, not a harness-facing variable. Local tooling reads it from the ignored `.env`; staging and production builds receive it from their GitHub Actions environment and compile it as `BUILD_SERVICE_ORIGIN`. Released binaries do not autoload `.env` or allow ambient project configuration to redirect service traffic.
 
-The installer, signed distribution manifest, post-auth client config, and Pi MCP catalog use fixed paths under that one origin:
+The installer, signed distribution manifest, post-auth client config, and the organization catalog read by `axon hub` use fixed paths under that one origin:
 
 ```text
 ${BUILD_SERVICE_ORIGIN}/install.sh
 ${BUILD_SERVICE_ORIGIN}/stable.json
 ${BUILD_SERVICE_ORIGIN}/api/v1/cli/config
-${BUILD_SERVICE_ORIGIN}/v1/cli/pi/mcp.json
+${BUILD_SERVICE_ORIGIN}/api/v1/catalog
 ```
 
 ### Exit codes
@@ -399,9 +399,7 @@ Directory isolation hides the user's normal Pi settings, auth, installed package
 
 ### Organization MCP bootstrap
 
-Before Pi starts, its isolated setup pipeline fetches `${BUILD_SERVICE_ORIGIN}/v1/cli/pi/mcp.json` and reconciles only the response's `mcpServers` map into `~/.config/mcp/mcp.json`. A missing file is created with mode `0600`. Every organization entry is forced to `disabled: true` when first added.
-
-Reconciliation is append-only by server name. Existing definitions and user enablement choices win, personal and organization-removed servers remain untouched, and an invalid or non-regular local file is never replaced. Remote top-level settings are ignored. Network and filesystem failures are best-effort, produce debug-only diagnostics, and never prevent Pi from starting; an unavailable first request creates an empty safe scaffold so a later launch can retry.
+Removed. Pi startup no longer fetches an organization MCP list or writes `~/.config/mcp/mcp.json`. Admins publish MCP servers in the admin dashboard's catalog and developers install them from `axon hub` → Discover, which writes `${AXON_HOME}/pi/mcp.json`. See `docs/hub-catalog-plan.md` at the repository root.
 
 ### Auth decision
 

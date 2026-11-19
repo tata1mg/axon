@@ -18,14 +18,19 @@ const STATE_FILE = "axon-changelog.json";
 /** Axon's release notes, newest first. Keep these independent of Pi's releases. */
 export const AXON_RELEASES = [
   {
-    version: "1.0.5",
-    markdown: `## 1.0.5
+    version: "1.1.0",
+    markdown: `## 1.1.0
+
+### New Features
+- Open the local Axon Hub with \`axon hub\` or \`/axon-hub\` in Pi to manage MCP servers and see which user-level skills Pi loads.
+- Discover and install organization-published MCP servers with guided setup.
 
 ### Changed
+- Organization MCP servers are now opt-in through the Hub instead of being added as disabled defaults at launch.
 - Each prompt's LLM calls, compaction, and web searches are grouped into one Langfuse trace.
 
 ### Fixed
-- Summaries from configured compaction now appear in the session's Langfuse session.`,
+- Configured compaction summaries now appear in the corresponding Langfuse session.`,
   },
   {
     version: "1.0.4",
