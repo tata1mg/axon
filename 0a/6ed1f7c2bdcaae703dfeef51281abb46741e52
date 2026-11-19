@@ -1,0 +1,42 @@
+apps/cli/docs/plans/pi-package-provisioning.md
+  s_d90ac6a2612efe::t_6e84fa4c5101d0 10
+apps/backend/README.md
+  s_d90ac6a2612efe::t_1f30a66a790fef 596
+apps/cli/tests/pi-model-cache.test.ts
+  s_d90ac6a2612efe::t_08650185e20d73 12-14,34,107-112
+apps/cli/src/harnesses/pi/resources/extensions/axon-changelog.ts
+  s_d90ac6a2612efe::t_cbcfc69939d61e 29
+apps/cli/tests/litellm-client-provider.test.ts
+  s_d90ac6a2612efe::t_e08cd63c6cf846 43
+apps/cli/README.md
+  s_d90ac6a2612efe::t_a8bb7c527640c3 333,438,478
+apps/cli/package.json
+  s_d90ac6a2612efe::t_de801faed7e102 71
+apps/cli/src/product/manifest.ts
+  s_d90ac6a2612efe::t_776a172832ed9d 125,139
+apps/cli/tests/pi-package-setup.test.ts
+  s_d90ac6a2612efe::t_a09fa3bc79f040 210,212
+bun.lock
+  s_d90ac6a2612efe::t_fb6a970b74059e 49,399
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0a6ed1f7c2bdcaae703dfeef51281abb46741e52",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_d90ac6a2612efe": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a1f540-230a-7537-b49b-bdd079c15699",
+        "model": "gpt-6.2-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
