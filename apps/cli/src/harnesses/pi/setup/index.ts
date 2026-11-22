@@ -8,6 +8,7 @@ import {
   classifyPiInvocation,
   currentPiInvocationEnvironment,
   isPiOffline,
+  isPiRpcMode,
   type PiInvocationKind,
 } from "./packages/invocation.ts";
 import { synchronizePiPackages } from "./packages/sync.ts";
@@ -18,6 +19,8 @@ const DEBUG_ENVIRONMENT_VARIABLE = "AXON_DEBUG";
 export interface PiSetupResult {
   readonly invocationKind: PiInvocationKind;
   readonly offline: boolean;
+  /** A local client drives Pi over RPC and can show the Hub, like the TUI. */
+  readonly rpc: boolean;
   /** Present for every non-administrative launch. */
   readonly materialization?: PiResourceMaterializationResult;
 }
@@ -68,9 +71,10 @@ export async function preparePiSetup(
     currentPiInvocationEnvironment(context.environment),
   );
   const offline = isPiOffline(context.environment, userArguments);
+  const rpc = isPiRpcMode(userArguments);
 
   if (invocationKind === "administrative") {
-    return { invocationKind, offline };
+    return { invocationKind, offline, rpc };
   }
 
   const materialization = await prepareRequiredResources(
@@ -79,5 +83,5 @@ export async function preparePiSetup(
     debug,
   );
 
-  return { invocationKind, offline, materialization };
+  return { invocationKind, offline, rpc, materialization };
 }

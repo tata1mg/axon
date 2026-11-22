@@ -100,7 +100,8 @@ test("/axon-hub opens a private Hub in the browser and the launcher owns its lif
     const { run, notify } = hubCommand();
     await withRelayEnvironment(relay, async () => {
       await run("unexpected");
-      await run("", "rpc");
+      await run("", "json");
+      await run("", "print");
       expect(openBrowser).not.toHaveBeenCalled();
       await run();
       expect(notify).toHaveBeenLastCalledWith(expect.stringContaining("opened"), "info");
@@ -142,6 +143,30 @@ test("an offline /axon-hub shows a manual link on browser failure and only serve
     });
     expect((await fetch(`${link.origin}${HUB_API}/mcps`, { headers })).status).toBe(200);
     expect((await fetch(`${link.origin}${HUB_API}/catalog`, { headers })).status).toBe(404);
+  } finally {
+    await close();
+  }
+});
+
+test("/axon-hub opens the Hub for a local RPC client, including the manual-link fallback", async () => {
+  const openBrowser = mock(async (_url: string) => {});
+  const { relay, close } = await fixture(false, openBrowser);
+  try {
+    const { run, notify } = hubCommand();
+    await withRelayEnvironment(relay, () => run("", "rpc"));
+    expect(notify).toHaveBeenLastCalledWith(expect.stringContaining("opened"), "info");
+    const link = new URL(openBrowser.mock.calls[0]?.[0] ?? "");
+    expect((await exchangeLink(link)).status).toBe(200);
+
+    openBrowser.mockImplementation(async () => {
+      throw new Error("No system browser available");
+    });
+    await withRelayEnvironment(relay, () => run("", "rpc"));
+    const [message, level] = notify.mock.calls.at(-1) ?? [];
+    expect(level).toBe("warning");
+    expect((await exchangeLink(new URL(String(message).split("manually: ")[1] ?? ""))).status).toBe(
+      200,
+    );
   } finally {
     await close();
   }

@@ -175,7 +175,8 @@ export function createPiAdapter(): HarnessAdapter {
         // live session for each request and owns refresh persistence and recovery.
         relay = startAuthenticatedRequestRelay(context.paths, {
           allowPiConfigRefresh: !setup.offline,
-          ...(setup.invocationKind === "interactive"
+          // RPC clients run on this machine, so /axon-hub opens the same local browser.
+          ...(setup.invocationKind === "interactive" || setup.rpc
             ? { piHub: createPiHub(context.paths, { offline: setup.offline }) }
             : {}),
           ...(context.authenticationDeferred ? { signedOut: { session: encryptedSession } } : {}),

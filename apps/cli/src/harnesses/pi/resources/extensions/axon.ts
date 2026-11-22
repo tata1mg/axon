@@ -435,7 +435,8 @@ export default function axonExtension(pi: ExtensionAPI): void {
         return;
       }
       const relay = authRelayConfiguration();
-      if (ctx.mode !== "tui" || relay === undefined) {
+      // The launcher serves the Hub only to the TUI and local RPC clients.
+      if ((ctx.mode !== "tui" && ctx.mode !== "rpc") || relay === undefined) {
         ctx.ui.notify("Run axon hub from a terminal to open Axon Hub.", "warning");
         return;
       }
