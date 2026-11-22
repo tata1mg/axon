@@ -33,6 +33,7 @@ import { type PiSetupResult, preparePiSetup } from "./setup/index.ts";
 import { inspectPiPackages } from "./setup/packages/doctor.ts";
 import { createTelemetryOverrides } from "./telemetry-environment.ts";
 import { createTerminalPermissionsOverrides } from "./terminal-permissions-environment.ts";
+import { createTuiDefaultModelOverrides } from "./tui-default-model.ts";
 import { resolvePiVersion } from "./version.ts";
 import { createWebSearchOverrides } from "./web-search-environment.ts";
 
@@ -169,6 +170,12 @@ export function createPiAdapter(): HarnessAdapter {
           ...createModelRecommenderOverrides(config?.modelRecommender),
           ...createLiteLLMClientOverrides(config?.litellmClient),
           ...createLiteLLMFeatureOverrides(context.environment, config?.litellmFeatures),
+          ...createTuiDefaultModelOverrides(
+            context.environment,
+            setup.invocationKind === "interactive",
+            userArguments,
+            config?.tuiDefaultModel,
+          ),
         };
         const effectiveProviderEnvironment = { ...context.environment, ...featureOverrides };
         // Pi receives only a per-launch loopback capability. The relay reads the

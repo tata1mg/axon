@@ -399,11 +399,13 @@ async function refreshPiDefaults(
   }
   // Pi owns the terminal during reload, so invalid sections are recorded, never printed.
   let piInvalid = false;
+  let tuiDefaultModelInvalid = false;
   let failureLogged = false;
   diagnostic.attempt(1);
   const result = await fetchClientConfig(expectedSession, {
     onInvalidSection: (section) => {
       if (section === "pi" || section === "litellmFeatures") piInvalid = true;
+      if (section === "tuiDefaultModel") tuiDefaultModelInvalid = true;
     },
     fetcher: async (input, init) => {
       try {
@@ -457,6 +459,8 @@ async function refreshPiDefaults(
       applied: result.config.pi !== undefined,
       // Pi applies these to the LITELLM_ENABLE_* variables Axon manages before extensions reload.
       litellmFeatures: litellmFeatureStates(result.config.litellmFeatures),
+      // Null clears the TUI default; an invalid section is omitted so Pi keeps the current one.
+      ...(tuiDefaultModelInvalid ? {} : { tuiDefaultModel: result.config.tuiDefaultModel ?? null }),
     },
     { headers: { "Cache-Control": "no-store" } },
   );

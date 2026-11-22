@@ -317,6 +317,8 @@ describe("launcher dispatch", () => {
       "--extension",
       join(axonHome, "runtime", activeRuntime, "pi", "extensions", "managed-config.ts"),
       "--extension",
+      join(axonHome, "runtime", activeRuntime, "pi", "extensions", "tui-default-model.ts"),
+      "--extension",
       join(axonHome, "runtime", activeRuntime, "pi", "extensions", "axon.ts"),
       "--extension",
       join(axonHome, "runtime", activeRuntime, "pi", "extensions", "axon-changelog.ts"),

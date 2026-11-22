@@ -1378,7 +1378,9 @@ test("refreshes Pi defaults through the pinned config API and safely rotates the
         ? "Bearer initial-session" : "Bearer rotated-session");
       return Response.json({ schemaVersion: 1, pi: {
         codemodeEnabled: !enabled, litellmMcpEnabled: !enabled, showCacheMissNotices: enabled
-      }, litellmFeatures: { mcp: enabled, skills: enabled, budget: !enabled } }, { headers: { "x-session-refresh-token": "rotated-session" } });
+      }, litellmFeatures: { mcp: enabled, skills: enabled, budget: !enabled },
+        ...(enabled ? { tuiDefaultModel: { provider: "litellm", model: "z-ai/glm-5.3", thinkingLevel: "max" } } : {}),
+      }, { headers: { "x-session-refresh-token": "rotated-session" } });
     };
     for (enabled of [true, false]) {
       const response = await send("/_axon/pi-defaults/refresh");
@@ -1386,6 +1388,8 @@ test("refreshes Pi defaults through the pinned config API and safely rotates the
       assert.deepEqual(await response.json(), {
         applied: true,
         litellmFeatures: { mcp: enabled, skills: enabled, budget: !enabled },
+        // Null clears the TUI default when the backend no longer sends one.
+        tuiDefaultModel: enabled ? { provider: "litellm", model: "z-ai/glm-5.3", thinkingLevel: "max" } : null,
       });
       assert.equal(response.headers.get("x-session-refresh-token"), null);
       const settings = await Bun.file(settingsPath).json();
@@ -1417,6 +1421,7 @@ test("config outages, invalid policies, and omitted defaults preserve local sett
       [Response.json({ schemaVersion: 1, pi: { codemodeEnabled: true }, litellmFeatures: { mcp: true } }), 503],
       [new Response("<html>private-secret</html>"), 503],
       [Response.json({ schemaVersion: 1 }), 200],
+      [Response.json({ schemaVersion: 1, tuiDefaultModel: { provider: "litellm", model: " private-secret" } }), 200],
     ]) {
       upstream = async () => response;
       const result = await send("/_axon/pi-defaults/refresh");
@@ -1424,6 +1429,10 @@ test("config outages, invalid policies, and omitted defaults preserve local sett
       assert.equal(await Bun.file(settingsPath).text(), content);
       assert.ok(!(await result.text()).includes("private-secret"));
     }
+    // An invalid TUI default is left out, so Pi keeps the one it has instead of clearing it.
+    upstream = async () => Response.json({ schemaVersion: 1, tuiDefaultModel: { provider: "litellm", model: " bad" } });
+    const omitted = await (await send("/_axon/pi-defaults/refresh")).json();
+    assert.equal("tuiDefaultModel" in omitted, false);
     console.error = originalError;
     // Pi owns the terminal during reload: invalid sections must not be printed over its TUI.
     assert.deepEqual(diagnostics, []);

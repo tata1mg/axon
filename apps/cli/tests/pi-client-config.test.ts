@@ -494,6 +494,72 @@ describe("real Pi adapter client config integration", () => {
     }
   });
 
+  test("the TUI default model reaches interactive launches without model flags only", async () => {
+    const original = launchPreferences;
+    const settingsPath = join(root, "pi", "settings.json");
+    const tui = (environment: Record<string, string>) => [
+      environment["PI_AXON_TUI_MODEL_MANAGED"],
+      environment["PI_AXON_TUI_MODEL_PROVIDER"],
+      environment["PI_AXON_TUI_MODEL"],
+      environment["PI_AXON_TUI_THINKING_LEVEL"],
+    ];
+    const none = [undefined, undefined, undefined, undefined];
+    // An inherited marker never makes exported values look backend-managed.
+    const marker = { PI_AXON_TUI_MODEL_MANAGED: "model,thinkingLevel" };
+    const exported = {
+      PI_AXON_TUI_MODEL_PROVIDER: "litellm",
+      PI_AXON_TUI_MODEL: "anthropic/claude-opus-5.5",
+      PI_AXON_TUI_THINKING_LEVEL: "high",
+    };
+    try {
+      launchPreferences = {
+        ...original,
+        tuiDefaultModel: { provider: "litellm", model: "z-ai/glm-5.3", thinkingLevel: "max" },
+      };
+      const settings = await Bun.file(settingsPath).text();
+      expect(tui(await launchSpec({ environment: marker }))).toEqual([
+        "model,thinkingLevel",
+        "litellm",
+        "z-ai/glm-5.3",
+        "max",
+      ]);
+      expect(await Bun.file(settingsPath).text()).toBe(settings);
+      // Values the user exported win over the backend's.
+      expect(tui(await launchSpec({ environment: { ...marker, ...exported } }))).toEqual([
+        undefined,
+        "litellm",
+        "anthropic/claude-opus-5.5",
+        "high",
+      ]);
+      expect(tui(await launchSpec({ environment: { PI_AXON_TUI_THINKING_LEVEL: "low" } }))).toEqual(
+        ["model", "litellm", "z-ai/glm-5.3", "low"],
+      );
+      for (const options of [
+        { interactive: false },
+        { userArguments: ["--mode", "rpc"] },
+        { userArguments: ["-p", "hello"] },
+        { userArguments: ["--model", "litellm/other"] },
+        { userArguments: ["--models=litellm/*"] },
+        { userArguments: ["--provider", "litellm", "--model", "other"] },
+        { userArguments: ["--thinking", "low"] },
+      ]) {
+        expect(
+          tui(await launchSpec({ ...options, environment: { ...marker, ...exported } })),
+        ).toEqual(none);
+      }
+      // Managed without a backend value, so a /reload can still supply one.
+      launchPreferences = original;
+      expect(tui(await launchSpec())).toEqual([
+        "model,thinkingLevel",
+        undefined,
+        undefined,
+        undefined,
+      ]);
+    } finally {
+      launchPreferences = original;
+    }
+  });
+
   test("managed telemetry retains buffered startup events and flushes despite parent false/samplers", async () => {
     requests = [];
     productBodies = [];

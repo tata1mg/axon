@@ -137,6 +137,50 @@ def parse_cli_litellm_features(raw: dict[str, object]) -> CliLiteLLMFeaturesConf
     )
 
 
+CliThinkingLevel = Literal["off", "minimal", "low", "medium", "high", "xhigh", "max"]
+
+
+class CliTuiDefaultModelConfig(BaseModel):
+    """The model a new interactive session starts with while the user has no saved Pi default."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    provider: str = Field(strict=True, min_length=1, max_length=256)
+    model: str = Field(strict=True, min_length=1, max_length=256)
+    thinking_level: CliThinkingLevel | None = Field(default=None, alias="thinkingLevel")
+
+    @field_validator("provider", "model")
+    @classmethod
+    def setting_text(cls, value: str) -> str:
+        if value != value.strip(_JS_WHITESPACE) or any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in value):
+            raise ValueError("Expected trimmed text without control characters")
+        return value
+
+
+def parse_cli_tui_default_model(raw: dict[str, object]) -> CliTuiDefaultModelConfig | None:
+    """TUI_DEFAULT_MODEL. Empty or null PROVIDER and MODEL leave Pi's own initial model choice."""
+    section = raw.get("CLI_CLIENT_CONFIG")
+    if section is None:
+        return None
+    if not isinstance(section, dict):
+        raise ValueError("CLI_CLIENT_CONFIG must be an object")
+    default = section.get("TUI_DEFAULT_MODEL")
+    if default is None:
+        return None
+    if not isinstance(default, dict) or set(default) - {"PROVIDER", "MODEL", "THINKING_LEVEL"}:
+        raise ValueError("TUI_DEFAULT_MODEL must contain only PROVIDER, MODEL and THINKING_LEVEL")
+    provider, model, thinking_level = (
+        None if (value := default.get(key)) == "" else value for key in ("PROVIDER", "MODEL", "THINKING_LEVEL")
+    )
+    if provider is None and model is None:
+        if thinking_level is not None:
+            raise ValueError("TUI_DEFAULT_MODEL.THINKING_LEVEL requires PROVIDER and MODEL")
+        return None
+    return CliTuiDefaultModelConfig.model_validate(
+        {"provider": provider, "model": model, "thinkingLevel": thinking_level}
+    )
+
+
 def _json_integer(value: object) -> int:
     # JSON 1 and 1.0 have identical semantics in JavaScript. Never coerce strings/bools.
     if isinstance(value, bool) or not isinstance(value, (int, float)):

@@ -21,6 +21,7 @@ from app.core.cli_config import (
     parse_cli_model_recommender,
     parse_cli_pi,
     parse_cli_telemetry,
+    parse_cli_tui_default_model,
 )
 from app.core.config import ConfigurationError, get_settings
 from app.core.web_search import WebSearchSettings
@@ -84,6 +85,13 @@ def test_config_uses_session_guard_and_only_allowlisted_fields(monkeypatch: pyte
         cli_litellm_features=parse_cli_litellm_features(
             {"CLI_CLIENT_CONFIG": {"LITELLM_FEATURES": {"MCP_ENABLED": True, "BUDGET_ENABLED": True}}}
         ),
+        cli_tui_default_model=parse_cli_tui_default_model(
+            {
+                "CLI_CLIENT_CONFIG": {
+                    "TUI_DEFAULT_MODEL": {"PROVIDER": "litellm", "MODEL": "z-ai/glm-5.3", "THINKING_LEVEL": "max"}
+                }
+            }
+        ),
         web_search=web_search,
         terminal_permissions=None,
     )
@@ -109,6 +117,7 @@ def test_config_uses_session_guard_and_only_allowlisted_fields(monkeypatch: pyte
         "modelRecommender": {"autoSelectMs": 10000},
         "litellmClient": {"discoveryTimeoutMs": 0},
         "litellmFeatures": {"mcp": True, "skills": False, "budget": True},
+        "tuiDefaultModel": {"provider": "litellm", "model": "z-ai/glm-5.3", "thinkingLevel": "max"},
     }
     assert len(response.content) < 16 * 1024
     assert response.headers["cache-control"] == "no-store"
@@ -122,6 +131,7 @@ def test_config_uses_session_guard_and_only_allowlisted_fields(monkeypatch: pyte
         cli_model_recommender=None,
         cli_litellm_client=None,
         cli_litellm_features=None,
+        cli_tui_default_model=None,
         web_search=web_search,
         terminal_permissions=None,
     )
@@ -337,6 +347,7 @@ def test_settings_loader_and_template_are_synchronized(tmp_path: Path, monkeypat
         "SKILLS_ENABLED": False,
         "BUDGET_ENABLED": False,
     }
+    assert raw["CLI_CLIENT_CONFIG"]["TUI_DEFAULT_MODEL"] == {"PROVIDER": "", "MODEL": "", "THINKING_LEVEL": None}
     raw.update(settings_raw())
     raw["CLI_CLIENT_CONFIG"]["PI"] = {"CODEMODE_ENABLED": True, "LITELLM_MCP_ENABLED": True}
     (tmp_path / "config.json").write_text(json.dumps(raw))
@@ -465,6 +476,61 @@ def test_pi_projects_mcp_from_litellm_features_for_older_clients() -> None:
     defaults = parse_cli_pi({"CLI_CLIENT_CONFIG": {"PI": {"CODEMODE_ENABLED": True}}})
     assert defaults is not None
     assert defaults.litellm_mcp_enabled is False
+
+
+def test_tui_default_model_is_optional_and_thinking_level_is_optional() -> None:
+    def parse(section: object) -> dict[str, object] | None:
+        parsed = parse_cli_tui_default_model({"CLI_CLIENT_CONFIG": {"TUI_DEFAULT_MODEL": section}})
+        return parsed.model_dump(by_alias=True, exclude_none=True) if parsed else None
+
+    assert parse_cli_tui_default_model({"CLI_CLIENT_CONFIG": {}}) is None
+    assert parse(None) is None
+    assert parse({}) is None
+    assert parse({"PROVIDER": "", "MODEL": "", "THINKING_LEVEL": None}) is None
+    assert parse({"PROVIDER": "litellm", "MODEL": "z-ai/glm-5.3"}) == {"provider": "litellm", "model": "z-ai/glm-5.3"}
+    for level in ["off", "minimal", "low", "medium", "high", "xhigh", "max"]:
+        assert parse({"PROVIDER": "litellm", "MODEL": "z-ai/glm-5.3", "THINKING_LEVEL": level}) == {
+            "provider": "litellm",
+            "model": "z-ai/glm-5.3",
+            "thinkingLevel": level,
+        }
+
+
+@pytest.mark.parametrize(
+    "section",
+    [
+        [],
+        {"PROVIDER": "litellm"},
+        {"MODEL": "z-ai/glm-5.3"},
+        {"THINKING_LEVEL": "max"},
+        {"PROVIDER": "litellm", "MODEL": "z-ai/glm-5.3", "THINKING_LEVEL": "ultra"},
+        {"PROVIDER": "litellm", "MODEL": "z-ai/glm-5.3", "THINKING_LEVEL": 1},
+        {"PROVIDER": "litellm", "MODEL": " z-ai/glm-5.3"},
+        {"PROVIDER": "litellm", "MODEL": "z-ai/glm\n5.3"},
+        {"PROVIDER": "litellm", "MODEL": 5},
+        {"PROVIDER": "litellm", "MODEL": "z-ai/glm-5.3", "PERSIST": True},
+    ],
+)
+def test_tui_default_model_rejects_invalid_values(section: object) -> None:
+    with pytest.raises(ValueError):
+        parse_cli_tui_default_model({"CLI_CLIENT_CONFIG": {"TUI_DEFAULT_MODEL": section}})
+
+
+def test_settings_loader_rejects_invalid_tui_default_model_safely(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    raw = json.loads((Path(__file__).resolve().parents[1] / "config_template.json").read_text())
+    raw.update(settings_raw())
+    raw["CLI_CLIENT_CONFIG"]["TUI_DEFAULT_MODEL"] = {"PROVIDER": "litellm", "MODEL": "private-secret\n"}
+    (tmp_path / "config.json").write_text(json.dumps(raw))
+    monkeypatch.setattr(config_module, "BASE_DIR", tmp_path)
+    get_settings.cache_clear()
+    try:
+        with pytest.raises(ConfigurationError, match="CLI_CLIENT_CONFIG.TUI_DEFAULT_MODEL") as error:
+            get_settings()
+        assert "private-secret" not in str(error.value)
+    finally:
+        get_settings.cache_clear()
 
 
 @pytest.mark.parametrize("value", [None, "true", 0, 1, [], {}])

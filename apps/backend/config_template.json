@@ -69,6 +69,11 @@
       "SKILLS_ENABLED": false,
       "BUDGET_ENABLED": false
     },
+    "TUI_DEFAULT_MODEL": {
+      "PROVIDER": "",
+      "MODEL": "",
+      "THINKING_LEVEL": null
+    },
     "COMPACTION": {
       "ENABLED": null,
       "MODEL": null,

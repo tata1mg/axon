@@ -138,6 +138,22 @@ const litellmFeaturesSchema = z.object({
   skills: z.boolean(),
   budget: z.boolean(),
 });
+// Pi's thinking levels. An unknown level (a newer Pi's) is dropped; the model still applies.
+const PI_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
+const modelReferenceText = z
+  .string()
+  .min(1)
+  .refine(
+    (value) =>
+      value === value.trim() && Array.from(value).length <= 256 && hasNoControlCharacters(value),
+    "Expected trimmed text without control characters",
+  );
+// The model a new TUI session starts with while the user has no saved Pi default model.
+const tuiDefaultModelSchema = z.object({
+  provider: modelReferenceText,
+  model: modelReferenceText,
+  thinkingLevel: z.enum(PI_THINKING_LEVELS).optional().catch(undefined),
+});
 const featureSchemas = {
   pi: piSchema,
   telemetry: telemetrySchema,
@@ -147,6 +163,7 @@ const featureSchemas = {
   modelRecommender: modelRecommenderSchema.nullish(),
   litellmClient: litellmClientSchema.nullish(),
   litellmFeatures: litellmFeaturesSchema,
+  tuiDefaultModel: tuiDefaultModelSchema,
 };
 const envelopeSchema = z.object({ schemaVersion: z.literal(1) });
 
@@ -158,6 +175,7 @@ export type ModelRecommenderConfig = z.infer<typeof modelRecommenderSchema>;
 export type LiteLLMClientConfig = z.infer<typeof litellmClientSchema>;
 export type LiteLLMFeaturesConfig = z.infer<typeof litellmFeaturesSchema>;
 export type PiConfig = z.infer<typeof piSchema>;
+export type TuiDefaultModelConfig = z.infer<typeof tuiDefaultModelSchema>;
 export type TelemetryConfig = z.infer<typeof telemetrySchema>;
 export type WebSearchConfig = z.infer<typeof webSearchSchema>;
 export type TerminalPermissionsConfig = z.infer<typeof terminalPermissionsSchema>;

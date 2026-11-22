@@ -21,6 +21,7 @@ from app.core.cli_config import (
     CliModelRecommenderConfig,
     CliPiConfig,
     CliTelemetryConfig,
+    CliTuiDefaultModelConfig,
     OtelProxySettings,
     parse_cli_compaction,
     parse_cli_litellm_client,
@@ -28,6 +29,7 @@ from app.core.cli_config import (
     parse_cli_model_recommender,
     parse_cli_pi,
     parse_cli_telemetry,
+    parse_cli_tui_default_model,
     parse_otel_proxy,
 )
 from app.core.s3 import S3StorageSettings, parse_s3_storage
@@ -217,6 +219,7 @@ class Settings:
     cli_model_recommender: CliModelRecommenderConfig | None = None
     cli_litellm_client: CliLiteLLMClientConfig | None = None
     cli_litellm_features: CliLiteLLMFeaturesConfig | None = None
+    cli_tui_default_model: CliTuiDefaultModelConfig | None = None
     terminal_permissions: TerminalPermissionsSettings | None = None
     axon_safehouse: AxonSafehouseSettings = field(default_factory=AxonSafehouseSettings)
     admin_dashboard: AdminDashboardSettings = field(default_factory=AdminDashboardSettings)
@@ -234,6 +237,13 @@ def _cli_litellm_features(raw_config: dict[str, Any]) -> CliLiteLLMFeaturesConfi
         return parse_cli_litellm_features(raw_config)
     except (ValueError, TypeError):
         raise ConfigurationError("config.CLI_CLIENT_CONFIG.LITELLM_FEATURES contains invalid features") from None
+
+
+def _cli_tui_default_model(raw_config: dict[str, Any]) -> CliTuiDefaultModelConfig | None:
+    try:
+        return parse_cli_tui_default_model(raw_config)
+    except (ValueError, TypeError):
+        raise ConfigurationError("config.CLI_CLIENT_CONFIG.TUI_DEFAULT_MODEL contains an invalid model") from None
 
 
 def _cli_launch_preferences(
@@ -786,6 +796,7 @@ def get_settings() -> Settings:
 
     cli_litellm_features = _cli_litellm_features(raw_config)
     cli_pi = _cli_pi_settings(raw_config)
+    cli_tui_default_model = _cli_tui_default_model(raw_config)
     cli_compaction, cli_model_recommender, cli_litellm_client = _cli_launch_preferences(raw_config)
     session_backups = _session_backups(raw_config)
     web_search = _web_search(raw_config)
@@ -814,6 +825,7 @@ def get_settings() -> Settings:
         cli_model_recommender=cli_model_recommender,
         cli_litellm_client=cli_litellm_client,
         cli_litellm_features=cli_litellm_features,
+        cli_tui_default_model=cli_tui_default_model,
         otel_proxy=otel_proxy,
         session_backups=session_backups,
         web_search=web_search,

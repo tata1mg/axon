@@ -28,6 +28,7 @@ export const AXON_RELEASES = [
 ### Changed
 - Updated Pi to 1.6.0 and the managed LiteLLM provider to 4.9.0.
 - LiteLLM MCP, Skill Hub, and budget footer are configured by your organization; \`LITELLM_ENABLE_MCP\`, \`LITELLM_ENABLE_SKILLS\`, and \`LITELLM_ENABLE_BUDGET\` override them for automation.
+- New sessions start on your organization's recommended model and thinking level until you pick a default with \`/model\`. Export \`PI_AXON_TUI_MODEL_PROVIDER\` with \`PI_AXON_TUI_MODEL\`, or \`PI_AXON_TUI_THINKING_LEVEL\`, to choose your own.
 - Organization MCP servers are now opt-in through the Hub instead of being added as disabled defaults at launch.
 - Each prompt's LLM calls, compaction, and web searches are grouped into one Langfuse trace.
 

@@ -15,6 +15,10 @@ const keys = [
   "LITELLM_ENABLE_MCP",
   "LITELLM_ENABLE_SKILLS",
   "LITELLM_ENABLE_BUDGET",
+  "PI_AXON_TUI_MODEL_MANAGED",
+  "PI_AXON_TUI_MODEL_PROVIDER",
+  "PI_AXON_TUI_MODEL",
+  "PI_AXON_TUI_THINKING_LEVEL",
 ] as const;
 let savedEnvironment: Record<string, string | undefined>;
 let originalFetch: typeof fetch;
@@ -163,4 +167,56 @@ test("reload updates only the LiteLLM feature variables the launcher manages", a
   await run("reload");
   expect(process.env["LITELLM_ENABLE_MCP"]).toBe("0");
   expect(process.env["LITELLM_ENABLE_SKILLS"]).toBe("1");
+});
+
+test("reload updates only the TUI default model parts the launcher manages", async () => {
+  const tui = () => [
+    process.env["PI_AXON_TUI_MODEL_PROVIDER"],
+    process.env["PI_AXON_TUI_MODEL"],
+    process.env["PI_AXON_TUI_THINKING_LEVEL"],
+  ];
+  const reply = (body: unknown) => fetchMock.mockImplementation(async () => Response.json(body));
+  const { run, notify } = setup();
+  process.env["PI_AXON_TUI_MODEL_MANAGED"] = "model,thinkingLevel";
+  process.env["PI_AXON_TUI_MODEL_PROVIDER"] = "litellm";
+  process.env["PI_AXON_TUI_MODEL"] = "old/model";
+  process.env["PI_AXON_TUI_THINKING_LEVEL"] = "high";
+
+  reply({ applied: true, tuiDefaultModel: { provider: "litellm", model: "z-ai/glm-5.3" } });
+  await run("reload");
+  expect(tui()).toEqual(["litellm", "z-ai/glm-5.3", undefined]);
+
+  // Missing or malformed values keep the current model.
+  for (const body of [
+    { applied: true },
+    { tuiDefaultModel: { provider: "litellm" } },
+    { tuiDefaultModel: "litellm/x" },
+    [],
+  ]) {
+    reply(body);
+    await run("reload");
+  }
+  expect(tui()).toEqual(["litellm", "z-ai/glm-5.3", undefined]);
+
+  reply({ tuiDefaultModel: { provider: "litellm", model: "a/b", thinkingLevel: "max" } });
+  await run("reload");
+  expect(tui()).toEqual(["litellm", "a/b", "max"]);
+
+  reply({ tuiDefaultModel: null });
+  await run("reload");
+  expect(tui()).toEqual([undefined, undefined, undefined]);
+
+  // The user exported the thinking level: only the model follows the backend.
+  process.env["PI_AXON_TUI_MODEL_MANAGED"] = "model";
+  process.env["PI_AXON_TUI_THINKING_LEVEL"] = "low";
+  reply({ tuiDefaultModel: { provider: "litellm", model: "z-ai/glm-5.3", thinkingLevel: "max" } });
+  await run("reload");
+  expect(tui()).toEqual(["litellm", "z-ai/glm-5.3", "low"]);
+
+  // The user exported everything, or passed model flags: reload changes nothing.
+  delete process.env["PI_AXON_TUI_MODEL_MANAGED"];
+  reply({ tuiDefaultModel: { provider: "litellm", model: "other/model", thinkingLevel: "off" } });
+  await run("reload");
+  expect(tui()).toEqual(["litellm", "z-ai/glm-5.3", "low"]);
+  expect(notify).not.toHaveBeenCalled();
 });

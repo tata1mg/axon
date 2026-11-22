@@ -974,6 +974,7 @@ describe("package and resource locks", () => {
     const materializedPaths = first.arguments.filter((_argument, index) => index % 2 === 1);
     expect(materializedPaths.map((path) => path.split("/").at(-1))).toEqual([
       "managed-config.ts",
+      "tui-default-model.ts",
       "axon.ts",
       "axon-changelog.ts",
       "axon-auth.ts",

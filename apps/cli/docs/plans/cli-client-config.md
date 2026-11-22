@@ -94,7 +94,14 @@ fallback) projects as top-level `litellmFeatures: { mcp, skills, budget }`. Thes
 launcher passes them as `LITELLM_ENABLE_MCP`, `LITELLM_ENABLE_SKILLS`, and `LITELLM_ENABLE_BUDGET`
 (`1`/`0`), which pi-provider-litellm 4.9+ reads before its `litellm.*` settings. A non-blank value the user
 exported wins and is never managed; without a valid `litellmFeatures` section all three are `0`. `PI_AXON_LITELLM_MANAGED_FEATURES` lists the ones Axon set, and
-`/reload` updates only those from the refresh response's `litellmFeatures`. These are startup defaults, not enforced policy; normal Pi project/CLI
+`/reload` updates only those from the refresh response's `litellmFeatures`. `CLI_CLIENT_CONFIG.TUI_DEFAULT_MODEL`
+(`PROVIDER`, `MODEL`, optional `THINKING_LEVEL`) projects as top-level `tuiDefaultModel`. Interactive
+launches without `--model`, `--models`, `--provider`, or `--thinking` pass it as `PI_AXON_TUI_MODEL_PROVIDER`,
+`PI_AXON_TUI_MODEL`, and `PI_AXON_TUI_THINKING_LEVEL`; values the user exported win (the model as a pair),
+and `PI_AXON_TUI_MODEL_MANAGED` lists the parts that came from the backend so `/reload` updates only those.
+The `tui-default-model` extension applies them with `pi.setModel`/`pi.setThinkingLevel` (never saved) at
+`session_start` for `startup` and `/new` sessions without messages, and only while there is no saved
+default model or model scope. A backend thinking level yields to a saved one; an exported one does not. These are startup defaults, not enforced policy; normal Pi project/CLI
 overrides remain available. Omitted/null `PI`, offline/admin launches, failed config fetches, and
 account changes during the request retain the last local defaults. Restart the backend after edits;
 updated clients pick them up on their next authenticated online launch or `/reload`. On reload, a

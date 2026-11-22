@@ -113,6 +113,42 @@ describe("protected client config", () => {
     }
   });
 
+  test("parses the TUI default model, dropping only an unknown thinking level", () => {
+    const tuiDefaultModel = {
+      provider: "litellm",
+      model: "z-ai/glm-5.3",
+      thinkingLevel: "max",
+    } as const;
+    expect(parseClientConfig({ schemaVersion: 1, tuiDefaultModel }).tuiDefaultModel).toEqual(
+      tuiDefaultModel,
+    );
+    expect(
+      parseClientConfig({
+        schemaVersion: 1,
+        tuiDefaultModel: { ...tuiDefaultModel, thinkingLevel: "ultra", persist: true },
+      }).tuiDefaultModel,
+    ).toEqual({ provider: "litellm", model: "z-ai/glm-5.3" });
+    for (const invalid of [
+      null,
+      [],
+      { provider: "litellm" },
+      { model: "z-ai/glm-5.3" },
+      { provider: "", model: "z-ai/glm-5.3" },
+      { provider: "litellm", model: " z-ai/glm-5.3" },
+      { provider: "litellm", model: "z-ai\nglm" },
+      { provider: "litellm", model: 5 },
+    ]) {
+      const invalidSections: string[] = [];
+      const config = parseClientConfig(
+        { schemaVersion: 1, tuiDefaultModel: invalid, pi: { codemodeEnabled: true } },
+        (section) => invalidSections.push(section),
+      );
+      expect(config.tuiDefaultModel).toBeUndefined();
+      expect(config.pi).toEqual({ codemodeEnabled: true });
+      expect(invalidSections).toEqual(["tuiDefaultModel"]);
+    }
+  });
+
   test("validates optional Pi defaults without accepting arbitrary settings", () => {
     for (const codemodeEnabled of [true, false]) {
       for (const litellmMcpEnabled of [true, false]) {

@@ -23,9 +23,11 @@ import requestContextExtensionAsset from "../harnesses/pi/resources/extensions/r
 import sessionBackupExtensionAsset from "../harnesses/pi/resources/extensions/session-backup.mjs" with {
   type: "file",
 };
-
 // Keep the embedded asset distinct from the TypeScript module imported as code.
 import terminalPermissionsExtensionAsset from "../harnesses/pi/resources/extensions/terminal-permissions.mjs" with {
+  type: "file",
+};
+import tuiDefaultModelExtensionAsset from "../harnesses/pi/resources/extensions/tui-default-model.ts" with {
   type: "file",
 };
 import webSearchExtensionAsset from "../harnesses/pi/resources/extensions/web-search.ts" with {
@@ -53,6 +55,12 @@ const MANAGED_CONFIG_RESOURCE = Object.freeze({
   id: "managed-config",
   type: "extension",
   destination: "pi/extensions/managed-config.ts",
+}) satisfies PiResourceManifestEntry;
+
+const TUI_DEFAULT_MODEL_RESOURCE = Object.freeze({
+  id: "tui-default-model",
+  type: "extension",
+  destination: "pi/extensions/tui-default-model.ts",
 }) satisfies PiResourceManifestEntry;
 
 const AXON_CORE_RESOURCE = Object.freeze({
@@ -122,7 +130,7 @@ const AXON_LIGHT_THEME_RESOURCE = Object.freeze({
 
 export const AXON_MANIFEST = parseAxonManifest({
   schemaVersion: 1,
-  revision: "28",
+  revision: "29",
   pi: {
     packages: [
       {
@@ -152,6 +160,8 @@ export const AXON_MANIFEST = parseAxonManifest({
     ],
     resources: [
       MANAGED_CONFIG_RESOURCE,
+      // Switch the model before the other extensions observe the new session.
+      TUI_DEFAULT_MODEL_RESOURCE,
       AXON_CORE_RESOURCE,
       AXON_CHANGELOG_RESOURCE,
       AXON_AUTH_RESOURCE,
@@ -178,6 +188,10 @@ export const EMBEDDED_PI_RESOURCES = Object.freeze([
   Object.freeze({
     ...MANAGED_CONFIG_RESOURCE,
     sourcePath: managedConfigExtensionAsset as unknown as string,
+  }),
+  Object.freeze({
+    ...TUI_DEFAULT_MODEL_RESOURCE,
+    sourcePath: tuiDefaultModelExtensionAsset as unknown as string,
   }),
   Object.freeze({
     ...AXON_CORE_RESOURCE,

@@ -569,6 +569,43 @@ Restart the backend after a config edit; defaults apply on the next online authe
 or `/reload` in an updated managed online session. Existing sessions need one updated CLI launch
 to load the managed reload hook.
 
+#### TUI default model
+
+`TUI_DEFAULT_MODEL` picks the model, and optionally the thinking level, that new interactive (TUI)
+sessions start with while the user has no saved default model. Without a saved default, Pi starts on
+the first available model, which for LiteLLM is the first in alphabetical order:
+
+```json
+"TUI_DEFAULT_MODEL": {
+  "PROVIDER": "litellm",
+  "MODEL": "z-ai/glm-5.3",
+  "THINKING_LEVEL": "max"
+}
+```
+
+`PROVIDER` and `MODEL` are trimmed text without control characters, at most 256 characters, set
+together. `THINKING_LEVEL` is optional: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`.
+Empty or null `PROVIDER` and `MODEL` (the template) turn it off. The config API projects it as
+`"tuiDefaultModel": { "provider": "litellm", "model": "z-ai/glm-5.3", "thinkingLevel": "max" }`, a
+top-level section because CLI 1.0.x rejects unknown fields inside `pi`; 1.0.x ignores it.
+
+Unlike `PI.DEFAULT_PROVIDER`/`DEFAULT_MODEL`, nothing is written to settings and the user's choice
+always wins:
+
+- It applies only to the TUI, never to RPC, print, or json mode, and not when the launch passes
+  `--model`, `--models`, `--provider`, or `--thinking`.
+- It applies only to a new session (startup or `/new`) without messages. Resumed (`--continue`,
+  `/resume`), forked, and reloaded sessions keep their own model.
+- It does not apply when the user has a saved `defaultProvider`/`defaultModel` (from `/model`) or a
+  model scope (`enabledModels`). Picking a model with `/model` saves it, so the backend model stops
+  applying from then on.
+- A model that is unavailable to the user is skipped, leaving Pi's own choice.
+- The backend thinking level gives way to one the user saved, globally or for that model.
+- Users can override it per launch by exporting `PI_AXON_TUI_MODEL_PROVIDER` with `PI_AXON_TUI_MODEL`,
+  and `PI_AXON_TUI_THINKING_LEVEL`. An exported thinking level applies even over a saved one.
+
+`/reload` refreshes the backend values for later `/new` sessions.
+
 #### Launch-only compaction, recommender, and provider preferences
 
 Add optional siblings of `PI` under `CLI_CLIENT_CONFIG` (these are examples, not defaults):
