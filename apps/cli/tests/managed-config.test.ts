@@ -11,6 +11,10 @@ const keys = [
   "PI_AXON_CONFIG_REFRESH_ENABLED",
   "PI_AXON_AUTH_RELAY_URL",
   "PI_AXON_AUTH_RELAY_KEY",
+  "PI_AXON_LITELLM_MANAGED_FEATURES",
+  "LITELLM_ENABLE_MCP",
+  "LITELLM_ENABLE_SKILLS",
+  "LITELLM_ENABLE_BUDGET",
 ] as const;
 let savedEnvironment: Record<string, string | undefined>;
 let originalFetch: typeof fetch;
@@ -127,4 +131,36 @@ test("HTTP errors and network failures warn safely without blocking reload", asy
   await run("reload");
   expect(notify).toHaveBeenCalledTimes(2);
   expect(JSON.stringify(notify.mock.calls)).not.toContain("private-secret");
+});
+
+test("reload updates only the LiteLLM feature variables the launcher manages", async () => {
+  // The user exported LITELLM_ENABLE_SKILLS, so the launcher left it out of the managed list.
+  process.env["PI_AXON_LITELLM_MANAGED_FEATURES"] = "mcp,budget";
+  process.env["LITELLM_ENABLE_MCP"] = "1";
+  process.env["LITELLM_ENABLE_SKILLS"] = "1";
+  process.env["LITELLM_ENABLE_BUDGET"] = "0";
+  fetchMock.mockImplementation(async () =>
+    Response.json({ applied: true, litellmFeatures: { mcp: false, skills: false, budget: true } }),
+  );
+  const { run, notify } = setup();
+  await run("reload");
+  expect(notify).not.toHaveBeenCalled();
+  expect(process.env["LITELLM_ENABLE_MCP"]).toBe("0");
+  expect(process.env["LITELLM_ENABLE_SKILLS"]).toBe("1");
+  expect(process.env["LITELLM_ENABLE_BUDGET"]).toBe("1");
+
+  for (const body of [{ applied: true }, { litellmFeatures: { mcp: "true", budget: null } }, []]) {
+    fetchMock.mockImplementation(async () => Response.json(body));
+    await run("reload");
+  }
+  expect(process.env["LITELLM_ENABLE_MCP"]).toBe("0");
+  expect(process.env["LITELLM_ENABLE_BUDGET"]).toBe("1");
+
+  delete process.env["PI_AXON_LITELLM_MANAGED_FEATURES"];
+  fetchMock.mockImplementation(async () =>
+    Response.json({ applied: true, litellmFeatures: { mcp: true, skills: false, budget: false } }),
+  );
+  await run("reload");
+  expect(process.env["LITELLM_ENABLE_MCP"]).toBe("0");
+  expect(process.env["LITELLM_ENABLE_SKILLS"]).toBe("1");
 });

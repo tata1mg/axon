@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 
 import { BUILD_INFO } from "../../build-info.ts";
+import { litellmFeatureStates } from "../../harnesses/pi/litellm-features.ts";
 import { applyPiDefaults } from "../../harnesses/pi/settings-defaults.ts";
 import type { PiHub } from "../../hub/pi-hub.ts";
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../../product/endpoints.ts";
@@ -402,7 +403,7 @@ async function refreshPiDefaults(
   diagnostic.attempt(1);
   const result = await fetchClientConfig(expectedSession, {
     onInvalidSection: (section) => {
-      if (section === "pi") piInvalid = true;
+      if (section === "pi" || section === "litellmFeatures") piInvalid = true;
     },
     fetcher: async (input, init) => {
       try {
@@ -439,7 +440,7 @@ async function refreshPiDefaults(
     }
   };
   await beforeWrite();
-  // An invalid pi section is a failed refresh, not "the backend has no Pi defaults".
+  // An invalid pi or litellmFeatures section is a failed refresh, not "the backend has no defaults".
   if (!result.config || piInvalid) {
     if (!failureLogged) {
       await diagnostic.failure(
@@ -452,7 +453,11 @@ async function refreshPiDefaults(
   }
   if (result.config.pi) await applyPiDefaults(paths, result.config.pi, { beforeWrite });
   return Response.json(
-    { applied: result.config.pi !== undefined },
+    {
+      applied: result.config.pi !== undefined,
+      // Pi applies these to the LITELLM_ENABLE_* variables Axon manages before extensions reload.
+      litellmFeatures: litellmFeatureStates(result.config.litellmFeatures),
+    },
     { headers: { "Cache-Control": "no-store" } },
   );
 }

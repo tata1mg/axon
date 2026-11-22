@@ -17,12 +17,14 @@ from app.core.axon_safehouse import AxonSafehouseSettings, parse_axon_safehouse
 from app.core.cli_config import (
     CliCompactionConfig,
     CliLiteLLMClientConfig,
+    CliLiteLLMFeaturesConfig,
     CliModelRecommenderConfig,
     CliPiConfig,
     CliTelemetryConfig,
     OtelProxySettings,
     parse_cli_compaction,
     parse_cli_litellm_client,
+    parse_cli_litellm_features,
     parse_cli_model_recommender,
     parse_cli_pi,
     parse_cli_telemetry,
@@ -214,6 +216,7 @@ class Settings:
     cli_compaction: CliCompactionConfig | None = None
     cli_model_recommender: CliModelRecommenderConfig | None = None
     cli_litellm_client: CliLiteLLMClientConfig | None = None
+    cli_litellm_features: CliLiteLLMFeaturesConfig | None = None
     terminal_permissions: TerminalPermissionsSettings | None = None
     axon_safehouse: AxonSafehouseSettings = field(default_factory=AxonSafehouseSettings)
     admin_dashboard: AdminDashboardSettings = field(default_factory=AdminDashboardSettings)
@@ -224,6 +227,13 @@ def _cli_pi_settings(raw_config: dict[str, Any]) -> CliPiConfig | None:
         return parse_cli_pi(raw_config)
     except (ValueError, TypeError):
         raise ConfigurationError("config.CLI_CLIENT_CONFIG.PI contains invalid Pi defaults") from None
+
+
+def _cli_litellm_features(raw_config: dict[str, Any]) -> CliLiteLLMFeaturesConfig | None:
+    try:
+        return parse_cli_litellm_features(raw_config)
+    except (ValueError, TypeError):
+        raise ConfigurationError("config.CLI_CLIENT_CONFIG.LITELLM_FEATURES contains invalid features") from None
 
 
 def _cli_launch_preferences(
@@ -774,6 +784,7 @@ def get_settings() -> Settings:
         # Suppress chained validation inputs, including credentials in invalid URLs.
         raise ConfigurationError("config.CLI_CLIENT_CONFIG contains invalid telemetry settings") from None
 
+    cli_litellm_features = _cli_litellm_features(raw_config)
     cli_pi = _cli_pi_settings(raw_config)
     cli_compaction, cli_model_recommender, cli_litellm_client = _cli_launch_preferences(raw_config)
     session_backups = _session_backups(raw_config)
@@ -802,6 +813,7 @@ def get_settings() -> Settings:
         cli_compaction=cli_compaction,
         cli_model_recommender=cli_model_recommender,
         cli_litellm_client=cli_litellm_client,
+        cli_litellm_features=cli_litellm_features,
         otel_proxy=otel_proxy,
         session_backups=session_backups,
         web_search=web_search,

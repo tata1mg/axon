@@ -22,11 +22,11 @@ import {
   createLiteLLMClientOverrides,
   createModelRecommenderOverrides,
 } from "./launch-preferences-environment.ts";
+import { createLiteLLMFeatureOverrides } from "./litellm-features.ts";
 import { invalidateStalePiRelayModels } from "./model-cache.ts";
 import {
   applyPiChangelogDefaults,
   applyPiDefaults,
-  applyPiProviderDefaults,
   axonThemeArguments,
 } from "./settings-defaults.ts";
 import { type PiSetupResult, preparePiSetup } from "./setup/index.ts";
@@ -75,7 +75,6 @@ export function createPiAdapter(): HarnessAdapter {
             context.paths,
             resolveConfiguredPiVersion(context.environment),
           );
-          await applyPiProviderDefaults(context.paths);
         } catch (error) {
           // Lock timeouts in `cause` are rendered with owner details by the top-level handler.
           throw new LauncherError(
@@ -169,6 +168,7 @@ export function createPiAdapter(): HarnessAdapter {
           ...createCompactionOverrides(config?.compaction),
           ...createModelRecommenderOverrides(config?.modelRecommender),
           ...createLiteLLMClientOverrides(config?.litellmClient),
+          ...createLiteLLMFeatureOverrides(context.environment, config?.litellmFeatures),
         };
         const effectiveProviderEnvironment = { ...context.environment, ...featureOverrides };
         // Pi receives only a per-launch loopback capability. The relay reads the

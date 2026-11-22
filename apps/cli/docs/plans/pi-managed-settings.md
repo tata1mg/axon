@@ -6,7 +6,7 @@
 
 ## Existing behavior and motivation
 
-- Backend `app/core/cli_config.py` accepts only `CLI_CLIENT_CONFIG.PI.CODEMODE_ENABLED` and `LITELLM_MCP_ENABLED`; see [cli-client-config.md](cli-client-config.md#pi-consumption-and-precedence) for the current contract.
+- Backend `app/core/cli_config.py` accepts `CLI_CLIENT_CONFIG.PI.CODEMODE_ENABLED` and the `LITELLM_FEATURES` section (with the deprecated `PI.LITELLM_MCP_ENABLED`); see [cli-client-config.md](cli-client-config.md#pi-consumption-and-precedence) for the current contract.
 - CLI `src/cli/client-config.ts` accepts only `pi.codemodeEnabled` and `pi.litellmMcpEnabled`.
 - `src/harnesses/pi/settings-defaults.ts` modifies `defaultTools`, preserving unrelated settings in an ordinary update.
 - Managed Pi uses `$AXON_HOME/pi/settings.json`, not standalone `~/.pi/agent/settings.json`.

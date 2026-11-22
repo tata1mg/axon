@@ -60,10 +60,14 @@
   "CLI_CLIENT_CONFIG": {
     "PI": {
       "CODEMODE_ENABLED": true,
-      "LITELLM_MCP_ENABLED": true,
       "SHOW_CACHE_MISS_NOTICES": true,
       "DEFAULT_PROVIDER": "",
       "DEFAULT_MODEL": ""
+    },
+    "LITELLM_FEATURES": {
+      "MCP_ENABLED": true,
+      "SKILLS_ENABLED": false,
+      "BUDGET_ENABLED": false
     },
     "COMPACTION": {
       "ENABLED": null,

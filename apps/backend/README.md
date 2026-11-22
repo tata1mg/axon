@@ -497,38 +497,58 @@ Environment fallback retains standard HTTP/protobuf or gRPC exporters and enviro
 
 #### Pi startup defaults
 
-The template enables codemode, the LiteLLM MCP bridge, and cache notices independently for managed Pi launches:
+The template enables codemode, the LiteLLM MCP bridge, and cache notices, and leaves LiteLLM Skill Hub
+and the budget footer off, independently for managed Pi launches:
 
 ```json
 "CLI_CLIENT_CONFIG": {
   "PI": {
     "CODEMODE_ENABLED": true,
-    "LITELLM_MCP_ENABLED": true,
     "SHOW_CACHE_MISS_NOTICES": true,
     "DEFAULT_PROVIDER": "",
     "DEFAULT_MODEL": ""
+  },
+  "LITELLM_FEATURES": {
+    "MCP_ENABLED": true,
+    "SKILLS_ENABLED": false,
+    "BUDGET_ENABLED": false
   }
 }
 ```
 
-When `PI` is configured, both toggles must be JSON booleans. The config API projects them as
+When `PI` is configured, `CODEMODE_ENABLED` must be a JSON boolean. The config API projects it as
 `"pi": { "codemodeEnabled": true, "litellmMcpEnabled": true, "showCacheMissNotices": true }`. Before launching Pi,
-`axon` merges `"+codemode"` and `"litellm": { "mcp": { "enabled": true } }` into
-`$AXON_HOME/pi/settings.json` (normally `~/.axon/pi/settings.json`), preserving other tool choices,
-packages, LiteLLM MCP exposure/tool preferences, and unrelated settings. Enabling the bridge lets
-Pi discover MCP tools through the authenticated LiteLLM relay; upstream permissions still apply.
+`axon` merges `"+codemode"` into `$AXON_HOME/pi/settings.json` (normally `~/.axon/pi/settings.json`),
+preserving other tool choices, packages, and unrelated settings.
+
+`LITELLM_FEATURES` switches `pi-provider-litellm`'s optional features: the MCP bridge, Skill Hub (enabled
+skills fetched into the system prompt before each turn, plus skill-management tools), and the budget footer
+(spend against LiteLLM limits, plus `/litellm-budget`). Each value is a JSON boolean; an omitted or null
+switch is off. The config API projects the section as `"litellmFeatures": { "mcp": true, "skills": false,
+"budget": false }`, and also projects `MCP_ENABLED` as `pi.litellmMcpEnabled`, which CLI 1.0.x requires
+(newer CLIs ignore it). The deprecated `PI.LITELLM_MCP_ENABLED` is still accepted as the MCP value when
+`LITELLM_FEATURES.MCP_ENABLED` is unset; configuring both with different values fails startup.
+
+The switches reach Pi as launch environment, not settings: `axon` sets `LITELLM_ENABLE_MCP`,
+`LITELLM_ENABLE_SKILLS`, and `LITELLM_ENABLE_BUDGET` to `1` or `0`, which `pi-provider-litellm` reads before
+its `litellm.*` settings blocks. A non-blank value the user already exported is passed through unchanged,
+so automated pipelines can turn features on or off, for example `LITELLM_ENABLE_MCP=0 axon pi -p ...`.
+Without backend values (offline, a failed fetch, or neither key configured), all three are `0`.
+`litellm.*.enabled` values written by earlier Axon releases stay in `settings.json` but are overridden.
+Enabling the MCP bridge lets Pi discover MCP tools through the authenticated LiteLLM relay; upstream
+permissions still apply.
 It leaves `codemode.inlineBudget` unset, so Pi uses its default of 3000 unless the user has configured it.
 Standalone `~/.pi/agent/settings.json` is never modified.
 
 These are defaults, not enforced policy: Pi CLI flags and trusted project settings can override them.
 On `/reload`, a managed online session fetches fresh backend Pi defaults through the launcher
 relay before Pi reloads settings and provider extensions. This reapplies managed Pi defaults, including
-restoring the backend MCP value after a local edit. It does not refresh telemetry/search or launch-only compaction/recommender/provider preferences
+updating the LiteLLM switches Axon set (never ones the user exported). It does not refresh telemetry/search or launch-only compaction/recommender/provider preferences
 or poll in the background. Fetch/auth/schema failures preserve the current settings and warn safely.
 Pi preserves already-active tools on reload: changing `CODEMODE_ENABLED` updates its tool-selection
-default but does not forcibly deactivate an active codemode tool. The MCP bridge is recreated using
-the freshly applied value.
-`CODEMODE_ENABLED: false` sets a disabled codemode startup default; `LITELLM_MCP_ENABLED: false`
+default but does not forcibly deactivate an active codemode tool. The LiteLLM provider reloads with
+the freshly applied MCP, skills, and budget switches.
+`CODEMODE_ENABLED: false` sets a disabled codemode startup default; `LITELLM_FEATURES.MCP_ENABLED: false`
 disables the LiteLLM MCP bridge without changing codemode or separately configured MCP servers.
 `SHOW_CACHE_MISS_NOTICES` projects as `pi.showCacheMissNotices` and writes Pi's `showCacheMissNotices`
 setting. It defaults to `true` when omitted from a configured `PI` section; set it to `false` to hide

@@ -65,7 +65,11 @@ beforeAll(async () => {
             schemaVersion: 1,
             ...(codemodeEnabled === undefined
               ? {}
-              : { pi: { codemodeEnabled, litellmMcpEnabled, showCacheMissNotices } }),
+              : {
+                  // Like the backend: pi.litellmMcpEnabled for CLI 1.0.x, litellmFeatures for newer.
+                  pi: { codemodeEnabled, litellmMcpEnabled, showCacheMissNotices },
+                  litellmFeatures: { mcp: litellmMcpEnabled, skills: false, budget: false },
+                }),
             ...launchPreferences,
             terminalPermissions: terminalPolicy,
             webSearch: {
@@ -256,7 +260,12 @@ describe("real Pi adapter client config integration", () => {
     const settings = await Bun.file(join(paths.pi, "settings.json")).json();
     expect(settings.defaultTools).toEqual(["+codemode"]);
     expect(settings.showCacheMissNotices).toBe(true);
-    expect(settings.litellm.mcp.enabled).toBe(true);
+    // Optional LiteLLM features reach Pi as LITELLM_ENABLE_*, never as managed settings.
+    expect(settings.litellm).toBeUndefined();
+    expect(environment["LITELLM_ENABLE_MCP"]).toBe("1");
+    expect(environment["LITELLM_ENABLE_SKILLS"]).toBe("0");
+    expect(environment["LITELLM_ENABLE_BUDGET"]).toBe("0");
+    expect(environment["PI_AXON_LITELLM_MANAGED_FEATURES"]).toBe("mcp,skills,budget");
     expect(settings.codemode).toBeUndefined();
     expect(settings.packages).toEqual(
       normalizeManifestPackages(AXON_MANIFEST).map((entry) => entry.configuredSource),
@@ -311,16 +320,27 @@ describe("real Pi adapter client config integration", () => {
         for (const mcp of [true, false]) {
           codemodeEnabled = codemode;
           litellmMcpEnabled = mcp;
-          await launchSpec({
+          const environment = await launchSpec({
             disabled: true,
             searchDisabled: true,
             userArguments: ["--tools", "read,bash", "hello"],
           });
           const settings = await Bun.file(settingsPath).json();
           expect(settings.defaultTools).toEqual([codemode ? "+codemode" : "-codemode"]);
-          expect(settings.litellm.mcp.enabled).toBe(mcp);
+          expect(environment["LITELLM_ENABLE_MCP"]).toBe(mcp ? "1" : "0");
         }
       }
+      // A pipeline's own switch wins over the backend and is not managed on reload.
+      litellmMcpEnabled = false;
+      const environment = await launchSpec({
+        disabled: true,
+        searchDisabled: true,
+        environment: { LITELLM_ENABLE_MCP: "1", LITELLM_ENABLE_BUDGET: "true" },
+      });
+      expect(environment["LITELLM_ENABLE_MCP"]).toBe("1");
+      expect(environment["LITELLM_ENABLE_BUDGET"]).toBe("true");
+      expect(environment["LITELLM_ENABLE_SKILLS"]).toBe("0");
+      expect(environment["PI_AXON_LITELLM_MANAGED_FEATURES"]).toBe("skills");
     } finally {
       codemodeEnabled = true;
       litellmMcpEnabled = true;

@@ -1377,20 +1377,22 @@ test("refreshes Pi defaults through the pinned config API and safely rotates the
       assert.equal(request.headers.get("authorization"), calls++ === 0
         ? "Bearer initial-session" : "Bearer rotated-session");
       return Response.json({ schemaVersion: 1, pi: {
-        codemodeEnabled: !enabled, litellmMcpEnabled: enabled, showCacheMissNotices: enabled
-      } }, { headers: { "x-session-refresh-token": "rotated-session" } });
+        codemodeEnabled: !enabled, litellmMcpEnabled: !enabled, showCacheMissNotices: enabled
+      }, litellmFeatures: { mcp: enabled, skills: enabled, budget: !enabled } }, { headers: { "x-session-refresh-token": "rotated-session" } });
     };
     for (enabled of [true, false]) {
       const response = await send("/_axon/pi-defaults/refresh");
       assert.equal(response.status, 200);
-      assert.deepEqual(await response.json(), { applied: true });
+      assert.deepEqual(await response.json(), {
+        applied: true,
+        litellmFeatures: { mcp: enabled, skills: enabled, budget: !enabled },
+      });
       assert.equal(response.headers.get("x-session-refresh-token"), null);
       const settings = await Bun.file(settingsPath).json();
       assert.deepEqual(settings.defaultTools, ["read", enabled ? "-codemode" : "+codemode"]);
       assert.equal(settings.showCacheMissNotices, enabled);
-      assert.deepEqual(settings.litellm, {
-        ...initial.litellm, mcp: { ...initial.litellm.mcp, enabled }
-      });
+      // LiteLLM features travel as LITELLM_ENABLE_* variables; settings stay as they were.
+      assert.deepEqual(settings.litellm, initial.litellm);
       assert.equal(settings.theme, "custom");
       assert.equal(await sessions.loadEncryptedSession(paths), "rotated-session");
     }
@@ -1412,6 +1414,7 @@ test("config outages, invalid policies, and omitted defaults preserve local sett
     for (const [response, status] of [
       [new Response("private-secret", { status: 503 }), 503],
       [Response.json({ schemaVersion: 1, pi: { codemodeEnabled: true, litellmMcpEnabled: "true" } }), 503],
+      [Response.json({ schemaVersion: 1, pi: { codemodeEnabled: true }, litellmFeatures: { mcp: true } }), 503],
       [new Response("<html>private-secret</html>"), 503],
       [Response.json({ schemaVersion: 1 }), 200],
     ]) {
@@ -1544,7 +1547,13 @@ test("real Pi reload refreshes disk defaults but retains all launch-time environ
     const sdk = await import("@earendil-works/pi-coding-agent");
     const { default: managedConfig } = await import("./src/harnesses/pi/resources/extensions/managed-config.ts");
     const settingsPath = paths.pi + "/settings.json";
-    await Bun.write(settingsPath, JSON.stringify({ litellm: { mcp: { enabled: false } } }));
+    const savedSettings = JSON.stringify({ litellm: { mcp: { enabled: true } } });
+    await Bun.write(settingsPath, savedSettings);
+    // The launcher manages MCP and budget; the user exported their own skills switch.
+    process.env.PI_AXON_LITELLM_MANAGED_FEATURES = "mcp,budget";
+    process.env.LITELLM_ENABLE_MCP = "0";
+    process.env.LITELLM_ENABLE_SKILLS = "1";
+    process.env.LITELLM_ENABLE_BUDGET = "0";
     process.env.PI_AXON_CONFIG_REFRESH_ENABLED = "true";
     process.env.PI_AXON_AUTH_RELAY_URL = relay.origin;
     process.env.PI_AXON_AUTH_RELAY_KEY = relay.capability;
@@ -1561,8 +1570,7 @@ test("real Pi reload refreshes disk defaults but retains all launch-time environ
       cwd: paths.home, agentDir: paths.pi, settingsManager,
       noExtensions: true, noSkills: true, noThemes: true, noPromptTemplates: true, noContextFiles: true,
       extensionFactories: [managedConfig, async () => {
-        const settings = await Bun.file(settingsPath).json();
-        factoryValues.push(settings.litellm.mcp.enabled);
+        factoryValues.push([process.env.LITELLM_ENABLE_MCP, process.env.LITELLM_ENABLE_SKILLS, process.env.LITELLM_ENABLE_BUDGET].join());
         for (const [name, value] of Object.entries(launchValues)) assert.equal(process.env[name], value);
       }],
     });
@@ -1573,10 +1581,11 @@ test("real Pi reload refreshes disk defaults but retains all launch-time environ
     });
     try {
       await piSession.bindExtensions({});
-      assert.equal(factoryValues.at(-1), false);
+      assert.equal(factoryValues.at(-1), "0,1,0");
       let enabled = true;
       upstream = async () => Response.json({ schemaVersion: 1,
-        pi: { codemodeEnabled: true, litellmMcpEnabled: enabled },
+        pi: { codemodeEnabled: true, litellmMcpEnabled: !enabled },
+        litellmFeatures: { mcp: enabled, skills: !enabled, budget: enabled },
         compaction: { enabled: false, model: "litellm/new-summary", thresholdTokens: 1000, maxOutputTokens: 2000, timeoutMs: 3000 },
         modelRecommender: { enabled: false, timeoutMs: 2000, autoSelectMs: 3000 },
         litellmClient: { discoveryTimeoutMs: 0, defaultContextWindow: 256000 },
@@ -1584,16 +1593,13 @@ test("real Pi reload refreshes disk defaults but retains all launch-time environ
         webSearch: { enabled: false, model: "changed", allowedModels: ["changed"], timeoutMs: 1000, maxQueryCharacters: 1, maxResultCharacters: 1, maxOutputTokens: 1, maxSources: 1, temperature: 0, useUrlContext: false, requireGrounding: true },
       });
       await piSession.reload();
-      assert.equal(factoryValues.at(-1), true);
-      // A manual local edit cannot bypass the next successful managed reload.
-      const settings = await Bun.file(settingsPath).json();
-      settings.litellm.mcp.enabled = false;
-      await Bun.write(settingsPath, JSON.stringify(settings));
-      await piSession.reload();
-      assert.equal(factoryValues.at(-1), true);
+      // Managed switches follow the backend before the provider factory reruns; the user's stays.
+      assert.equal(factoryValues.at(-1), "1,1,1");
       enabled = false;
       await piSession.reload();
-      assert.equal(factoryValues.at(-1), false);
+      assert.equal(factoryValues.at(-1), "0,1,0");
+      // LiteLLM blocks saved by earlier releases are left alone.
+      assert.equal(JSON.parse(await Bun.file(settingsPath).text()).litellm.mcp.enabled, true);
     } finally { piSession.dispose(); }
   `,
     "",

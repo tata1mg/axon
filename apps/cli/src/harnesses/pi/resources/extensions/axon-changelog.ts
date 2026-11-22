@@ -26,7 +26,8 @@ export const AXON_RELEASES = [
 - Discover and install organization-published MCP servers with guided setup.
 
 ### Changed
-- Updated Pi to 1.6.0 and the managed LiteLLM provider to 4.8.0.
+- Updated Pi to 1.6.0 and the managed LiteLLM provider to 4.9.0.
+- LiteLLM MCP, Skill Hub, and budget footer are configured by your organization; \`LITELLM_ENABLE_MCP\`, \`LITELLM_ENABLE_SKILLS\`, and \`LITELLM_ENABLE_BUDGET\` override them for automation.
 - Organization MCP servers are now opt-in through the Hub instead of being added as disabled defaults at launch.
 - Each prompt's LLM calls, compaction, and web searches are grouped into one Langfuse trace.
 

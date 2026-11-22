@@ -6,7 +6,6 @@ import { join } from "node:path";
 import {
   applyPiChangelogDefaults,
   applyPiDefaults,
-  applyPiProviderDefaults,
 } from "../src/harnesses/pi/settings-defaults.ts";
 import { withFileLock } from "../src/launcher/file-lock.ts";
 import { type AxonPaths, resolveAxonPaths } from "../src/product/paths.ts";
@@ -68,7 +67,6 @@ describe("managed Pi startup defaults", () => {
     expect(await Bun.file(settingsPath).json()).toEqual({
       defaultTools: ["+codemode"],
       showCacheMissNotices: true,
-      litellm: { mcp: { enabled: false } },
     });
     expect((await lstat(settingsPath)).mode & 0o777).toBe(0o600);
   });
@@ -86,7 +84,6 @@ describe("managed Pi startup defaults", () => {
       ...settings,
       defaultTools: ["read", "grep", "-bash", "+codemode"],
       showCacheMissNotices: true,
-      litellm: { mcp: { enabled: false } },
     });
   });
 
@@ -152,7 +149,7 @@ describe("managed Pi startup defaults", () => {
     ]);
   });
 
-  test("codemode and LiteLLM MCP toggle independently without replacing other MCP preferences", async () => {
+  test("codemode toggles without touching LiteLLM settings saved by earlier releases", async () => {
     const litellm = {
       skills: { enabled: false },
       mcp: { enabled: false, exposure: "deferred", toolExposure: { "*delete*": "hidden" } },
@@ -164,7 +161,7 @@ describe("managed Pi startup defaults", () => {
         expect(await Bun.file(settingsPath).json()).toEqual({
           defaultTools: ["read", codemodeEnabled ? "+codemode" : "-codemode"],
           showCacheMissNotices: true,
-          litellm: { ...litellm, mcp: { ...litellm.mcp, enabled: litellmMcpEnabled } },
+          litellm,
           theme: "custom",
         });
         const content = await Bun.file(settingsPath).text();
@@ -189,27 +186,11 @@ describe("managed Pi startup defaults", () => {
       theme: "custom",
       showCacheMissNotices: true,
       defaultTools: ["+codemode"],
-      litellm: { mcp: { enabled: false } },
     });
   });
 
-  test("provider fallback defaults off but preserves the last managed MCP preference", async () => {
-    await applyPiProviderDefaults(paths);
-    expect((await Bun.file(settingsPath).json()).litellm.mcp.enabled).toBe(false);
-    await applyPiDefaults(paths, { codemodeEnabled: false, litellmMcpEnabled: true });
-    await applyPiProviderDefaults(paths);
-    expect((await Bun.file(settingsPath).json()).litellm.mcp.enabled).toBe(true);
-  });
-
   test("invalid local settings are never overwritten", async () => {
-    for (const current of [
-      "{",
-      "[]",
-      '{"defaultTools":true}',
-      '{"defaultTools":[1]}',
-      '{"litellm":true}',
-      '{"litellm":{"mcp":[]}}',
-    ]) {
+    for (const current of ["{", "[]", '{"defaultTools":true}', '{"defaultTools":[1]}']) {
       await mkdir(paths.pi, { recursive: true });
       await Bun.write(settingsPath, current);
       await expect(
@@ -243,7 +224,6 @@ describe("managed Pi startup defaults", () => {
       packages: ["concurrent-package-update"],
       showCacheMissNotices: true,
       defaultTools: ["+codemode"],
-      litellm: { mcp: { enabled: false } },
     });
   });
 });
