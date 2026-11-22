@@ -382,6 +382,8 @@ test("loads standalone in the pinned native Pi runtime without touching runtime 
         PATH: process.env["PATH"] ?? "",
         PI_CODING_AGENT_DIR: directory,
         PI_SKIP_VERSION_CHECK: "1",
+        // Pi 1.6+ reports "No models available" on stderr; a dummy key keeps that diagnostic out of the clean-load check.
+        ANTHROPIC_API_KEY: "test",
       },
       stdin: "ignore",
       stdout: "pipe",
