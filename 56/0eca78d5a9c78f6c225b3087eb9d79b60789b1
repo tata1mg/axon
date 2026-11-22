@@ -1,0 +1,106 @@
+apps/cli/docs/plans/pi-managed-settings.md
+  s_5b97ac2fad575a::t_13a39364f2cc24 9
+apps/cli/src/product/manifest.ts
+  s_5b97ac2fad575a::t_1a0c8caeaae44c 125,139
+apps/cli/tests/web-search-environment.test.ts
+  s_5b97ac2fad575a::t_77bccae9b6fb58 34,40-44
+  s_5b97ac2fad575a::t_4622586b69bb8c 35-39
+apps/cli/src/cli/auth/request-relay.ts
+  s_5b97ac2fad575a::t_943584364fd5c2 4,456-458,460
+  s_5b97ac2fad575a::t_f37ffa4035f018 406,443,459
+apps/backend/tests/test_cli_config.py
+  s_5b97ac2fad575a::t_617e6ffb0ad4bc 434-436,450,468-469
+  s_5b97ac2fad575a::t_204bdb79098837 20
+  s_5b97ac2fad575a::t_a411e277a35cd1 84-86,111
+  s_5b97ac2fad575a::t_3be2b6ed49a032 124,546-547
+  s_5b97ac2fad575a::t_bb63804dd3c9bf 335-339,406-433,437-449,451-467
+apps/cli/tests/pi-package-setup.test.ts
+  s_5b97ac2fad575a::t_1a0c8caeaae44c 210,212
+apps/cli/docs/plans/cli-client-config.md
+  s_5b97ac2fad575a::t_13a39364f2cc24 78-85,91-96
+  s_5b97ac2fad575a::t_bc8b954b188238 90,97
+apps/cli/tests/terminal-permissions-environment.test.ts
+  s_5b97ac2fad575a::t_77bccae9b6fb58 60-61,67-71
+  s_5b97ac2fad575a::t_4622586b69bb8c 62-66
+  s_5b97ac2fad575a::t_6e3c332264d10a 72
+apps/cli/tests/pi-settings-defaults.test.ts
+  s_5b97ac2fad575a::t_bcb30d59cf3edc 193
+  s_5b97ac2fad575a::t_26d741495b708f 152,164
+apps/cli/src/harnesses/pi/resources/extensions/axon-changelog.ts
+  s_5b97ac2fad575a::t_1a0c8caeaae44c 29-30
+apps/cli/src/cli/client-config.ts
+  s_5b97ac2fad575a::t_b1870ae711ce23 28,62,92,94-95,107,126,131,135-140,149
+  s_5b97ac2fad575a::t_f37ffa4035f018 10-12,159
+apps/cli/tests/pi-environment.test.ts
+  s_5b97ac2fad575a::t_99121e2b61450a 58-69
+apps/cli/src/harnesses/pi/resources/extensions/managed-config.ts
+  s_5b97ac2fad575a::t_0baf1c32accedc 5-28,58-62
+apps/cli/src/harnesses/pi/settings-defaults.ts
+  s_5b97ac2fad575a::t_943584364fd5c2 53-54
+apps/backend/app/routers/cli_config.py
+  s_5b97ac2fad575a::t_d53ea544aeea65 13,38,72
+apps/cli/src/harnesses/pi/litellm-features.ts
+  s_5b97ac2fad575a::t_9146212e1a2161 2-16,21,25-34,36,38-50
+  s_5b97ac2fad575a::t_f37ffa4035f018 1,17-20,22-24,35,37
+apps/cli/tests/pi-client-config.test.ts
+  s_5b97ac2fad575a::t_4622586b69bb8c 68-72
+  s_5b97ac2fad575a::t_f6f411f54429bd 263-268,323,330,333-343
+apps/cli/package.json
+  s_5b97ac2fad575a::t_1a0c8caeaae44c 71
+apps/backend/tests/test_terminal_permissions.py
+  s_5b97ac2fad575a::t_3be2b6ed49a032 44
+apps/cli/tests/litellm-features.test.ts
+  s_5b97ac2fad575a::t_bcb30d59cf3edc 1-7,9-10,13-19,28-34,36-39,41-44
+  s_5b97ac2fad575a::t_287e39e08ef97c 8,11-12,35,40
+  s_5b97ac2fad575a::t_f04a3b5501c2ac 20-27
+apps/backend/README.md
+  s_5b97ac2fad575a::t_13a39364f2cc24 510-514,519,524-539,551
+  s_5b97ac2fad575a::t_84d5fb2f09dc69 500-501,521-523,546,549-550
+apps/cli/src/harnesses/pi/adapter.ts
+  s_5b97ac2fad575a::t_bcb30d59cf3edc 25
+  s_5b97ac2fad575a::t_f37ffa4035f018 171
+apps/backend/config_template.json
+  s_5b97ac2fad575a::t_d53ea544aeea65 67-70
+  s_5b97ac2fad575a::t_66550fdd667f26 71
+apps/cli/tests/litellm-client-provider.test.ts
+  s_5b97ac2fad575a::t_1a0c8caeaae44c 43
+apps/backend/app/core/config.py
+  s_5b97ac2fad575a::t_d53ea544aeea65 20,27,219,232-238,787,816
+apps/backend/app/core/cli_config.py
+  s_5b97ac2fad575a::t_d53ea544aeea65 38,78,88,96-136
+  s_5b97ac2fad575a::t_29ebfd6c06d5ba 137-139
+apps/cli/tests/client-config.test.ts
+  s_5b97ac2fad575a::t_665752e0a0717a 89-115
+  s_5b97ac2fad575a::t_4622586b69bb8c 127-131
+  s_5b97ac2fad575a::t_77bccae9b6fb58 123-126,132-133
+apps/cli/tests/request-relay.test.ts
+  s_5b97ac2fad575a::t_4622586b69bb8c 1380-1381,1417,1587-1588
+  s_5b97ac2fad575a::t_88e44198d3eff8 1386-1389,1394-1395
+  s_5b97ac2fad575a::t_d9eb53d0b4304e 1550-1556,1573,1584,1596-1597,1600-1602
+apps/cli/tests/managed-config.test.ts
+  s_5b97ac2fad575a::t_bcb30d59cf3edc 14-17,135-165
+  s_5b97ac2fad575a::t_11ffc0aaa3bfa6 166
+bun.lock
+  s_5b97ac2fad575a::t_41868ae9bf4f60 49,399
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "560eca78d5a9c78f6c225b3087eb9d79b60789b1",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_5b97ac2fad575a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d729aaee-83c3-479c-b3e1-c21d42812a77",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
