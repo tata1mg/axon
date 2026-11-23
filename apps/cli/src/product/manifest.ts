@@ -33,6 +33,7 @@ import tuiDefaultModelExtensionAsset from "../harnesses/pi/resources/extensions/
 import webSearchExtensionAsset from "../harnesses/pi/resources/extensions/web-search.ts" with {
   type: "file",
 };
+import axonSkillAsset from "../harnesses/pi/resources/skills/axon/SKILL.md" with { type: "file" };
 import axonDarkThemeAsset from "../harnesses/pi/resources/themes/axon-dark.json" with {
   type: "file",
 };
@@ -116,6 +117,15 @@ const TERMINAL_PERMISSIONS_RESOURCE = Object.freeze({
   type: "extension",
   destination: "pi/extensions/terminal-permissions.mjs",
 }) satisfies PiResourceManifestEntry;
+
+// A single-file skill: every resource gets its own `--skill` flag, so bundled
+// reference files would each load as a separate standalone skill.
+const AXON_SKILL_RESOURCE = Object.freeze({
+  id: "axon-skill",
+  type: "skill",
+  destination: "pi/skills/axon/SKILL.md",
+}) satisfies PiResourceManifestEntry;
+
 const AXON_DARK_THEME_RESOURCE = Object.freeze({
   id: "axon-dark-theme",
   type: "theme",
@@ -130,7 +140,7 @@ const AXON_LIGHT_THEME_RESOURCE = Object.freeze({
 
 export const AXON_MANIFEST = parseAxonManifest({
   schemaVersion: 1,
-  revision: "29",
+  revision: "30",
   pi: {
     packages: [
       {
@@ -174,6 +184,7 @@ export const AXON_MANIFEST = parseAxonManifest({
       REQUEST_CONTEXT_RESOURCE,
       // Run permission checks after the other managed tool-call handlers.
       TERMINAL_PERMISSIONS_RESOURCE,
+      AXON_SKILL_RESOURCE,
       AXON_DARK_THEME_RESOURCE,
       AXON_LIGHT_THEME_RESOURCE,
     ],
@@ -233,6 +244,10 @@ export const EMBEDDED_PI_RESOURCES = Object.freeze([
   Object.freeze({
     ...TERMINAL_PERMISSIONS_RESOURCE,
     sourcePath: terminalPermissionsExtensionAsset,
+  }),
+  Object.freeze({
+    ...AXON_SKILL_RESOURCE,
+    sourcePath: axonSkillAsset,
   }),
   Object.freeze({
     ...AXON_DARK_THEME_RESOURCE,

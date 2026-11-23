@@ -338,6 +338,8 @@ describe("launcher dispatch", () => {
       join(axonHome, "runtime", activeRuntime, "pi", "extensions", "request-context.mjs"),
       "--extension",
       join(axonHome, "runtime", activeRuntime, "pi", "extensions", "terminal-permissions.mjs"),
+      "--skill",
+      join(axonHome, "runtime", activeRuntime, "pi", "skills", "axon", "SKILL.md"),
       "--theme",
       join(axonHome, "runtime", activeRuntime, "pi", "themes", "axon-dark.json"),
       "--theme",

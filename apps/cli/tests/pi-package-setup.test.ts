@@ -985,10 +985,12 @@ describe("package and resource locks", () => {
       "compaction.ts",
       "request-context.mjs",
       "terminal-permissions.mjs",
+      "SKILL.md",
       "axon-dark.json",
       "axon-light.json",
     ]);
     expect(first.arguments.filter((argument) => argument === "--theme")).toHaveLength(2);
+    expect(first.arguments.filter((argument) => argument === "--skill")).toHaveLength(1);
     for (const path of materializedPaths) {
       expect(await Bun.file(path).exists()).toBe(true);
     }
