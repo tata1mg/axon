@@ -2,7 +2,7 @@
 name = "axon-backend"
 version = "0.4.0"
 description = "Centralized management API for Axon CLI installations"
-authors = [{ name = "1mg Backend Team", email = "backend-team@1mg.com" }]
+authors = [{ name = "1mg Backend Team", email = "deputydev@1mg.com" }]
 readme = "README.md"
 requires-python = ">=3.14,<3.15"
 dependencies = [
