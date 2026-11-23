@@ -108,7 +108,8 @@ const REQUEST_CONTEXT_CHANNEL = "axon:request-context";
 interface RequestContext {
   tags(callKind: "web_search"): string;
   metadata(callKind: "web_search"): Readonly<Record<string, string>>;
-  traceHeaders(): Readonly<Record<string, string>>;
+  /** Older request-context builds ignore the tool call id and send a flat trace. */
+  traceHeaders(toolCallId?: string): Readonly<Record<string, string>>;
 }
 
 function isRequestContext(value: unknown): value is RequestContext {
@@ -534,7 +535,7 @@ async function search(
       const tags = requestContext.tags("web_search");
       const existingTags = headers.get("x-litellm-tags");
       headers.set("x-litellm-tags", existingTags ? `${existingTags},${tags}` : tags);
-      for (const [name, value] of Object.entries(requestContext.traceHeaders())) {
+      for (const [name, value] of Object.entries(requestContext.traceHeaders(toolCallId))) {
         headers.set(name, value);
       }
     }

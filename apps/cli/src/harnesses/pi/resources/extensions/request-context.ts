@@ -13,6 +13,12 @@ import { normalizeWorkflowName, WORKFLOW_ENV } from "../../workflow.ts";
  *
  * Requests that bypass Pi's header hook (web search, Axon compaction) read the context from
  * REQUEST_CONTEXT_CHANNEL. Keep that contract in sync with web-search.ts and compaction.ts.
+ *
+ * Within a trace, observations nest: each Pi LLM call gets its own Langfuse generation id, and
+ * a tool's requests (web search) hang under the generation that asked for the tool. Subagents
+ * are separate Pi processes started by a tool, so the parent hands the trace and the asking
+ * generation down through the environment; a subagent appends to that trace under that
+ * generation instead of starting its own.
  */
 export const REQUEST_CONTEXT_CHANNEL = "axon:request-context";
 /** Synchronously publishes an async context accessor at session_start, before Git completes. */
@@ -23,7 +29,8 @@ export type CallKind = "main" | "compaction" | "web_search";
 export interface RequestContext {
   tags(callKind: CallKind): string;
   metadata(callKind: CallKind): Readonly<Record<string, string>>;
-  traceHeaders(): Readonly<Record<string, string>>;
+  /** Pass the tool call a request serves so it nests under the generation that made the call. */
+  traceHeaders(toolCallId?: string): Readonly<Record<string, string>>;
 }
 
 interface Session {
@@ -43,6 +50,16 @@ const METADATA_HEADER = "x-litellm-spend-logs-metadata";
 const LANGFUSE_TRACE_ID_HEADER = "langfuse_trace_id";
 const LANGFUSE_TRACE_NAME_HEADER = "langfuse_trace_name";
 const LANGFUSE_TRACE_NAME = "axon-prompt";
+const LANGFUSE_EXISTING_TRACE_ID_HEADER = "langfuse_existing_trace_id";
+const LANGFUSE_PARENT_OBSERVATION_ID_HEADER = "langfuse_parent_observation_id";
+const LANGFUSE_GENERATION_ID_HEADER = "langfuse_generation_id";
+const LANGFUSE_GENERATION_NAME_HEADER = "langfuse_generation_name";
+/** Set while a tool runs, so a subagent process it starts continues this trace. */
+export const TRACE_ID_ENV = "AXON_LANGFUSE_TRACE_ID";
+export const PARENT_OBSERVATION_ID_ENV = "AXON_LANGFUSE_PARENT_OBSERVATION_ID";
+const TRACE_ID = /^[0-9a-f]{32}$/;
+const OBSERVATION_ID = /^[0-9a-f]{16}$/;
+const SESSION_ID = /^[A-Za-z0-9._:/-]{1,128}$/;
 const GIT_TIMEOUT_MS = 1000;
 const MAX_VALUE_LENGTH = 200;
 const CLI_VERSION = /^[a-zA-Z0-9][a-zA-Z0-9.+-]{0,79}$/;
@@ -159,11 +176,37 @@ function newPromptTraceId(): string {
   return crypto.randomUUID().replaceAll("-", "");
 }
 
+/** Langfuse observation ids are OpenTelemetry span ids: 16 lowercase hex, never all zero. */
+function newObservationId(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(8));
+  bytes[0] = (bytes[0] ?? 0) | 1;
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+export interface InheritedTrace {
+  readonly traceId: string;
+  readonly parentObservationId: string;
+}
+
+/** The trace a parent Pi handed to this process; both ids or neither. */
+export function inheritedTrace(
+  environment: Readonly<Record<string, string | undefined>>,
+): InheritedTrace | undefined {
+  const traceId = environment[TRACE_ID_ENV]?.trim();
+  const parentObservationId = environment[PARENT_OBSERVATION_ID_ENV]?.trim();
+  return traceId &&
+    parentObservationId &&
+    TRACE_ID.test(traceId) &&
+    OBSERVATION_ID.test(parentObservationId)
+    ? Object.freeze({ traceId, parentObservationId })
+    : undefined;
+}
+
 export function buildRequestContext(
   session: Session,
   revision: Revision,
   environment: Readonly<Record<string, string | undefined>> = process.env,
-  promptTraceId: () => string | undefined = () => undefined,
+  traceHeaders: (toolCallId?: string) => Readonly<Record<string, string>> = () => ({}),
 ): RequestContext {
   const workflow = normalizeWorkflowName(environment[WORKFLOW_ENV]);
   const rawVersion = environment["PI_AXON_CLI_VERSION"];
@@ -190,17 +233,7 @@ export function buildRequestContext(
   return Object.freeze({
     tags: (callKind: CallKind) => [...baseTags, `call_kind:${callKind}`].join(","),
     metadata: (callKind: CallKind) => Object.freeze({ ...base, call_kind: callKind }),
-    traceHeaders: () => {
-      const traceId = promptTraceId();
-      return Object.freeze(
-        traceId === undefined
-          ? {}
-          : {
-              [LANGFUSE_TRACE_ID_HEADER]: traceId,
-              [LANGFUSE_TRACE_NAME_HEADER]: LANGFUSE_TRACE_NAME,
-            },
-      );
-    },
+    traceHeaders: (toolCallId?: string) => traceHeaders(toolCallId),
   });
 }
 
@@ -213,6 +246,45 @@ export default function requestContext(pi: ExtensionAPI): void {
   let published = 0;
   let callKind: CallKind = "main";
   let promptTraceId: string | undefined;
+  // Read once: this process's own tools overwrite these variables for the subagents they start.
+  const inherited = inheritedTrace(process.env);
+  let subagentName: string | undefined;
+  let latestGenerationId: string | undefined;
+  const toolParents = new Map<string, string>();
+
+  const traceHeaders = (toolCallId?: string): Readonly<Record<string, string>> => {
+    const toolParent = toolCallId === undefined ? undefined : toolParents.get(toolCallId);
+    const parent = toolParent ?? inherited?.parentObservationId;
+    const nesting = parent === undefined ? {} : { [LANGFUSE_PARENT_OBSERVATION_ID_HEADER]: parent };
+    // A subagent appends to its parent's trace; a trace id would let it rename and rewrite it.
+    if (inherited !== undefined) {
+      return Object.freeze({
+        [LANGFUSE_EXISTING_TRACE_ID_HEADER]: inherited.traceId,
+        ...nesting,
+      });
+    }
+    if (promptTraceId === undefined) return Object.freeze({});
+    return Object.freeze({
+      [LANGFUSE_TRACE_ID_HEADER]: promptTraceId,
+      [LANGFUSE_TRACE_NAME_HEADER]: LANGFUSE_TRACE_NAME,
+      ...nesting,
+    });
+  };
+  /** Between tool runs, processes started from here get only what this process inherited. */
+  const restoreTraceEnvironment = (): void => {
+    if (inherited === undefined) {
+      delete process.env[TRACE_ID_ENV];
+      delete process.env[PARENT_OBSERVATION_ID_ENV];
+    } else {
+      process.env[TRACE_ID_ENV] = inherited.traceId;
+      process.env[PARENT_OBSERVATION_ID_ENV] = inherited.parentObservationId;
+    }
+  };
+  const resetNesting = (): void => {
+    latestGenerationId = undefined;
+    toolParents.clear();
+    restoreTraceEnvironment();
+  };
 
   /** Reads can finish out of order; an older read never replaces a newer one. */
   const refresh = (cwd: string): Promise<PromiseSettledResult<RequestContext>> => {
@@ -224,7 +296,7 @@ export default function requestContext(pi: ExtensionAPI): void {
         resolved,
         resolved.repoDir === undefined ? {} : await readRevision(pi, cwd),
         process.env,
-        () => promptTraceId,
+        traceHeaders,
       ),
     );
     // This is the background-I/O boundary: retain failures as explicit results, then rethrow
@@ -266,6 +338,12 @@ export default function requestContext(pi: ExtensionAPI): void {
   pi.on("session_start", (_event, ctx) => {
     resetCallKind();
     promptTraceId = undefined;
+    resetNesting();
+    const sessionId = ctx.sessionManager?.getSessionId();
+    subagentName =
+      inherited !== undefined && sessionId !== undefined && SESSION_ID.test(sessionId)
+        ? `axon-subagent:${sessionId}`
+        : undefined;
     latest = undefined;
     published = started;
     session = undefined;
@@ -276,10 +354,21 @@ export default function requestContext(pi: ExtensionAPI): void {
   pi.on("before_agent_start", (_event, ctx) => {
     resetCallKind();
     promptTraceId = newPromptTraceId();
+    resetNesting();
     void refresh(ctx.cwd);
   });
   pi.on("agent_end", (_event, ctx) => {
+    resetNesting();
     void refresh(ctx.cwd);
+  });
+  pi.on("session_shutdown", resetNesting);
+  // Pi emits this before it runs the tool, so a subagent the tool spawns sees the variables.
+  pi.on("tool_execution_start", (event) => {
+    const traceId = inherited?.traceId ?? promptTraceId;
+    if (latestGenerationId === undefined || traceId === undefined) return;
+    toolParents.set(event.toolCallId, latestGenerationId);
+    process.env[TRACE_ID_ENV] = traceId;
+    process.env[PARENT_OBSERVATION_ID_ENV] = latestGenerationId;
   });
   // Pi's own compaction runs through the agent stream, so its requests reach the header hook.
   pi.on("session_before_compact", () => {
@@ -296,7 +385,14 @@ export default function requestContext(pi: ExtensionAPI): void {
     const existingTags = event.headers[TAGS_HEADER];
     event.headers[TAGS_HEADER] = existingTags ? `${existingTags},${tags}` : tags;
     event.headers[METADATA_HEADER] ??= JSON.stringify(context.metadata(callKind));
-    for (const [name, value] of Object.entries(context.traceHeaders()))
-      event.headers[name] ??= value;
+    const trace = context.traceHeaders();
+    if (Object.keys(trace).length === 0) return;
+    for (const [name, value] of Object.entries(trace)) event.headers[name] ??= value;
+    // A new id per attempt: a retried request is its own generation.
+    event.headers[LANGFUSE_GENERATION_ID_HEADER] ??= newObservationId();
+    if (subagentName !== undefined && callKind === "main")
+      event.headers[LANGFUSE_GENERATION_NAME_HEADER] ??= subagentName;
+    // Only an agent turn's call can ask for tools; compaction never does.
+    if (callKind === "main") latestGenerationId = event.headers[LANGFUSE_GENERATION_ID_HEADER];
   });
 }

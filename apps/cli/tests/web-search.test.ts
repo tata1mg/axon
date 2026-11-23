@@ -136,7 +136,13 @@ describe("standalone LiteLLM web search", () => {
         { repo: "tata1mg/app", repoDir: ".", piMode: "tui" },
         { branch: "main", commit: "a1b2c3d" },
         { AXON_WORKFLOW: "pr-review" },
-        () => "0123456789abcdef0123456789abcdef",
+        (toolCallId) => ({
+          langfuse_trace_id: "0123456789abcdef0123456789abcdef",
+          langfuse_trace_name: "axon-prompt",
+          ...(toolCallId === "call-1"
+            ? { langfuse_parent_observation_id: "0123456789abcdef" }
+            : {}),
+        }),
       ),
     );
     await tool?.execute("call-1", { query: "Current docs" }, undefined);
@@ -146,6 +152,8 @@ describe("standalone LiteLLM web search", () => {
     );
     expect(requestHeaders().get("langfuse_trace_id")).toBe("0123456789abcdef0123456789abcdef");
     expect(requestHeaders().get("langfuse_trace_name")).toBe("axon-prompt");
+    // The search nests under the generation that asked for this tool call.
+    expect(requestHeaders().get("langfuse_parent_observation_id")).toBe("0123456789abcdef");
     const metadata = sentPayload()["metadata"] as Record<string, unknown>;
     expect(metadata["spend_logs_metadata"]).toMatchObject({
       repo: "tata1mg/app",

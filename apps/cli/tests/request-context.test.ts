@@ -7,14 +7,22 @@ import { type ExtensionAPI, type ExtensionContext, VERSION } from "@earendil-wor
 
 import requestContext, {
   buildRequestContext,
+  inheritedTrace,
+  PARENT_OBSERVATION_ID_ENV,
   REQUEST_CONTEXT_CHANNEL,
   type RequestContext,
   repoFromRemote,
+  TRACE_ID_ENV,
   ticketFromBranch,
 } from "../src/harnesses/pi/resources/extensions/request-context.ts";
 import { normalizeWorkflowName } from "../src/harnesses/pi/telemetry/src/environment.ts";
 
-const environmentKeys = ["AXON_WORKFLOW", "PI_AXON_CLI_VERSION"] as const;
+const environmentKeys = [
+  "AXON_WORKFLOW",
+  "PI_AXON_CLI_VERSION",
+  "AXON_LANGFUSE_TRACE_ID",
+  "AXON_LANGFUSE_PARENT_OBSERVATION_ID",
+] as const;
 let savedEnvironment: Record<string, string | undefined>;
 const directories: string[] = [];
 
@@ -22,6 +30,8 @@ beforeEach(() => {
   savedEnvironment = Object.fromEntries(environmentKeys.map((key) => [key, process.env[key]]));
   process.env["AXON_WORKFLOW"] = " PR-Review ";
   process.env["PI_AXON_CLI_VERSION"] = "1.0.4";
+  delete process.env["AXON_LANGFUSE_TRACE_ID"];
+  delete process.env["AXON_LANGFUSE_PARENT_OBSERVATION_ID"];
 });
 afterEach(async () => {
   await Promise.all(
@@ -109,6 +119,7 @@ function setup(repository: Partial<Repository> = {}, execute?: ExtensionAPI["exe
       cwd,
       mode: "print",
       model: { provider },
+      sessionManager: { getSessionId: () => "child-session" },
     }) as unknown as ExtensionContext;
   const fire = async (name: string, event: unknown = {}, provider = "litellm") => {
     for (const handler of handlers.get(name) ?? []) await handler(event, context(provider));
@@ -521,4 +532,128 @@ test.each([
   ["fix/dd-520-lowercase", undefined],
 ])("ticket from branch %s", (branch, expected) => {
   expect(ticketFromBranch(branch)).toBe(expected);
+});
+
+const PARENT_TRACE = "fedcba9876543210fedcba9876543210";
+const PARENT_GENERATION = "1122334455667788";
+
+test("each LLM call is its own generation, and a tool's requests nest under the call that asked", async () => {
+  const fixture = setup();
+  await fixture.fire("session_start");
+  await fixture.fire("before_agent_start");
+  const first = await fixture.request();
+  const firstGeneration = first["langfuse_generation_id"];
+  expect(firstGeneration).toMatch(/^[0-9a-f]{16}$/);
+  expect(first["langfuse_parent_observation_id"]).toBeUndefined();
+  expect(first["langfuse_generation_name"]).toBeUndefined();
+
+  await fixture.fire("tool_execution_start", { toolCallId: "search-1", toolName: "web_search" });
+  await fixture.fire("turn_start");
+  const second = await fixture.request();
+  expect(second["langfuse_generation_id"]).toMatch(/^[0-9a-f]{16}$/);
+  expect(second["langfuse_generation_id"]).not.toBe(firstGeneration);
+  await fixture.fire("tool_execution_start", { toolCallId: "search-2", toolName: "web_search" });
+
+  const context = fixture.published.at(-1) as RequestContext;
+  const traceId = first["langfuse_trace_id"];
+  expect(context.traceHeaders("search-1")).toEqual({
+    langfuse_trace_id: traceId as string,
+    langfuse_trace_name: "axon-prompt",
+    langfuse_parent_observation_id: firstGeneration as string,
+  });
+  expect(context.traceHeaders("search-2")["langfuse_parent_observation_id"]).toBe(
+    second["langfuse_generation_id"],
+  );
+  expect(context.traceHeaders("unknown")["langfuse_parent_observation_id"]).toBeUndefined();
+  expect(context.traceHeaders()["langfuse_parent_observation_id"]).toBeUndefined();
+
+  await fixture.fire("before_agent_start");
+  expect(context.traceHeaders("search-1")["langfuse_parent_observation_id"]).toBeUndefined();
+});
+
+test("compaction calls never become a tool's parent", async () => {
+  const fixture = setup();
+  await fixture.fire("session_start");
+  await fixture.fire("before_agent_start");
+  const main = (await fixture.request())["langfuse_generation_id"];
+  await fixture.fire("session_before_compact");
+  const compaction = await fixture.request();
+  expect(compaction["langfuse_generation_id"]).toMatch(/^[0-9a-f]{16}$/);
+  await fixture.fire("tool_execution_start", { toolCallId: "call-1", toolName: "subagent" });
+
+  const context = fixture.published.at(-1) as RequestContext;
+  expect(context.traceHeaders("call-1")["langfuse_parent_observation_id"]).toBe(main);
+});
+
+test("requests outside a prompt get no generation id", async () => {
+  const fixture = setup();
+  await fixture.fire("session_start");
+  const headers = await fixture.request();
+  expect(headers["langfuse_generation_id"]).toBeUndefined();
+  await fixture.fire("tool_execution_start", { toolCallId: "call-1", toolName: "bash" });
+  expect(process.env[TRACE_ID_ENV]).toBeUndefined();
+});
+
+test("a running tool hands the trace and its asking generation to processes it starts", async () => {
+  const fixture = setup();
+  await fixture.fire("session_start");
+  await fixture.fire("before_agent_start");
+  const headers = await fixture.request();
+  await fixture.fire("tool_execution_start", { toolCallId: "call-1", toolName: "subagent" });
+  expect(process.env[TRACE_ID_ENV]).toBe(headers["langfuse_trace_id"]);
+  expect(process.env[PARENT_OBSERVATION_ID_ENV]).toBe(headers["langfuse_generation_id"]);
+
+  await fixture.fire("agent_end");
+  expect(process.env[TRACE_ID_ENV]).toBeUndefined();
+  expect(process.env[PARENT_OBSERVATION_ID_ENV]).toBeUndefined();
+});
+
+test("a subagent appends to its parent's trace under the generation that started it", async () => {
+  process.env[TRACE_ID_ENV] = PARENT_TRACE;
+  process.env[PARENT_OBSERVATION_ID_ENV] = PARENT_GENERATION;
+  const fixture = setup();
+  await fixture.fire("session_start");
+  await fixture.fire("before_agent_start");
+  const headers = await fixture.request();
+
+  expect(headers["langfuse_existing_trace_id"]).toBe(PARENT_TRACE);
+  expect(headers["langfuse_parent_observation_id"]).toBe(PARENT_GENERATION);
+  expect(headers["langfuse_generation_name"]).toBe("axon-subagent:child-session");
+  expect(headers["langfuse_generation_id"]).toMatch(/^[0-9a-f]{16}$/);
+  // A trace id or name would let the subagent rename and rewrite the parent's trace.
+  expect(headers["langfuse_trace_id"]).toBeUndefined();
+  expect(headers["langfuse_trace_name"]).toBeUndefined();
+
+  // Its own tools nest under its own generation, and nested subagents inherit that.
+  await fixture.fire("tool_execution_start", { toolCallId: "call-1", toolName: "web_search" });
+  const context = fixture.published.at(-1) as RequestContext;
+  expect(context.traceHeaders("call-1")).toEqual({
+    langfuse_existing_trace_id: PARENT_TRACE,
+    langfuse_parent_observation_id: headers["langfuse_generation_id"] as string,
+  });
+  expect(context.traceHeaders()["langfuse_parent_observation_id"]).toBe(PARENT_GENERATION);
+  expect(process.env[TRACE_ID_ENV]).toBe(PARENT_TRACE);
+  expect(process.env[PARENT_OBSERVATION_ID_ENV]).toBe(headers["langfuse_generation_id"] as string);
+
+  // After the prompt the process hands on what it inherited, not its own generation.
+  await fixture.fire("agent_end");
+  expect(process.env[PARENT_OBSERVATION_ID_ENV]).toBe(PARENT_GENERATION);
+
+  const compaction = await fixture.fire("session_before_compact").then(() => fixture.request());
+  expect(compaction["langfuse_generation_name"]).toBeUndefined();
+  expect(compaction["langfuse_parent_observation_id"]).toBe(PARENT_GENERATION);
+});
+
+test.each([
+  [{}, undefined],
+  [{ [TRACE_ID_ENV]: PARENT_TRACE }, undefined],
+  [{ [PARENT_OBSERVATION_ID_ENV]: PARENT_GENERATION }, undefined],
+  [{ [TRACE_ID_ENV]: "not-a-trace", [PARENT_OBSERVATION_ID_ENV]: PARENT_GENERATION }, undefined],
+  [{ [TRACE_ID_ENV]: PARENT_TRACE, [PARENT_OBSERVATION_ID_ENV]: "1122-3344" }, undefined],
+  [
+    { [TRACE_ID_ENV]: ` ${PARENT_TRACE} `, [PARENT_OBSERVATION_ID_ENV]: PARENT_GENERATION },
+    { traceId: PARENT_TRACE, parentObservationId: PARENT_GENERATION },
+  ],
+])("inherited trace from %j", (environment, expected) => {
+  expect(inheritedTrace(environment)).toEqual(expected);
 });

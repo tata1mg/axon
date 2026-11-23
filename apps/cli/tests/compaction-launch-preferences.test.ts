@@ -208,7 +208,10 @@ test("summary requests to LiteLLM carry the session's request context as compact
       { repo: "tata1mg/app", repoDir: ".", piMode: "tui" },
       { branch: "main", commit: "a1b2c3d" },
       { AXON_WORKFLOW: "pr-review" },
-      () => "0123456789abcdef0123456789abcdef",
+      () => ({
+        langfuse_trace_id: "0123456789abcdef0123456789abcdef",
+        langfuse_trace_name: "axon-prompt",
+      }),
     ),
   );
   await fixture.compact("manual");
