@@ -1,0 +1,19 @@
+apps/backend/uv.lock
+  s_ef17e3523dde41::t_3c5e96ed7966f7 16,18,20,34,40,42,126,133,135,140,147,149,154,156,158,207-264,269,271,273,359,363,370,372,377,379,381,398,403,405-414,535,537,539,738,740,742,796,804,806,811,816-848,899,904,906,920-941,1057,1062,1064,1121,1130,1132,1176-1220,1225-1251
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ec80522c85e2c23fbd49f5aeb51df645d2e04ffc",
+  "prompts": {},
+  "sessions": {
+    "s_ef17e3523dde41": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8237f42-adaa-471b-bfad-6c8c3116c48b",
+        "model": "unknown"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
