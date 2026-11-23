@@ -65,7 +65,7 @@ The CLI's `.env` points at `http://localhost:3000` by default. Compiled release 
 
 ### Run locally
 
-Start the backend and frontend in separate terminals, each from the repository root.
+From the repository root, start the backend and frontend in separate terminals.
 
 **Backend** — API at `http://localhost:3000`, API docs at `/docs`:
 
