@@ -41,6 +41,8 @@ def test_terminal_preferences_are_projected_into_the_cli_response() -> None:
                 cli_compaction=None,
                 cli_model_recommender=None,
                 cli_litellm_client=None,
+                cli_litellm_features=None,
+                cli_tui_default_model=None,
                 web_search=WebSearchSettings(),
                 terminal_permissions=policy,
             )

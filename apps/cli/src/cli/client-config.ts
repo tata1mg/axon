@@ -7,6 +7,9 @@ import { emitProductEvent } from "../telemetry/product-events.ts";
 export const CLIENT_CONFIG_TIMEOUT_MS = 700;
 const MAX_CONFIG_BYTES = 16 * 1024;
 
+// Sections are z.object, not z.strictObject: fields this release does not know are dropped, never
+// used, so a newer backend can add fields without this client discarding the whole section.
+
 const telemetrySchema = z
   .object({
     enabled: z.boolean(),
@@ -22,7 +25,7 @@ const telemetrySchema = z
     (telemetry) => telemetry.maxExportBatchSize <= telemetry.maxQueueSize,
     "Telemetry batch size must not exceed queue size",
   );
-const webSearchSchema = z.strictObject({
+const webSearchSchema = z.object({
   enabled: z.boolean(),
   model: z.string().min(1).max(256),
   allowedModels: z.array(z.string().min(1).max(256)).max(33),
@@ -56,7 +59,7 @@ const commandPrefixSchema = z
     isSingleCommandPrefix,
     "Command prefixes must contain a single command with supported shell syntax",
   );
-const terminalPermissionsSchema = z.strictObject({
+const terminalPermissionsSchema = z.object({
   // Eligibility for the saved user-level /yolo preference, never activation by itself.
   yoloMode: z.boolean(),
   requireApprovalCommands: z.array(commandPrefixSchema).max(32),
@@ -86,9 +89,10 @@ const piDefaultText = z.preprocess(
     .optional(),
 );
 const piSchema = z
-  .strictObject({
+  .object({
     codemodeEnabled: z.boolean(),
-    litellmMcpEnabled: z.boolean(),
+    // Sent for CLI 1.0.x only; LiteLLM features are read from litellmFeatures.
+    litellmMcpEnabled: z.boolean().optional(),
     showCacheMissNotices: z.boolean().optional(),
     defaultProvider: piDefaultText,
     defaultModel: piDefaultText,
@@ -100,7 +104,7 @@ const piSchema = z
   );
 const positiveInteger = z.number().int().min(1).max(2_147_483_647);
 const countdown = z.number().int().min(1).max(300_000);
-const compactionSchema = z.strictObject({
+const compactionSchema = z.object({
   enabled: optionalOverride(z.boolean()),
   model: optionalOverride(
     z.string().refine((value) => {
@@ -119,14 +123,36 @@ const compactionSchema = z.strictObject({
   maxOutputTokens: optionalOverride(positiveInteger),
   timeoutMs: optionalOverride(positiveInteger),
 });
-const modelRecommenderSchema = z.strictObject({
+const modelRecommenderSchema = z.object({
   enabled: optionalOverride(z.boolean()),
   timeoutMs: optionalOverride(countdown),
   autoSelectMs: optionalOverride(countdown),
 });
-const litellmClientSchema = z.strictObject({
+const litellmClientSchema = z.object({
   discoveryTimeoutMs: optionalOverride(z.number().int().min(0).max(300_000)),
   defaultContextWindow: optionalOverride(positiveInteger),
+});
+// pi-provider-litellm's optional features, passed to Pi as LITELLM_ENABLE_*.
+const litellmFeaturesSchema = z.object({
+  mcp: z.boolean(),
+  skills: z.boolean(),
+  budget: z.boolean(),
+});
+// Pi's thinking levels. An unknown level (a newer Pi's) is dropped; the model still applies.
+const PI_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
+const modelReferenceText = z
+  .string()
+  .min(1)
+  .refine(
+    (value) =>
+      value === value.trim() && Array.from(value).length <= 256 && hasNoControlCharacters(value),
+    "Expected trimmed text without control characters",
+  );
+// The model a new TUI session starts with while the user has no saved Pi default model.
+const tuiDefaultModelSchema = z.object({
+  provider: modelReferenceText,
+  model: modelReferenceText,
+  thinkingLevel: z.enum(PI_THINKING_LEVELS).optional().catch(undefined),
 });
 const featureSchemas = {
   pi: piSchema,
@@ -136,6 +162,8 @@ const featureSchemas = {
   compaction: compactionSchema.nullish(),
   modelRecommender: modelRecommenderSchema.nullish(),
   litellmClient: litellmClientSchema.nullish(),
+  litellmFeatures: litellmFeaturesSchema,
+  tuiDefaultModel: tuiDefaultModelSchema,
 };
 const envelopeSchema = z.object({ schemaVersion: z.literal(1) });
 
@@ -145,7 +173,9 @@ export type ClientConfig = { schemaVersion: 1 } & {
 export type CompactionConfig = z.infer<typeof compactionSchema>;
 export type ModelRecommenderConfig = z.infer<typeof modelRecommenderSchema>;
 export type LiteLLMClientConfig = z.infer<typeof litellmClientSchema>;
+export type LiteLLMFeaturesConfig = z.infer<typeof litellmFeaturesSchema>;
 export type PiConfig = z.infer<typeof piSchema>;
+export type TuiDefaultModelConfig = z.infer<typeof tuiDefaultModelSchema>;
 export type TelemetryConfig = z.infer<typeof telemetrySchema>;
 export type WebSearchConfig = z.infer<typeof webSearchSchema>;
 export type TerminalPermissionsConfig = z.infer<typeof terminalPermissionsSchema>;

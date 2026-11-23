@@ -31,10 +31,18 @@ describe("standalone search client config", () => {
       defaults,
     );
   });
+  test("drops unknown fields, including destinations and credentials, and keeps the section", () => {
+    for (const patch of [
+      { endpoint: "https://evil.test" },
+      { apiKey: "secret" },
+      { headers: {} },
+    ]) {
+      expect(
+        parseClientConfig({ schemaVersion: 1, webSearch: { ...preferences, ...patch } }).webSearch,
+      ).toEqual(preferences);
+    }
+  });
   for (const patch of [
-    { endpoint: "https://evil.test" },
-    { apiKey: "secret" },
-    { headers: {} },
     { thinkingLevel: "auto" },
     { searchContextSize: "huge" },
     { temperature: Infinity },

@@ -1,7 +1,9 @@
 import { timingSafeEqual } from "node:crypto";
 
 import { BUILD_INFO } from "../../build-info.ts";
+import { litellmFeatureStates } from "../../harnesses/pi/litellm-features.ts";
 import { applyPiDefaults } from "../../harnesses/pi/settings-defaults.ts";
+import type { PiHub } from "../../hub/pi-hub.ts";
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../../product/endpoints.ts";
 import type { AxonPaths } from "../../product/paths.ts";
 import { emitProductEvent } from "../../telemetry/product-events.ts";
@@ -397,11 +399,13 @@ async function refreshPiDefaults(
   }
   // Pi owns the terminal during reload, so invalid sections are recorded, never printed.
   let piInvalid = false;
+  let tuiDefaultModelInvalid = false;
   let failureLogged = false;
   diagnostic.attempt(1);
   const result = await fetchClientConfig(expectedSession, {
     onInvalidSection: (section) => {
-      if (section === "pi") piInvalid = true;
+      if (section === "pi" || section === "litellmFeatures") piInvalid = true;
+      if (section === "tuiDefaultModel") tuiDefaultModelInvalid = true;
     },
     fetcher: async (input, init) => {
       try {
@@ -438,7 +442,7 @@ async function refreshPiDefaults(
     }
   };
   await beforeWrite();
-  // An invalid pi section is a failed refresh, not "the backend has no Pi defaults".
+  // An invalid pi or litellmFeatures section is a failed refresh, not "the backend has no defaults".
   if (!result.config || piInvalid) {
     if (!failureLogged) {
       await diagnostic.failure(
@@ -451,7 +455,13 @@ async function refreshPiDefaults(
   }
   if (result.config.pi) await applyPiDefaults(paths, result.config.pi, { beforeWrite });
   return Response.json(
-    { applied: result.config.pi !== undefined },
+    {
+      applied: result.config.pi !== undefined,
+      // Pi applies these to the LITELLM_ENABLE_* variables Axon manages before extensions reload.
+      litellmFeatures: litellmFeatureStates(result.config.litellmFeatures),
+      // Null clears the TUI default; an invalid section is omitted so Pi keeps the current one.
+      ...(tuiDefaultModelInvalid ? {} : { tuiDefaultModel: result.config.tuiDefaultModel ?? null }),
+    },
     { headers: { "Cache-Control": "no-store" } },
   );
 }
@@ -461,6 +471,7 @@ export function startAuthenticatedRequestRelay(
   paths: AxonPaths,
   options: {
     readonly allowPiConfigRefresh?: boolean;
+    readonly piHub?: PiHub;
     readonly signedOut?: SessionRecoveryOptions["signedOut"];
   } = {},
 ): AuthenticatedRequestRelay {
@@ -482,11 +493,35 @@ export function startAuthenticatedRequestRelay(
       await diagnostics.serverFailure(error);
       return relayError(503, "Axon could not process this request safely");
     },
-    async fetch(request) {
+    async fetch(request, server) {
       if (!authorizedLocalRequest(request, capability)) {
         return relayError(401, "Invalid local Axon request credential");
       }
       const url = new URL(request.url);
+      // This is a launcher control call, not a browser endpoint or an upstream route.
+      if (url.pathname === "/_axon/hub/open") {
+        if (!options.piHub || request.method !== "POST" || url.search) {
+          return relayError(404, "Axon endpoint is not available");
+        }
+        if (
+          url.origin !== server.url.origin ||
+          request.headers.get("host") !== server.url.host ||
+          request.headers.has("origin") ||
+          request.headers.has("sec-fetch-site")
+        ) {
+          return relayError(403, "A local Pi request is required");
+        }
+        try {
+          const launchUrl = await options.piHub.open();
+          const headers = { "Cache-Control": "no-store" };
+          return launchUrl === undefined
+            ? new Response(null, { status: 204, headers })
+            : Response.json({ launchUrl }, { headers });
+        } catch {
+          // Never log or serialize a browser error containing a private link.
+          return relayError(503, "Could not open Axon Hub");
+        }
+      }
       const diagnostic = diagnostics.start(request, url);
       try {
         // Control calls never wait for authentication work so Pi can approve a pending login.
@@ -533,6 +568,7 @@ export function startAuthenticatedRequestRelay(
     diagnosticsLogFile: diagnostics.logFile,
     diagnosticsLogLabel: diagnostics.logLabel,
     dispose: () => {
+      options.piHub?.dispose();
       recovery.dispose();
       void server.stop(true);
     },

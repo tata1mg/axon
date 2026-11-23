@@ -18,9 +18,9 @@ This is a clean-install rename: previous product installations are not automatic
 - Online session verification and silent access-token refresh before Pi launches; browser login only when needed
 - Authenticated, best-effort telemetry, standalone web-search, and Pi preferences from backend client-config
 - Standalone web search through the existing authenticated LiteLLM relay, with grounding, session attribution, and tool usage/cost reporting
-- Pi-only setup checks, including append-only organization MCP defaults at `~/.config/mcp/mcp.json`, requested only for interactive online launches and throttled locally
+- `axon hub`: a local browser UI for user-level MCP servers, user-level skills, and the organization catalog (Discover), installing admin-published MCP servers with guided setup
 - Pi agent/session isolation under `${AXON_HOME}/pi`, with Pi version checks disabled and every Pi-documented provider API key removed from Pi only (LiteLLM variables are kept)
-- Exact Pi 1.5.2 pin: Axon uses only its isolated executable under `${AXON_HOME}/pi-runtime`, installed from Pi's release API with `npm ci`; the user's PATH Pi is never used or changed
+- Exact Pi 1.6.0 pin: Axon uses only its isolated executable under `${AXON_HOME}/pi-runtime`, installed from Pi's release API with `npm ci`; the user's PATH Pi is never used or changed
 - Content-addressed, checksum-verified Axon Pi resources injected through explicit Pi flags that reference the immutable runtime directory
 - Embedded required-package policy with exact, minimum, and Pi/user-managed floating versions
 - Locked package reconciliation, last-known-good exact fallback, and local-only warm checks
@@ -28,6 +28,7 @@ This is a clean-install rename: previous product installations are not automatic
 - Preserved user harness arguments and inherited stdio/cwd; adapters may add required generated resource or local-service options
 - Axon control-variable stripping and redacted debug launch previews
 - Child exit-code and signal-status propagation
+- Standalone local browser hub (`axon hub`) with separately scoped browser authentication and user-level MCP configuration management
 - `harnesses`, `paths`, basic `doctor`, and guarded `uninstall` commands
 - Launcher-core tests for registry behavior, environment isolation, argv passthrough, and reserved exit statuses
 - Verified, atomic installer for the native Apple Silicon or Intel binary
@@ -42,7 +43,7 @@ This is a clean-install rename: previous product installations are not automatic
 
 ## Installation
 
-Releases support macOS on Apple Silicon (`darwin-arm64`) and Intel (`darwin-x64`). The installer picks the build that runs natively, including from a Rosetta terminal on Apple Silicon, and each binary updates only to the same target. The launcher does not bundle Pi. The installer checks for Node.js 22.19 or newer and npm before installing `axon`; if either is unavailable, it offers to install or upgrade Node.js with Homebrew in an interactive terminal. Non-interactive installations require Node.js and npm to be installed first. `axon pi` installs and uses its own exact Pi 1.5.2 release on first use, independently of any user-installed Pi.
+Releases support macOS on Apple Silicon (`darwin-arm64`) and Intel (`darwin-x64`). The installer picks the build that runs natively, including from a Rosetta terminal on Apple Silicon, and each binary updates only to the same target. The launcher does not bundle Pi. The installer checks for Node.js 22.19 or newer and npm before installing `axon`; if either is unavailable, it offers to install or upgrade Node.js with Homebrew in an interactive terminal. Non-interactive installations require Node.js and npm to be installed first. `axon pi` installs and uses its own exact Pi 1.6.0 release on first use, independently of any user-installed Pi.
 
 Once the backend serves the public `/install.sh` endpoint (rendered from this repository's [`install.sh`](install.sh) using its configured release URL), install with:
 
@@ -85,6 +86,7 @@ Launcher-owned commands:
 ```bash
 axon auth login [--browser]
 axon auth status              # verify the saved session online, refreshing expired access tokens
+axon hub [--no-open]           # local browser UI for user-level MCP configuration; no sign-in needed
 axon sessions                  # guided session management
 axon sessions list             # plain listing for scripts
 axon harnesses
@@ -92,16 +94,32 @@ axon paths
 axon doctor [pi]
 axon setup pi --sync-packages   # installs Pi if needed, required packages, resources, and MCP defaults
 axon setup paseo                # configure Axon and integration settings in Paseo
+axon setup t3code               # add Axon as a T3 Code provider
 axon uninstall [--remove-runtimes]
 ```
 
-`uninstall` only mutates an installation when the running executable is the managed binary at `~/.axon/bin/axon`. It preserves Pi settings, provider authentication, and sessions under `${AXON_HOME}/pi`, as well as the shared DeputyDev authentication file; `--remove-runtimes` removes only cached runtimes. Files created by earlier releases for other harnesses are not deleted automatically.
+`uninstall` only mutates an installation when the running executable is the managed binary at `~/.axon/bin/axon`. It also removes the `axon-pi` wrapper. It preserves Pi settings, provider authentication, and sessions under `${AXON_HOME}/pi`, as well as the shared DeputyDev authentication file; `--remove-runtimes` removes only cached runtimes. Files created by earlier releases for other harnesses are not deleted automatically.
 
 Set `AXON_DEBUG=1` for a redacted launch preview on stderr. `AXON_PI_BIN` is rejected. A different `AXON_PI_VERSION` is allowed only when running the CLI from source, not in any compiled CLI.
 
 Set `AXON_WORKFLOW=<name>` when an automated workflow launches Axon (for example `AXON_WORKFLOW=pr-review axon pi -p "..."`). The value is trimmed, lowercased, and attached as `axon.workflow.name` to every Pi and launcher telemetry span, log, and metric point, so Grafana's **Workflow** filter can split usage and cost by workflow. Only `[a-z0-9._-]`, starting with a letter or digit, up to 64 characters, is accepted; anything else is dropped silently. Use a stable name per workflow, not a run ID. Unset is the normal case: those sessions have no workflow label and still appear under **All**. Pi subagents inherit the tag.
 
-Every Pi request to LiteLLM also carries `x-litellm-tags` and `x-litellm-spend-logs-metadata`, which LiteLLM stores on the request log and forwards to Langfuse as trace tags and generation metadata. Tags hold the few values worth filtering on: `axon_workflow`, `axon_version`, `repo`, `pi_mode`, and `call_kind` (`main`, `compaction`, or `web_search`). The metadata adds `pi_version`, `repo_dir` (relative to the repository root, never the absolute path), `branch`, `commit`, and `ticket` when the branch names one such as `DD-520`. The repository and directory are read once per session and the branch and commit once per prompt, so a branch or commit the agent creates mid-prompt appears from the next prompt. Requests to providers other than `litellm` carry none of this.
+Every Pi request to LiteLLM also carries `x-litellm-tags` and `x-litellm-spend-logs-metadata`, which LiteLLM stores on the request log and forwards to Langfuse as trace tags and generation metadata. Tags hold the few values worth filtering on: `axon_workflow`, `axon_version`, `repo`, `pi_mode`, and `call_kind` (`main`, `compaction`, or `web_search`). The metadata adds `pi_version`, `repo_dir` (relative to the repository root, never the absolute path), `branch`, `commit`, and `ticket` when the branch names one such as `DD-520`. The repository and directory are read once per session and the branch and commit once per prompt, so a branch or commit the agent creates mid-prompt appears from the next prompt. Each prompt also gets a fresh `langfuse_trace_id` header, with `langfuse_trace_name: axon-prompt`, so every LLM call, compaction, and web search that prompt causes lands in one Langfuse trace instead of one trace per request. The Pi session id still groups the prompts into a Langfuse session. Requests to providers other than `litellm` carry none of this.
+
+### Local browser hub
+
+Run `axon hub` from a terminal or `/axon-hub` inside interactive `axon pi` to add, edit,
+enable/disable, or remove local user-level MCP servers in
+`${AXON_HOME:-$HOME/.axon}/pi/mcp.json`, and to install MCP servers your admins publish
+to the organization catalog (the **Discover** tab). **My skills** lists the skills Pi
+loads from `${AXON_HOME:-$HOME/.axon}/pi/skills` and `~/.agents/skills`. My MCP servers and
+My skills need neither a Pi session nor an Axon login; Discover reads the catalog with your saved Axon session
+(`axon auth login`). For the standalone command, use `--no-open` to open the printed
+private link manually, and keep the command running while using the page. Run `/reload`
+in each running Pi session after saving changes. See [`docs/local-hub.md`](../../docs/local-hub.md).
+
+See [Local Axon Hub](../../docs/local-hub.md) for credential-safe editing, browser
+security, lifecycle, architecture, and current limitations.
 
 ### Paseo integration
 
@@ -157,6 +175,46 @@ private sibling `config.json.axon-backup.<timestamp>.<id>` file before changing 
 Restart Paseo after setup and select **Axon** when starting a new chat. Setup does not choose
 a model or create an agent profile, and it never restarts Paseo or interrupts running agents.
 
+### T3 Code integration
+
+If you use [T3 Code](https://github.com/pingdotgg/t3code), add Axon as a provider with:
+
+```bash
+axon setup t3code
+axon setup t3code --config /custom/t3/userdata/settings.json  # non-default T3 Code home
+axon setup t3code --yes                                       # accept updates in scripts
+```
+
+This local-only command does not require sign-in or install T3 Code. It edits
+`${T3CODE_HOME:-~/.t3}/userdata/settings.json`, adding `providerInstances.axon`: a `pi` driver
+instance named **Axon** whose binary is the `axon-pi` wrapper (see below), which setup creates
+or repairs. Its environment sets `PI_CODING_AGENT_DIR`, `PI_CODING_AGENT_SESSION_DIR`,
+`PI_MODEL_RECOMMENDER_RPC=1`, and `AXON_IGNORE_OFFLINE=1` as plain, non-sensitive values;
+other variables you added are kept. Setup also sets `enabled: false` on the built-in `codex`,
+`cursor`, `grok`, `opencode`, `antigravity`, `kiro`, `pi`, `muse`, and `fx` instances. Claude
+(`claudeAgent`), instances you created, and all other settings are left unchanged.
+
+If the settings file does not exist, setup creates it only when it finds `t3` on `PATH` or the
+`T3 Code` or `T3 Code (Beta)` macOS app. The same safeguards as Paseo setup apply: an existing
+Axon provider is replaced only after confirmation or `--yes`, invalid or concurrently edited
+files are left unchanged, and a private backup is saved before changing an existing file.
+T3 Code reloads the file itself; select **Axon** when starting a new thread.
+
+### Using Axon from other apps
+
+Some apps run a Pi binary directly (`<binary> --mode rpc`, `<binary> --version`) and have no
+place for Axon's `pi` argument. Point them at `~/.axon/bin/axon-pi` (`axon paths` shows the
+exact path) instead. It is a small script that runs `axon pi` with the same arguments, so
+`axon-pi --version` reports Pi's version as those apps expect. The managed binary creates the
+wrapper, and repairs it if it changed, whenever it launches Pi; source runs never touch it.
+
+Axon verifies the session online before every Pi launch, so `--offline` and `PI_OFFLINE`
+launches fail. Apps that request offline launches on their own, such as short-lived
+model-discovery probes, can set `AXON_IGNORE_OFFLINE=1` in the environment they give Axon.
+Pi launches then drop `--offline` (before `--`) and `PI_OFFLINE` and run as normal online
+launches, including session verification, client configuration, and update scheduling.
+Launcher commands are unaffected.
+
 ### First-run login and client configuration
 
 Axon and the existing DeputyDev VS Code/binary application use the **same** user-wide authentication file: `~/.deputydev/264325ba-cbd0-47d5-9269-ac4bd19067c2.json`, under the `extension_auth_token` key. Axon does not use the separate `cli_auth_token` key. `AXON_HOME` changes only Axon's managed installation/runtime data, never this authentication location. Existing `.axon` authentication files are ignored; there is no fallback or migration.
@@ -167,7 +225,7 @@ Login and refresh write that shared token while preserving other JSON keys. Requ
 
 RPC launches (`axon pi --mode rpc`, as used by Paseo) are the exception for a missing or unusable login: Pi starts signed out instead of failing. The relay rejects every managed model request at once with a "not signed in" error (nothing waits, so RPC client timeouts cannot fire), and the `axon-auth` extension offers a **Login from browser / Not now** card at startup and again after each rejected message; `/axon-login` also works. A login from another terminal ends the signed-out state too. Launch-time backend preferences such as terminal policy were not fetched, so the chat asks the user to restart the agent after signing in. Offline RPC launches and auth-service outages still fail startup. Over RPC, dialogs cannot be retracted, so cards stay open until answered; under Paseo, which discards open cards when a run fails or is interrupted, a fresh card replaces the discarded one.
 
-Launcher-owned `setup pi --sync-packages`, `doctor`, `paths`, and `harnesses` retain a local saved-session preflight: if absent, interactive online invocations offer browser login, while scripted runs fail with login guidance. Launcher help/version, auth, update, uninstall, and local `setup paseo` remain exempt from that preflight. API routes still validate saved sessions server-side.
+Launcher-owned `setup pi --sync-packages`, `doctor`, `paths`, and `harnesses` retain a local saved-session preflight: if absent, interactive online invocations offer browser login, while scripted runs fail with login guidance. Launcher help/version, auth, update, uninstall, and local `setup paseo` and `setup t3code` remain exempt from that preflight. API routes still validate saved sessions server-side.
 
 Online non-administrative Pi launches (including scripted modes) fetch `/api/v1/cli/config` using that session, capped at 700 ms and 16 KiB, even when telemetry/search are locally disabled. Accepted backend telemetry/search and partial compaction/recommender/provider preferences override inherited environment values. Managed telemetry has no supported local opt-out; unavailable or absent policies retain documented environment fallback, never changing authenticated search routing. Offline and administrative launches skip the request. There is no config disk cache and no public bootstrap/config endpoint. See [client configuration](docs/plans/cli-client-config.md) and [backend configuration](../backend/README.md#cli-client-configuration).
 
@@ -221,7 +279,7 @@ all settings. `PI_WEB_SEARCH_MODE` and `PI_WEB_SEARCH_SEARCH_TOOL` are obsolete.
 
 ### Pi installation bootstrap
 
-`axon pi` uses **only** the Axon-managed executable at `${AXON_HOME}/pi-runtime/1.5.2/node_modules/.bin/pi`. It verifies the installed package and reported executable version, installs that exact version on demand if missing, and never reads or modifies `pi` on `PATH`, regardless of its version. This also applies to forwarded Pi administration (`install`, `auth`, `mcp`, etc.). `axon pi update` (including `--extensions`) is blocked before launching Pi; use `pi update` directly for a separate global installation. Axon's own required-package reconciliation still works through its pinned executable.
+`axon pi` uses **only** the Axon-managed executable at `${AXON_HOME}/pi-runtime/1.6.0/node_modules/.bin/pi`. It verifies the installed package and reported executable version, installs that exact version on demand if missing, and never reads or modifies `pi` on `PATH`, regardless of its version. This also applies to forwarded Pi administration (`install`, `auth`, `mcp`, etc.). `axon pi update` (including `--extensions`) is blocked before launching Pi; use `pi update` directly for a separate global installation. Axon's own required-package reconciliation still works through its pinned executable.
 
 The official `https://pi.dev/install.sh` cannot pin a version, requires an interactive terminal, and may edit shell profiles, so Axon does not run it. Instead it follows the same steps as Pi's own managed `pi update`: it downloads `package.json` and `package-lock.json` for the exact version from `https://pi.dev/api/installer/releases/<version>/`, plus the release metadata from `https://pi.dev/api/installer/releases/<version>`, validates that all three describe `@earendil-works/pi-coding-agent@<version>`, merges the first-party tarball SHA-512 hashes from the metadata into the lockfile (the published lockfile omits them) so that every resolved tarball is integrity-checked, runs `npm ci --ignore-scripts --omit=dev --include=optional` in a staging directory under a same-user lock, verifies the installed package version and launcher, and atomically renames the tree into place. Shell profiles and `PATH` are never modified.
 
@@ -313,7 +371,7 @@ A `litellm.providers.litellm.displayName` value in Pi settings takes precedence 
 
 Before an authenticated online Pi launch, Axon removes cached `litellm` models whose base URLs point to an obsolete Axon loopback relay. Otherwise Pi can restore the previous launch's random-port URLs over fresh discovery, causing “No models available.” Cleanup uses Pi's native model-store lock and an atomic write; other providers, unrelated LiteLLM endpoints, and current-relay models are preserved. Offline, administrative, and discovery-disabled launches leave the cache untouched. A busy or unsafe cache never blocks launch; use `/litellm-refresh` if models remain unavailable.
 
-The pinned `pi-provider-litellm@4.7.3` restores vendor-specific compatibility for models served through generic OpenAI-compatible adapters and falls back to `/v1/models` when `/model/info` is empty. Its four-hour startup catalog reuse requires the same proxy URL and discovery version. Axon creates a new random-port relay on each launch, so ordinary managed launches still discover models; the stale-relay cleanup above remains necessary. Stored models from an older discovery version are rediscovered online; upgrading from 4.7.2 changes the discovery version from 11 to 13.
+The managed LiteLLM provider preserves vendor-specific compatibility for models served through generic OpenAI-compatible adapters and falls back to `/v1/models` when `/model/info` is empty. Its four-hour startup catalog reuse requires the same proxy URL and discovery version. Axon creates a new random-port relay on each launch, so ordinary managed launches still discover models; the stale-relay cleanup above remains necessary. Stored models from an older discovery version are rediscovered online. Upgrading the provider from 4.7.3 to 4.8.0 changes the discovery version from 13 to 16.
 
 The local authenticated relay accepts request bodies up to **50 MiB** (52,428,800 bytes), matching the
 Nginx `50m` limit. This covers the full serialized payload, including conversation history, tool results,
@@ -418,7 +476,7 @@ a sensible combination.
 Recommender countdowns must be positive; backend recommendation eligibility/204 still takes priority.
 Provider discovery timeout zero disables discovery (and affected integrations such as MCP). Context
 window fallback only fills missing metadata; known per-model context/output limits are preserved.
-With `pi-provider-litellm@4.7.3`, offline cache enrichment recognizes its built-in/current fallback
+The LiteLLM provider’s offline cache enrichment recognizes its built-in/current fallback
 sentinels, but cannot reliably rewrite an older custom fallback without online discovery. Prefer
 correct `/model/info` metadata over a global fallback.
 
@@ -452,13 +510,15 @@ client terminal that supports OSC 52. Pi still attempts the local clipboard writ
 
 Axon-owned extensions, skills, prompts, and themes are embedded in the CLI, materialized under `${AXON_HOME}/runtime/<version>-<hash>/pi`, and checksum-verified. Ordinary Pi sessions receive explicit resource arguments that reference that immutable directory, so a concurrently running launcher of another Axon version can never swap resources underneath a session. The `runtime/current` symlink is maintained for inspection only. The core extension provides `/axon-status`. In interactive sessions it also replaces Pi's startup header with an Axon connected-node logo, TATA 1mg branding, the launcher version, and a “Powered by Pi” attribution. Live backup status is right-aligned beside the wordmark without adding header lines, with theme-aware activity, success, and warning colors. Shortcut hints follow the active keybindings and wrap as complete groups instead of being clipped; the tool-expansion shortcut (normally Ctrl+O) expands the help, and `/hotkeys` lists all shortcuts. Narrow terminals use a compact text header, and long version labels yield space to backup status without hiding the Axon wordmark. Pi's `quietStartup: true` still hides the header, and RPC/JSON/print modes are unchanged. Resource source has an independent Pi extension typecheck.
 
+The embedded `axon` skill (`src/harnesses/pi/resources/skills/axon/SKILL.md`) teaches the model Axon's commands, managed paths, environment variables, and troubleshooting steps. Pi lists it in the system prompt by description and reads it only when a task calls for it; `/skill:axon` forces it. It loads through `--skill`, so it stays available with `--no-skills`. Keep it a single file: every embedded resource gets its own flag, so bundled reference files would load as separate skills. Update it when commands, paths, or slash commands change.
+
 A `[Tips]` section below the startup shortcuts shows one randomly selected tip per launch. Edit `src/product/tips.ts` to add or change tips; keep each tip to one or two lines at the standard header width. The selected tip stays the same during resizing, shortcut expansion, and live status updates. Tips are part of the startup header, so quiet startup hides them and RPC/JSON/print output is unchanged. Rebuild the CLI to include catalog changes.
 
 Every non-administrative `axon pi` session also loads the embedded `pi-org-telemetry` extension. Its OpenTelemetry dependencies are bundled into one standalone ESM resource at Axon build time, so `--extension <immutable-path>` does **not** run `npm install`, execute dependency lifecycle scripts, contact a package registry, or download dependencies. A new Axon release materializes a new content-addressed bundle once; healthy launches verify and reuse it.
 
 The telemetry extension stays inert without managed OTLP configuration. To export traces, metrics, and structured logs, configure the backend's `CLI_CLIENT_CONFIG.TELEMETRY` or provide `OTEL_EXPORTER_OTLP_ENDPOINT` (or all three per-signal endpoint variables) as a fallback in the environment used to start `axon`. A fetched policy uses only the pinned backend OTEL proxy with Axon session auth, clears inherited exporter authorization/TLS overrides, and cannot select an external destination for the session. The extension reads the session for each batch and safely persists rotations. Managed mode supports HTTP/protobuf; environment fallback supports HTTP/protobuf and gRPC with normal env headers/API keys. Export failures are passive and bounded. Accepted backend enablement wins over local `PI_ORG_OTEL_ENABLED`, samplers, and exporter preferences for both Pi and launcher product events, through shutdown; there is no managed local opt-out. Explicit offline disables export, and local disablement still applies without an accepted policy. This is separate from upstream Pi's `PI_TELEMETRY`. Backend `BATCH_SCHEDULE_DELAY_MS`, `MAX_EXPORT_BATCH_SIZE`, and `MAX_QUEUE_SIZE` control both Pi and launcher log/trace batching, overriding local batch tuning; `METRIC_EXPORT_INTERVAL_MS` controls metric cadence. Full batches and shutdown can export earlier than the configured delay. The extension never exports prompt/completion text, system prompts, file contents, tool results, provider payloads, authorization headers, environment values, full session paths, raw Git remotes, or stack traces. Managed mode exports backend-verified user ID/email, and optional name after server-side identity replacement; environment fallback exports raw effective Git email when available or an installation UUID. Both export the normalized private repository slug; collector access and retention must be restricted accordingly. See [`src/harnesses/pi/telemetry/README.md`](src/harnesses/pi/telemetry/README.md), its [data policy](src/harnesses/pi/telemetry/docs/data-policy.md), and its [schema](src/harnesses/pi/telemetry/docs/telemetry-schema.md).
 
-The embedded manifest in `src/product/manifest.ts` declares required community packages. Pi 1.0 provides MCP support natively, so Axon no longer installs `pi-mcp-adapter`; upgrading to a CLI with this manifest removes the adapter on the next package synchronization when its ownership state and settings entry are unchanged. If it was adopted or modified, remove it manually with `axon pi remove npm:pi-mcp-adapter@2.34.0`. The manifest locks `pi-provider-litellm` to `4.7.3`, `@juicesharp/rpiv-ask-user-question` to `2.15.0`, and `git:github.com/earendil-works/pi-review` to commit `f1de050504936046c0f85b21fec0e0a93ef394eb`. The review package adds `/review` and `/end-review` for reviewing uncommitted changes, branches, commits, pull requests, or files/folders. Git must be installed to provision and verify Git packages; pull-request reviews also require the GitHub CLI (`gh`). Package entries support:
+The embedded manifest in `src/product/manifest.ts` declares required community packages. Pi 1.0 provides MCP support natively, so Axon no longer installs `pi-mcp-adapter`; upgrading to a CLI with this manifest removes the adapter on the next package synchronization when its ownership state and settings entry are unchanged. If it was adopted or modified, remove it manually with `axon pi remove npm:pi-mcp-adapter@2.34.0`. The manifest locks `pi-provider-litellm` to `4.8.0`, `@juicesharp/rpiv-ask-user-question` to `2.15.0`, and `git:github.com/earendil-works/pi-review` to commit `f1de050504936046c0f85b21fec0e0a93ef394eb`. The review package adds `/review` and `/end-review` for reviewing uncommitted changes, branches, commits, pull requests, or files/folders. Git must be installed to provision and verify Git packages; pull-request reviews also require the GitHub CLI (`gh`). Package entries support:
 
 - `exact`: only the declared npm version or Git commit is accepted; a failed migration may use a verified, non-revoked last-known-good exact version
 - `minimum`: the declared version is a hard floor; newer installed versions are accepted and never downgraded
@@ -477,28 +537,6 @@ Package checks inspect `${AXON_HOME}/pi/settings.json` and installed package met
 > **Security:** Pi packages run with full user permissions. Extensions, skills, dependency install scripts, and update commands can execute code. Treat every required package and manifest change as release-grade code.
 
 See [`docs/plans/pi-package-provisioning.md`](docs/plans/pi-package-provisioning.md) for the manifest schema, lifecycle decisions, and verification plan.
-
-### Optional git-ai tracking
-
-Every non-administrative `axon pi` session loads an embedded git-ai checkpoint extension. It tracks the built-in `edit`, `write`, and `bash` tools, including nested calls made through codemode. It does **not** install git-ai, modify shell configuration, alter Git configuration, or change `PATH`.
-
-The extension discovers an existing executable at `~/.git-ai/bin/git-ai`, then on absolute `PATH` entries. Set `PI_AXON_GIT_AI_BIN` to an absolute executable path to override discovery (an invalid override does not fall back to another binary). Availability is checked once per extension load with a two-second timeout. Missing/broken git-ai produces one warning and disables tracking without blocking Pi. Checkpoints have a five-second timeout; failure disables tracking until `/reload` or a new Pi process. Warnings use Pi notifications (including structured RPC UI notifications); modes without UI use stderr, never raw protocol stdout. Ephemeral sessions without a transcript are not tracked.
-
-Optional custom file-edit tool policies use `${AXON_HOME}/pi/git-ai.override.json` (the directory selected by `PI_CODING_AGENT_DIR`), with the git-ai version-1 override schema. For example:
-
-```json
-{
-  "version": 1,
-  "tools": {
-    "custom_edit": { "kind": "mutating", "canonical": "edit", "filepath_fields": ["file_path"] },
-    "write": { "kind": "ignore" }
-  }
-}
-```
-
-The built-in Bash checkpoint path is always enabled when tracking is available. Invalid/missing override files leave defaults intact. Overrides are read once per extension load; use `/reload` after changing them.
-
-**Git integration is separate:** checkpoint hooks alone do not configure attribution preservation for later commits. Users still need git-ai's Git proxy/integration for Git operations, including commits made from another terminal or IDE. git-ai receives session paths, model IDs, tool inputs/results, and edited file contents; its own storage/network behavior is controlled by the installed git-ai, not Axon's content-free OpenTelemetry policy.
 
 ### Terminal modes
 
@@ -537,35 +575,12 @@ The backend policy now contains only `YOLO_MODE` (eligibility), `REQUIRE_APPROVA
 `ALLOW_YOLO_MODE` and `AUTO_APPROVE_COMMANDS` entries from deployed configuration before
 upgrading the backend; configuration validation rejects unknown fields.
 
-### Pi MCP defaults
+### Organization MCP servers
 
-Before Pi starts, Axon requests the organization MCP catalog from:
-
-```text
-${BUILD_SERVICE_ORIGIN}/v1/cli/pi/mcp.json
-```
-
-The endpoint returns a standard MCP config shape:
-
-```json
-{
-  "mcpServers": {
-    "organization-tool": {
-      "url": "https://mcp.example.com/mcp"
-    }
-  }
-}
-```
-
-Axon creates `~/.config/mcp/mcp.json` with mode `0600` when it is missing. Every fetched server is written with `"disabled": true`, regardless of the endpoint value. On later runs it only appends server names that are absent locally:
-
-- existing server definitions and enabled/disabled choices are never replaced
-- personal servers are preserved
-- servers removed from the organization catalog remain in the user's file
-- remote settings and other top-level fields are not copied
-- invalid local files are left byte-for-byte unchanged
-
-The request is best-effort and capped at 700 ms. It runs only for ordinary interactive, online launches; print, JSON/RPC, piped, CI, and offline sessions never wait on it. Attempts are recorded in `${AXON_HOME}/pi-mcp-sync.json`: after a successful request the catalog is not requested again for six hours, and after a failed one for fifteen minutes. `axon setup pi --sync-packages` ignores that throttle. If the catalog is unavailable on first run, Axon creates a safe empty `mcpServers` scaffold and retries later. Setup failures never prevent Pi from starting; details are shown with `AXON_DEBUG=1`.
+Axon no longer writes organization MCP defaults into `~/.config/mcp/mcp.json` at launch.
+Admins publish MCP servers in the admin dashboard's Catalog, and developers install them
+from `axon hub` → Discover. Entries that the old launch-time sync added stay in
+`~/.config/mcp/mcp.json` (disabled) until you remove them; Axon no longer changes that file.
 
 ## Development
 
@@ -614,7 +629,7 @@ remain in `release/`.
 arm64-only version makes Intel install/update asset requests return 404. Only promote it
 when that limitation is intended; keep earlier x64 releases available by exact version.
 
-For example, run preparation with `RELEASE_VERSION=0.2.0 BUILD_COMMIT=$(git rev-parse HEAD) AXON_SERVICE_ORIGIN=https://YOUR_ORIGIN bun run release:prepare-s3` and publication with `RELEASE_VERSION=0.2.0 AXON_SERVICE_ORIGIN=https://YOUR_ORIGIN CLI_UPLOAD_AUTH_KEY=<secret> bun run release:publish-s3` (prefer a secret manager over shell history). `RELEASE_KEY_PREFIX` is optional for preparation and must match backend `KEY_PREFIX`; the default is `cli/releases/`. The service base must also serve the separate `application/json` MCP catalog at `<base>/v1/cli/pi/mcp.json` (for example `/axon/v1/cli/pi/mcp.json`). The installer/updater release endpoints do not require a database.
+For example, run preparation with `RELEASE_VERSION=0.2.0 BUILD_COMMIT=$(git rev-parse HEAD) AXON_SERVICE_ORIGIN=https://YOUR_ORIGIN bun run release:prepare-s3` and publication with `RELEASE_VERSION=0.2.0 AXON_SERVICE_ORIGIN=https://YOUR_ORIGIN CLI_UPLOAD_AUTH_KEY=<secret> bun run release:publish-s3` (prefer a secret manager over shell history). `RELEASE_KEY_PREFIX` is optional for preparation and must match backend `KEY_PREFIX`; the default is `cli/releases/`. The installer/updater release endpoints do not require a database.
 
 For production under `/axon`, use the same base URL for preparation and publication:
 

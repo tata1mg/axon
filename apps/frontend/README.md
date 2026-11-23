@@ -18,7 +18,7 @@ pnpm install
 pnpm dev
 ```
 
-`config.json` is per-environment and git-ignored. `config_template.json` is the checked-in shape and defaults to the production `/axon/` mount. Vite reads `config.json` for the dev/preview port, asset base path, and development API proxy target. App code can import it as `@config`; the current scaffold does not yet consume `BASE_API_URL` or `REQUEST_TIMEOUT`.
+`config.json` is per-environment and git-ignored. `config_template.json` is the checked-in shape and defaults to the production `/axon/` mount. Vite reads `config.json` for the dev/preview port, asset base path, and development API proxy target. App code imports it as `@config`: the API client uses `BASE_API_URL` and `REQUEST_TIMEOUT`.
 
 ## Scripts
 
@@ -30,6 +30,21 @@ pnpm dev
 | `pnpm typecheck`   | TypeScript only                    |
 | `pnpm lint`        | ESLint                             |
 | `pnpm format`      | Prettier write                     |
+| `pnpm test`        | Unit tests (`node --test tests/`)  |
+
+## Admin dashboard
+
+`/admin` is the admin dashboard (`src/admin/`). Sign-in, roles, and cookies are handled by the backend; see [its admin dashboard section](../backend/README.md#admin-dashboard). Each area is one entry in `src/admin/sections.ts` with a minimum role; the backend enforces the same role on its API. Everything else in the app is the public install page.
+
+A section can own sub-paths by setting `nested: true` (the catalog uses `/admin/catalog/new/<kind>` and `/admin/catalog/<id>`).
+
+### Catalog
+
+`src/admin/catalog/` manages what developers install from `axon hub`; see [`docs/hub-catalog-plan.md`](../../docs/hub-catalog-plan.md) and the [backend catalog section](../backend/README.md#organization-catalog).
+
+- `model.ts` holds the logic without React: reading drafts defensively, **Import from mcp.json** (accepts a whole file, a `"name": { ... }` entry with or without braces or a trailing comma, or a bare definition), turning literal values into `${input:<id>}` inputs, and path labels. Keep it free of DOM and `@/` imports: `pnpm test` runs it directly with Node's test runner and TypeScript type stripping, so its relative imports name their `.ts` file.
+- The editor saves drafts with the item's `lock_version` and shows the backend's errors and warnings live. Warnings are guidance only; errors block publishing.
+- The preview approximates the hub's card and install steps. The hub renders them for real.
 
 ## Conventions
 
@@ -43,7 +58,7 @@ The console is a static build with nothing to run, so it is not deployed as its 
 
 The Dockerfile copies `config_template.json` to `config.json` before building, so no extra build arguments or runtime frontend configuration are required. The template sets `VITE_BASE_PATH` to `/axon/`, making Vite emit asset URLs such as `/axon/assets/index-….js`. Ingress must forward the entire `/axon/` mount and strip `/axon` before forwarding to the backend, including asset requests.
 
-`BASE_API_URL` is `/axon`, intended for a future API client that appends `/api/v1/...`. The scaffold has no API client or client-side router yet; when added, they must use the configured API base and mount path. API URLs remain on the same origin, so no CORS is needed.
+`BASE_API_URL` is `/axon`; `src/lib/api.ts` appends `/api/v1/...` to it. The minimal client-side router in `src/lib/router.ts` uses Vite's base path, so `/admin` resolves to `/axon/admin` in production. API URLs remain on the same origin, so no CORS is needed.
 
 For root hosting, set `VITE_BASE_PATH` to `/` and `BASE_API_URL` to `""`; for another prefix, use that prefix with a trailing slash for `VITE_BASE_PATH` and without one for `BASE_API_URL`. Edit the template for Docker builds, or the ignored `config.json` for standalone builds, and rebuild after changing these paths. Backend runtime configuration does not change the compiled frontend.
 

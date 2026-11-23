@@ -1,0 +1,321 @@
+/* Native <dialog> modals and shared form controls. */
+
+/* Dialogs */
+.modal {
+  width: min(580px, calc(100% - 32px));
+  max-height: calc(100dvh - 48px);
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  background: var(--surface-raised);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+.modal[open] {
+  display: flex;
+  flex-direction: column;
+}
+.modal > form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+.modal::backdrop {
+  background: var(--backdrop);
+  backdrop-filter: blur(4px);
+}
+.modal-small {
+  width: min(420px, calc(100% - 32px));
+}
+.modal-small h2 {
+  font-size: 17px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.modal-small p {
+  color: var(--text-2);
+}
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 16px 16px 24px;
+  border-bottom: 1px solid var(--border);
+}
+.modal-head h2 {
+  font-size: 17px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px 24px 24px;
+}
+.modal-small .modal-body {
+  padding-top: 24px;
+}
+.modal-foot,
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.modal-foot {
+  padding: 14px 24px;
+  border-top: 1px solid var(--border);
+}
+.modal-foot-stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+.trust-note {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--warn-border);
+  border-radius: var(--radius);
+  background: var(--warn-soft);
+  font-size: 13px;
+}
+.trust-note .icon {
+  margin-top: 2px;
+  color: var(--warn);
+}
+
+/* Form */
+.field {
+  margin: 0 0 20px;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.field > label,
+.field > legend,
+.kv-head h3 {
+  display: block;
+  margin-bottom: 6px;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--text);
+}
+.optional {
+  margin-left: 6px;
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 400;
+}
+.field input:not([type="checkbox"], [type="radio"]),
+.field select,
+.kv-row input {
+  display: block;
+  width: 100%;
+  height: 38px;
+  padding: 0 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface-sunken);
+  color: var(--text);
+}
+.field input.mono,
+.kv-row input {
+  font-size: 13px;
+}
+.field input::placeholder,
+.kv-row input::placeholder {
+  color: var(--text-3);
+}
+.field input:focus,
+.field select:focus,
+.kv-row input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.field input:disabled {
+  color: var(--text-2);
+  cursor: not-allowed;
+}
+.field input[aria-invalid="true"],
+.kv-row input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+.field input[aria-invalid="true"]:focus,
+.kv-row input[aria-invalid="true"]:focus {
+  box-shadow: 0 0 0 3px var(--danger-soft);
+}
+.hint {
+  margin-top: 6px;
+  color: var(--text-3);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.hint.is-error {
+  color: var(--danger);
+}
+.choice-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.choice {
+  position: relative;
+  display: block;
+}
+.choice input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.choice-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 10px;
+  align-items: center;
+  height: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.choice-icon {
+  grid-row: span 2;
+  width: 18px;
+  height: 18px;
+  color: var(--text-3);
+}
+.choice strong {
+  font-weight: 550;
+}
+.choice small {
+  color: var(--text-3);
+  font-size: 12px;
+}
+.choice:hover .choice-card {
+  background: var(--hover);
+}
+.choice input:checked + .choice-card {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.choice input:checked + .choice-card .choice-icon {
+  color: var(--accent-text);
+}
+.choice input:focus-visible + .choice-card {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.advanced {
+  margin: 4px 0 20px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+.advanced summary {
+  width: fit-content;
+  color: var(--text-2);
+  font-weight: 550;
+  font-size: 13px;
+}
+.advanced summary:hover {
+  color: var(--text);
+}
+.advanced[open] summary {
+  margin-bottom: 16px;
+}
+.advanced > .hint {
+  margin-top: -6px;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+.check input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.alert {
+  display: flex;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  font-size: 13px;
+}
+.alert-icon {
+  margin-top: 2px;
+}
+.alert strong {
+  display: block;
+  font-weight: 600;
+}
+.alert p {
+  margin-top: 2px;
+  color: var(--text-2);
+}
+.alert-error {
+  margin-bottom: 18px;
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.alert-warn {
+  margin-top: 18px;
+  border: 1px solid var(--warn-border);
+  background: var(--warn-soft);
+}
+.alert-warn .alert-icon,
+.alert-warn strong {
+  color: var(--warn);
+}
+
+@media (max-width: 720px) {
+  .modal {
+    width: 100%;
+    max-width: none;
+    max-height: calc(100dvh - 24px);
+    margin: auto 0 0;
+    border-radius: 16px 16px 0 0;
+    border-bottom: 0;
+  }
+  .modal-small {
+    margin: auto;
+    width: calc(100% - 32px);
+    border-radius: 14px;
+    border-bottom: 1px solid var(--border-strong);
+  }
+  .modal-head {
+    padding-left: 20px;
+  }
+  .modal-body {
+    padding: 18px 20px 20px;
+  }
+  .modal-foot {
+    padding: 12px 20px;
+  }
+  .modal-foot > .btn,
+  .modal-actions .btn {
+    flex: 1;
+  }
+  .choice-card {
+    padding: 10px 12px;
+  }
+  .choice small {
+    display: none;
+  }
+}

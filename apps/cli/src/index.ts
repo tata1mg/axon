@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { dispatch } from "./cli/dispatch.ts";
+import { dispatch, prepareLaunchArguments } from "./cli/dispatch.ts";
 import { isPiOffline } from "./harnesses/pi/setup/packages/invocation.ts";
 import { bootstrapCertificates } from "./launcher/certificates.ts";
 import { isTrue } from "./launcher/debug-preview.ts";
@@ -23,8 +23,9 @@ function printUnexpectedError(error: unknown): void {
 }
 
 export async function main(
-  argumentsVector: readonly string[] = process.argv.slice(2),
+  invocationArguments: readonly string[] = process.argv.slice(2),
 ): Promise<void> {
+  const argumentsVector = prepareLaunchArguments(invocationArguments);
   try {
     await bootstrapCertificates(argumentsVector);
     beginProductTelemetryInvocation();

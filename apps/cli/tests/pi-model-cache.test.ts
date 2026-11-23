@@ -9,6 +9,9 @@ import { invalidateStalePiRelayModels } from "../src/harnesses/pi/model-cache.ts
 import { type AxonPaths, resolveAxonPaths } from "../src/product/paths.ts";
 
 // Exercise the published provider's startup reader without typechecking third-party source.
+const { LITELLM_DISCOVERY_VERSION } = (await import(
+  Bun.resolveSync("pi-provider-litellm/src/backend-identity.ts", import.meta.dir)
+)) as { LITELLM_DISCOVERY_VERSION: number };
 const { readStoredModels } = (await import(
   Bun.resolveSync("pi-provider-litellm/src/models-store.ts", import.meta.dir)
 )) as {
@@ -28,7 +31,7 @@ const model = (baseUrl = staleUrl, id = "test-model") => ({
   id,
   provider: "litellm",
   baseUrl,
-  litellmDiscoveryVersion: 13,
+  litellmDiscoveryVersion: LITELLM_DISCOVERY_VERSION,
 });
 
 beforeEach(async () => {
@@ -101,8 +104,12 @@ describe("managed Pi relay model cache", () => {
   });
 
   test.each([
-    { name: "previous discovery version", version: 12, ageMs: 0 },
-    { name: "expired four-hour catalog", version: 13, ageMs: 4 * 60 * 60 * 1000 + 1 },
+    { name: "4.7.3 discovery catalog", version: 13, ageMs: 0 },
+    {
+      name: "four-hour-old catalog",
+      version: LITELLM_DISCOVERY_VERSION,
+      ageMs: 4 * 60 * 60 * 1000 + 1,
+    },
   ])("does not reuse a $name at startup", async ({ version, ageMs }) => {
     await writeCache({
       litellm: {

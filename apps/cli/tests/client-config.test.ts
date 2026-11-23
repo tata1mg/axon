@@ -86,6 +86,69 @@ describe("protected client config", () => {
     }
   });
 
+  test("parses LiteLLM features, rejecting only that section when invalid", () => {
+    const litellmFeatures = { mcp: true, skills: false, budget: true };
+    expect(parseClientConfig({ schemaVersion: 1, litellmFeatures }).litellmFeatures).toEqual(
+      litellmFeatures,
+    );
+    expect(
+      parseClientConfig({ schemaVersion: 1, litellmFeatures: { ...litellmFeatures, extra: 1 } })
+        .litellmFeatures,
+    ).toEqual(litellmFeatures);
+    for (const invalid of [
+      null,
+      [],
+      { mcp: true, skills: false },
+      { ...litellmFeatures, skills: "false" },
+      { ...litellmFeatures, budget: 1 },
+    ]) {
+      const invalidSections: string[] = [];
+      const config = parseClientConfig(
+        { schemaVersion: 1, litellmFeatures: invalid, pi: { codemodeEnabled: true } },
+        (section) => invalidSections.push(section),
+      );
+      expect(config.litellmFeatures).toBeUndefined();
+      expect(config.pi).toEqual({ codemodeEnabled: true });
+      expect(invalidSections).toEqual(["litellmFeatures"]);
+    }
+  });
+
+  test("parses the TUI default model, dropping only an unknown thinking level", () => {
+    const tuiDefaultModel = {
+      provider: "litellm",
+      model: "z-ai/glm-5.3",
+      thinkingLevel: "max",
+    } as const;
+    expect(parseClientConfig({ schemaVersion: 1, tuiDefaultModel }).tuiDefaultModel).toEqual(
+      tuiDefaultModel,
+    );
+    expect(
+      parseClientConfig({
+        schemaVersion: 1,
+        tuiDefaultModel: { ...tuiDefaultModel, thinkingLevel: "ultra", persist: true },
+      }).tuiDefaultModel,
+    ).toEqual({ provider: "litellm", model: "z-ai/glm-5.3" });
+    for (const invalid of [
+      null,
+      [],
+      { provider: "litellm" },
+      { model: "z-ai/glm-5.3" },
+      { provider: "", model: "z-ai/glm-5.3" },
+      { provider: "litellm", model: " z-ai/glm-5.3" },
+      { provider: "litellm", model: "z-ai\nglm" },
+      { provider: "litellm", model: 5 },
+    ]) {
+      const invalidSections: string[] = [];
+      const config = parseClientConfig(
+        { schemaVersion: 1, tuiDefaultModel: invalid, pi: { codemodeEnabled: true } },
+        (section) => invalidSections.push(section),
+      );
+      expect(config.tuiDefaultModel).toBeUndefined();
+      expect(config.pi).toEqual({ codemodeEnabled: true });
+      expect(invalidSections).toEqual(["tuiDefaultModel"]);
+    }
+  });
+
   test("validates optional Pi defaults without accepting arbitrary settings", () => {
     for (const codemodeEnabled of [true, false]) {
       for (const litellmMcpEnabled of [true, false]) {
@@ -93,18 +156,26 @@ describe("protected client config", () => {
         expect(parseClientConfig({ schemaVersion: 1, pi }).pi).toEqual(pi);
       }
     }
+    // A newer backend may add fields; this release keeps the section and drops what it does not know.
+    expect(
+      parseClientConfig({
+        schemaVersion: 1,
+        pi: {
+          codemodeEnabled: true,
+          shellCommandPrefix: "unsafe",
+          codemode: { inlineBudget: 3000 },
+        },
+      }).pi,
+    ).toEqual({ codemodeEnabled: true });
     for (const pi of [
       {},
       null,
-      { codemodeEnabled: true },
       { litellmMcpEnabled: true },
       { codemodeEnabled: true, litellmMcpEnabled: "true" },
       { codemodeEnabled: true, litellmMcpEnabled: 1 },
       { codemodeEnabled: true, litellmMcpEnabled: null },
       { codemodeEnabled: "true", litellmMcpEnabled: true },
       { codemodeEnabled: 1, litellmMcpEnabled: true },
-      { codemodeEnabled: true, litellmMcpEnabled: true, shellCommandPrefix: "unsafe" },
-      { codemodeEnabled: true, litellmMcpEnabled: true, codemode: { inlineBudget: 3000 } },
       { codemodeEnabled: true, litellmMcpEnabled: true, defaultProvider: "litellm" },
       { codemodeEnabled: true, litellmMcpEnabled: true, defaultModel: "openai/gpt-6.1-sol" },
       { codemodeEnabled: true, litellmMcpEnabled: true, defaultProvider: "", defaultModel: "x/y" },

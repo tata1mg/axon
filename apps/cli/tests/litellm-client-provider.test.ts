@@ -40,7 +40,7 @@ const { toNativeModels } = (await import(
 
 // Exercise the exact installed provider, not a reimplementation of its fallback rules.
 test("pinned LiteLLM fallback respects authoritative metadata and does not promise to rewrite arbitrary cached windows", async () => {
-  expect(providerPackage.version).toBe("4.7.3");
+  expect(providerPackage.version).toBe("4.9.0");
   let modelInfoAvailable = true;
   const server = Bun.serve({
     hostname: "127.0.0.1",

@@ -21,8 +21,8 @@ describe("service endpoints registry", () => {
     expect(new Set(paths).size).toBe(paths.length);
   });
 
-  test("pi MCP catalog and release paths stay pinned", () => {
-    expect(SERVICE_ENDPOINTS.pi.mcpConfig).toBe("/v1/cli/pi/mcp.json");
+  test("catalog and release paths stay pinned", () => {
+    expect(SERVICE_ENDPOINTS.catalog.items).toBe("/api/v1/catalog");
     expect(SERVICE_ENDPOINTS.release.base).toBe("/api/v1/cli/releases");
     expect(SERVICE_ENDPOINTS.auth.browserLogin).toBe("/api/v1/auth/browser-login");
     expect(SERVICE_ENDPOINTS.cli.config).toBe("/api/v1/cli/config");
@@ -31,11 +31,11 @@ describe("service endpoints registry", () => {
 
 describe("resolveServiceUrl", () => {
   test("joins origin and endpoint without double slashes", () => {
-    expect(resolveServiceUrl("https://example.test", SERVICE_ENDPOINTS.pi.mcpConfig)).toBe(
-      "https://example.test/v1/cli/pi/mcp.json",
+    expect(resolveServiceUrl("https://example.test", SERVICE_ENDPOINTS.catalog.items)).toBe(
+      "https://example.test/api/v1/catalog",
     );
-    expect(resolveServiceUrl("https://example.test/", SERVICE_ENDPOINTS.pi.mcpConfig)).toBe(
-      "https://example.test/v1/cli/pi/mcp.json",
+    expect(resolveServiceUrl("https://example.test/", SERVICE_ENDPOINTS.catalog.items)).toBe(
+      "https://example.test/api/v1/catalog",
     );
   });
 
@@ -59,15 +59,15 @@ describe("resolveServiceUrl", () => {
 
   test("appends an optional query string", () => {
     expect(
-      resolveServiceUrl("https://example.test", SERVICE_ENDPOINTS.pi.mcpConfig, {
-        profile: "default",
+      resolveServiceUrl("https://example.test", SERVICE_ENDPOINTS.catalog.items, {
+        kinds: "mcp:1,skill:0",
       }),
-    ).toBe("https://example.test/v1/cli/pi/mcp.json?profile=default");
+    ).toBe("https://example.test/api/v1/catalog?kinds=mcp%3A1%2Cskill%3A0");
   });
 
   test("bound resolver reuses one origin", () => {
     const toUrl = createServiceUrlResolver("https://example.test");
-    expect(toUrl(SERVICE_ENDPOINTS.pi.mcpConfig)).toBe("https://example.test/v1/cli/pi/mcp.json");
+    expect(toUrl(SERVICE_ENDPOINTS.catalog.items)).toBe("https://example.test/api/v1/catalog");
   });
 });
 

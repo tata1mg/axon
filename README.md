@@ -13,6 +13,7 @@ Follow the [CLI installation guide](apps/cli/README.md#installation) for your de
 ```bash
 axon pi                    # start a coding session; first use prompts for sign-in
 axon doctor                # check the local setup
+axon hub                   # manage user-level MCP servers in a local browser UI
 axon update --check        # check for a newer CLI release
 ```
 
@@ -23,7 +24,7 @@ Axon keeps its managed state under `~/.axon`, separate from a standalone Pi inst
 | App | Purpose | Tooling |
 | --- | --- | --- |
 | [`apps/cli`](apps/cli/README.md) | Native `axon` launcher and managed Pi resources | Bun, TypeScript, Biome |
-| [`apps/backend`](apps/backend/README.md) | Management API, authentication integration, model proxy, and CLI distribution | Python 3.12, uv, FastAPI, Ruff, pytest |
+| [`apps/backend`](apps/backend/README.md) | Management API, authentication integration, model proxy, and CLI distribution | Python 3.14, uv, FastAPI, Ruff, pytest |
 | [`apps/frontend`](apps/frontend/README.md) | Management console | pnpm, Vite, React, TypeScript, Tailwind |
 
 The root **Bun** workspace covers `apps/cli` and future shared packages under `packages/*`. The frontend uses **pnpm** independently; the backend uses **uv**. Their dependencies and lockfiles are separate, and root Biome checks exclude both apps.
@@ -37,7 +38,7 @@ In production, the backend serves the built frontend from the same origin; the c
 - **Bun 1.4.1** for the root workspace and CLI.
 - **Node.js 22.19 or newer and npm** to run the managed Pi runtime.
 - **pnpm 11.5.0** for the frontend.
-- **Python 3.12, uv, and make** for the backend.
+- **Python 3.14, uv, and make** for the backend.
 - A reachable **PostgreSQL** database to start the backend.
 
 You only need the tooling for the apps you are working on. The aggregate root checks require all three toolchains.
@@ -64,7 +65,7 @@ The CLI's `.env` points at `http://localhost:3000` by default. Compiled release 
 
 ### Run locally
 
-Start the backend and frontend in separate terminals, each from the repository root.
+From the repository root, start the backend and frontend in separate terminals.
 
 **Backend** — API at `http://localhost:3000`, API docs at `/docs`:
 
@@ -112,7 +113,7 @@ CLI installer integration tests require macOS. For app-specific builds and other
 | --- | --- |
 | Workspace | Root Biome formatting and lint (excludes backend/frontend) |
 | CLI | Generated bundle checks, TypeScript checks, tests including installer integration, shell syntax, native development builds and binary smoke tests on Apple Silicon (`macos-26`) and Intel (`macos-26-intel`) runners |
-| Backend | Python 3.12, frozen uv dependencies, Ruff formatting/lint, and existing pytest tests through `make check` |
+| Backend | Python 3.14, frozen uv dependencies, Ruff formatting/lint, and existing pytest tests through `make check` |
 | Frontend | Node.js 24, frozen pnpm dependencies, ESLint, Prettier, and TypeScript/Vite production build using `config_template.json` |
 
 Core CI does not provision databases or other services, publish artifacts, or deploy. Existing backend PostgreSQL/migration tests skip when their prerequisites are unavailable; pytest reports those skips. See the [core CI plan](docs/github-actions-core-ci.md) for scope and migration follow-up.

@@ -1,9 +1,18 @@
-"""Browser-login handshake for Axon CLI sessions."""
+"""Browser-login handshake for Axon CLI sessions.
 
+The admin dashboard uses the same axon-auth pairing, but its pairing IDs are a separate,
+browser-bound exchange: the ID in the dashboard's browser URL is a one-way derivation of
+a secret held only in an HttpOnly cookie, and it carries a marker this public CLI route
+refuses. Reading a dashboard login URL is therefore not enough to collect its credential
+here or through the dashboard's own poll.
+"""
+
+import hashlib
 import logging
+import re
 from typing import Annotated, Literal
 from urllib.parse import urlencode, urlsplit, urlunsplit
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, HTTPException, Path, Request, Response, status
 from pydantic import BaseModel
@@ -14,7 +23,7 @@ from app.clients.auth_service import (
     AuthSessionVerification,
     get_auth_service_client,
 )
-from app.core.config import get_settings
+from app.core.config import AuthServiceSettings, get_settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
@@ -30,6 +39,37 @@ class BrowserLoginSession(BaseModel):
     encrypted_session_data: str | None = None
     user_email: str | None = None
     user_name: str | None = None
+
+
+PAIRING_ID_PATTERN = r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+# Leading bytes of every dashboard pairing ID. The CLI start route never issues them.
+_DASHBOARD_PAIRING_MARKER = bytes.fromhex("ad3a1b0d")
+_DASHBOARD_PAIRING_CONTEXT = b"axon-admin-dashboard-pairing\x00"
+DASHBOARD_LOGIN_SECRET = re.compile(r"^[A-Za-z0-9_-]{43}$")
+
+
+def dashboard_pairing_id(login_secret: str) -> str:
+    """Derive the dashboard pairing ID (a version-4 UUID) from its cookie-held secret."""
+    digest = hashlib.sha256(_DASHBOARD_PAIRING_CONTEXT + login_secret.encode("ascii")).digest()
+    return str(UUID(bytes=_DASHBOARD_PAIRING_MARKER + digest[:12], version=4))
+
+
+def is_dashboard_pairing(session_id: str) -> bool:
+    return UUID(session_id).bytes.startswith(_DASHBOARD_PAIRING_MARKER)
+
+
+def new_cli_pairing_id() -> str:
+    while is_dashboard_pairing(session_id := str(uuid4())):
+        pass
+    return session_id
+
+
+def browser_login_url(settings: AuthServiceSettings, session_id: str) -> str:
+    """The operator-configured login page, paired with one unguessable session ID."""
+    url = urlsplit(settings.browser_login_url)
+    return urlunsplit(
+        url._replace(query=urlencode({"unique_session_id": session_id, "is_external_auth_request": "CLI"}))
+    )
 
 
 @router.post("/verify-auth-token", response_model=AuthSessionVerification)
@@ -71,29 +111,25 @@ async def start_browser_login(response: Response) -> BrowserLoginStart:
     if settings is None:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Browser login is not configured")
 
-    session_id = str(uuid4())
-    browser_url = urlsplit(settings.browser_login_url)
+    session_id = new_cli_pairing_id()
     response.headers["Cache-Control"] = "no-store"
-    return BrowserLoginStart(
-        session_id=session_id,
-        browser_url=urlunsplit(
-            browser_url._replace(query=urlencode({"unique_session_id": session_id, "is_external_auth_request": "CLI"}))
-        ),
-    )
+    return BrowserLoginStart(session_id=session_id, browser_url=browser_login_url(settings, session_id))
 
 
 @router.get("/browser-login/{session_id}", response_model=BrowserLoginSession)
 async def get_browser_login_session(
-    session_id: Annotated[
-        str,
-        Path(pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
-    ],
+    session_id: Annotated[str, Path(pattern=PAIRING_ID_PATTERN)],
     request: Request,
     response: Response,
 ) -> BrowserLoginSession:
     """Poll axon-auth; never log or cache the encrypted credential."""
     if get_settings().auth_service is None:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Browser login is not configured")
+    if is_dashboard_pairing(session_id):
+        # Dashboard sign-ins complete only through the browser that holds their secret.
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, "Browser login session not found", headers={"Cache-Control": "no-store"}
+        )
     client: AuthServiceClient = get_auth_service_client(request)
     try:
         payload = await client.get_session(session_id)

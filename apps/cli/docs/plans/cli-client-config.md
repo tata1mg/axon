@@ -75,16 +75,33 @@ Example response:
 
 ## Pi consumption and precedence
 
-`CLI_CLIENT_CONFIG.PI` independently controls `CODEMODE_ENABLED` and `LITELLM_MCP_ENABLED`;
-both must be JSON booleans when the section is present. They project as `pi.codemodeEnabled` and
-`pi.litellmMcpEnabled`. `SHOW_CACHE_MISS_NOTICES` projects as `pi.showCacheMissNotices` and persists
+Every section ignores fields this CLI does not know (they are dropped, never used), so a newer backend can
+add fields without older clients discarding the section. CLI 1.0.x used strict sections, so the backend must
+not add fields to sections those clients still read (`pi`, `litellmClient`, and the others); new data goes
+in new top-level sections such as `litellmFeatures`.
+
+`CLI_CLIENT_CONFIG.PI.CODEMODE_ENABLED` must be a JSON boolean when the section is present and projects
+as `pi.codemodeEnabled`. The backend also projects `pi.litellmMcpEnabled` for CLI 1.0.x, which requires it;
+this CLI accepts but ignores it. `SHOW_CACHE_MISS_NOTICES` projects as `pi.showCacheMissNotices` and persists
 Pi's `showCacheMissNotices`; it defaults to true when omitted and accepts only explicit JSON booleans.
 Managed launches and `/reload` reapply it alongside the other Pi defaults.
 Optional `DEFAULT_PROVIDER`/`DEFAULT_MODEL` project as `pi.defaultProvider`/`pi.defaultModel`
 and are written to Pi's `defaultProvider`/`defaultModel` as a pair; empty or null values are not sent and
-leave the local model untouched. The launcher persists the tool-selection default and
-`litellm.mcp.enabled` in its managed Pi settings before startup, preserving unrelated settings and
-MCP exposure preferences. These are startup defaults, not enforced policy; normal Pi project/CLI
+leave the local model untouched. The launcher persists the tool-selection default in its managed Pi
+settings before startup, preserving unrelated settings. `CLI_CLIENT_CONFIG.LITELLM_FEATURES`
+(`MCP_ENABLED`, `SKILLS_ENABLED`, `BUDGET_ENABLED`; the deprecated `PI.LITELLM_MCP_ENABLED` is the MCP
+fallback) projects as top-level `litellmFeatures: { mcp, skills, budget }`. These are not settings: the
+launcher passes them as `LITELLM_ENABLE_MCP`, `LITELLM_ENABLE_SKILLS`, and `LITELLM_ENABLE_BUDGET`
+(`1`/`0`), which pi-provider-litellm 4.9+ reads before its `litellm.*` settings. A non-blank value the user
+exported wins and is never managed; without a valid `litellmFeatures` section all three are `0`. `PI_AXON_LITELLM_MANAGED_FEATURES` lists the ones Axon set, and
+`/reload` updates only those from the refresh response's `litellmFeatures`. `CLI_CLIENT_CONFIG.TUI_DEFAULT_MODEL`
+(`PROVIDER`, `MODEL`, optional `THINKING_LEVEL`) projects as top-level `tuiDefaultModel`. Interactive
+launches without `--model`, `--models`, `--provider`, or `--thinking` pass it as `PI_AXON_TUI_MODEL_PROVIDER`,
+`PI_AXON_TUI_MODEL`, and `PI_AXON_TUI_THINKING_LEVEL`; values the user exported win (the model as a pair),
+and `PI_AXON_TUI_MODEL_MANAGED` lists the parts that came from the backend so `/reload` updates only those.
+The `tui-default-model` extension applies them with `pi.setModel`/`pi.setThinkingLevel` (never saved) at
+`session_start` for `startup` and `/new` sessions without messages, and only while there is no saved
+default model or model scope. A backend thinking level yields to a saved one; an exported one does not. These are startup defaults, not enforced policy; normal Pi project/CLI
 overrides remain available. Omitted/null `PI`, offline/admin launches, failed config fetches, and
 account changes during the request retain the last local defaults. Restart the backend after edits;
 updated clients pick them up on their next authenticated online launch or `/reload`. On reload, a

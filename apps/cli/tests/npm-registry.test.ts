@@ -92,6 +92,24 @@ describe("managed npm registry fallback", () => {
     expect(registries).toEqual([undefined, NPM_PUBLIC_REGISTRY]);
   });
 
+  test("retries when npm crashes with an unhandled exit after exhausting fetch retries", async () => {
+    const context = await fixture();
+    const registries: (string | undefined)[] = [];
+    await withNpmRegistryFallback(context, async (environment) => {
+      registries.push(environment["npm_config_registry"]);
+      if (registries.length === 1) {
+        throw unavailable(
+          [
+            "npm error Exit handler never called!",
+            "npm error This is an error with npm itself. Please report this error at:",
+            "npm error  <https://github.com/npm/cli/issues>",
+          ].join("\n"),
+        );
+      }
+    });
+    expect(registries).toEqual([undefined, NPM_MIRROR_REGISTRY]);
+  });
+
   test("respects public scoped registries and overrides them only for the retry", async () => {
     const context = await fixture();
     context.environment["FAKE_SCOPE_REGISTRY"] = NPM_MIRROR_REGISTRY;

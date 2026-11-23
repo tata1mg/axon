@@ -4,6 +4,7 @@ import {
 } from "../../cli/auth/request-relay.ts";
 import { loadEncryptedSession, refreshEncryptedSession } from "../../cli/auth/session.ts";
 import { type ClientConfig, fetchClientConfig } from "../../cli/client-config.ts";
+import { createPiHub } from "../../hub/pi-hub.ts";
 import type { HarnessAdapter } from "../../launcher/contracts.ts";
 import type { EnvironmentOverrides } from "../../launcher/environment.ts";
 import { LauncherError } from "../../launcher/errors.ts";
@@ -21,17 +22,18 @@ import {
   createLiteLLMClientOverrides,
   createModelRecommenderOverrides,
 } from "./launch-preferences-environment.ts";
+import { createLiteLLMFeatureOverrides } from "./litellm-features.ts";
 import { invalidateStalePiRelayModels } from "./model-cache.ts";
 import {
   applyPiChangelogDefaults,
   applyPiDefaults,
-  applyPiProviderDefaults,
   axonThemeArguments,
 } from "./settings-defaults.ts";
 import { type PiSetupResult, preparePiSetup } from "./setup/index.ts";
 import { inspectPiPackages } from "./setup/packages/doctor.ts";
 import { createTelemetryOverrides } from "./telemetry-environment.ts";
 import { createTerminalPermissionsOverrides } from "./terminal-permissions-environment.ts";
+import { createTuiDefaultModelOverrides } from "./tui-default-model.ts";
 import { resolvePiVersion } from "./version.ts";
 import { createWebSearchOverrides } from "./web-search-environment.ts";
 
@@ -74,7 +76,6 @@ export function createPiAdapter(): HarnessAdapter {
             context.paths,
             resolveConfiguredPiVersion(context.environment),
           );
-          await applyPiProviderDefaults(context.paths);
         } catch (error) {
           // Lock timeouts in `cause` are rendered with owner details by the top-level handler.
           throw new LauncherError(
@@ -168,12 +169,23 @@ export function createPiAdapter(): HarnessAdapter {
           ...createCompactionOverrides(config?.compaction),
           ...createModelRecommenderOverrides(config?.modelRecommender),
           ...createLiteLLMClientOverrides(config?.litellmClient),
+          ...createLiteLLMFeatureOverrides(context.environment, config?.litellmFeatures),
+          ...createTuiDefaultModelOverrides(
+            context.environment,
+            setup.invocationKind === "interactive",
+            userArguments,
+            config?.tuiDefaultModel,
+          ),
         };
         const effectiveProviderEnvironment = { ...context.environment, ...featureOverrides };
         // Pi receives only a per-launch loopback capability. The relay reads the
         // live session for each request and owns refresh persistence and recovery.
         relay = startAuthenticatedRequestRelay(context.paths, {
           allowPiConfigRefresh: !setup.offline,
+          // RPC clients run on this machine, so /axon-hub opens the same local browser.
+          ...(setup.invocationKind === "interactive" || setup.rpc
+            ? { piHub: createPiHub(context.paths, { offline: setup.offline }) }
+            : {}),
           ...(context.authenticationDeferred ? { signedOut: { session: encryptedSession } } : {}),
         });
         // Startup discovery seeds fresh models, but Pi restores its cached catalog over

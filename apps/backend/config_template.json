@@ -60,10 +60,19 @@
   "CLI_CLIENT_CONFIG": {
     "PI": {
       "CODEMODE_ENABLED": true,
-      "LITELLM_MCP_ENABLED": true,
       "SHOW_CACHE_MISS_NOTICES": true,
       "DEFAULT_PROVIDER": "",
       "DEFAULT_MODEL": ""
+    },
+    "LITELLM_FEATURES": {
+      "MCP_ENABLED": true,
+      "SKILLS_ENABLED": false,
+      "BUDGET_ENABLED": false
+    },
+    "TUI_DEFAULT_MODEL": {
+      "PROVIDER": "",
+      "MODEL": "",
+      "THINKING_LEVEL": null
     },
     "COMPACTION": {
       "ENABLED": null,
@@ -204,6 +213,15 @@
     "EVENT_LOOP_MONITORING": true,
     "EVENT_LOOP_MONITOR_INTERVAL": 0.1,
     "EVENT_LOOP_MONITOR_BLOCKING_THRESHOLD": 0.05
+  },
+  "ADMIN_DASHBOARD": {
+    "ENABLED": false,
+    "PUBLIC_BASE_PATH": "/axon",
+    "MEMBERS": {
+    },
+    "SESSION_TTL_SECONDS": 28800,
+    "LOGIN_TIMEOUT_SECONDS": 600,
+    "SECURE_COOKIES": true
   },
   "AUTH_SERVICE": {
     "BASE_URL": "http://localhost:9355",

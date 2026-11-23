@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1.7
 # Build from the repository root; see apps/backend/README.md#docker.
-ARG PYTHON_BASE_IMAGE=831059512818.dkr.ecr.ap-south-1.amazonaws.com/python:wolfi-3.12.16-r1-test1
+# Bare Wolfi base (no Python baked in)
+ARG BASE_IMAGE=831059512818.dkr.ecr.ap-south-1.amazonaws.com/wolfi:20261023
 
 # Static frontend output is architecture-independent, so build it natively.
 FROM --platform=$BUILDPLATFORM node:24-alpine AS console
@@ -15,11 +16,14 @@ COPY apps/frontend/ ./
 RUN cp config_template.json config.json && pnpm build
 
 # Shared Python setup for dependency installation and runtime.
-FROM --platform=linux/amd64 ${PYTHON_BASE_IMAGE} AS python-base
+FROM --platform=linux/amd64 ${BASE_IMAGE} AS python-base
 
-# The private base includes Python; the public Wolfi base needs it installed.
-RUN if [ ! -x /usr/bin/python3.12 ]; then apk add --no-cache python-3.12; fi
-RUN apk add --no-cache libstdc++ ca-certificates tzdata curl
+# Latest Python 3.14 from the Wolfi repo (intentionally unpinned), so every
+# build picks up the newest patched 3.14 release.
+RUN apk update && apk add --no-cache python-3.14 libstdc++ ca-certificates tzdata curl
+
+# Fail the build if the interpreter or its required shared libraries are broken.
+RUN python3.14 -c 'import bz2, ctypes, lzma, sqlite3, ssl, sys, zlib; assert sys.version_info[:2] == (3, 14), sys.version; print(sys.version, ssl.OPENSSL_VERSION)'
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -32,7 +36,7 @@ FROM python-base AS builder
 
 COPY --from=ghcr.io/astral-sh/uv:0.13.5 /uv /usr/local/bin/uv
 COPY apps/backend/pyproject.toml apps/backend/uv.lock apps/backend/README.md ./
-RUN uv sync --frozen --no-dev --no-cache --python /usr/bin/python3.12
+RUN uv sync --frozen --no-dev --no-cache --python /usr/bin/python3.14
 
 FROM python-base AS runtime
 

@@ -12,7 +12,7 @@ Use GitHub Actions for exactly four parallel CI jobs:
 | --- | --- | --- |
 | Workspace | `ubuntu-latest` | Existing `bunx biome ci .` |
 | CLI | `macos-26` (Apple Silicon) | Existing checks, tests, native development build, and binary smoke test |
-| Backend | `ubuntu-latest` | Python 3.12, frozen uv dependencies, and `make check` |
+| Backend | `ubuntu-latest` | Python 3.14, frozen uv dependencies, and `make check` |
 | Frontend | `ubuntu-latest` | Node/pnpm, frozen dependencies, lint, formatting, and production build |
 
 Keep one core workflow at `.github/workflows/ci.yml`. Jobs should have no dependencies
@@ -114,7 +114,7 @@ publish a release.
 Add an Ubuntu job with a 15-minute timeout:
 
 1. Check out the repository.
-2. Set up Python `3.12`, matching `apps/backend/pyproject.toml`.
+2. Set up Python `3.14`, matching `apps/backend/pyproject.toml`.
 3. Set up uv with an explicit version; initially use `0.11.7`, matching the current
    Dockerfile's uv version.
 4. From `apps/backend`, run:

@@ -9,7 +9,7 @@
  * ```ts
  * import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../product/endpoints.ts";
  *
- * const url = resolveServiceUrl(serviceOrigin, SERVICE_ENDPOINTS.pi.mcpConfig);
+ * const url = resolveServiceUrl(serviceOrigin, SERVICE_ENDPOINTS.catalog.items);
  * ```
  */
 
@@ -46,9 +46,9 @@ export const SERVICE_ENDPOINTS = Object.freeze({
     /** Authenticated, non-secret telemetry preferences. */
     config: defineEndpoint("/api/v1/cli/config"),
   }),
-  pi: Object.freeze({
-    /** Organization MCP catalog consumed by Pi setup. */
-    mcpConfig: defineEndpoint("/v1/cli/pi/mcp.json"),
+  catalog: Object.freeze({
+    /** Authenticated, published organization catalog read by `axon hub`. */
+    items: defineEndpoint("/api/v1/catalog"),
   }),
   sessions: Object.freeze({
     base: defineEndpoint("/api/v1/sessions"),

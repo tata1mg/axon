@@ -31,8 +31,11 @@ interface NpmRegistryContext {
 
 // Availability failures only: do not retry authentication, permissions, integrity,
 // dependency resolution, lifecycle scripts, or a cancelled subprocess.
+// npm 11 can exhaust its tarball retries (e.g. repeated ECONNRESET) and then crash
+// with "Exit handler never called!" instead of reporting the network code. At
+// --loglevel=error that crash line is the only output, so treat it as unavailable.
 const REGISTRY_FAILURE =
-  /\b(?:ECONNRESET|ECONNREFUSED|EHOSTUNREACH|ENETUNREACH|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|ESOCKETTIMEDOUT|ERR_SOCKET_TIMEOUT|FETCH_ERROR|E404|E408|E429|E500|E502|E503|E504|ETARGET|CERT_HAS_EXPIRED|UNABLE_TO_VERIFY_LEAF_SIGNATURE|UNABLE_TO_GET_ISSUER_CERT_LOCALLY|SELF_SIGNED_CERT_IN_CHAIN|DEPTH_ZERO_SELF_SIGNED_CERT)\b/i;
+  /\b(?:ECONNRESET|ECONNREFUSED|EHOSTUNREACH|ENETUNREACH|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|ESOCKETTIMEDOUT|ERR_SOCKET_TIMEOUT|FETCH_ERROR|E404|E408|E429|E500|E502|E503|E504|ETARGET|CERT_HAS_EXPIRED|UNABLE_TO_VERIFY_LEAF_SIGNATURE|UNABLE_TO_GET_ISSUER_CERT_LOCALLY|SELF_SIGNED_CERT_IN_CHAIN|DEPTH_ZERO_SELF_SIGNED_CERT|Exit handler never called)\b/i;
 const LOCAL_FAILURE =
   /\b(?:E401|E403|EACCES|EPERM|EINTEGRITY|ERESOLVE|ENOSPC|ELIFECYCLE)\b|npm (?:ERR!|error) command (?:failed|sh\b|cmd\b)/i;
 

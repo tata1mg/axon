@@ -9,35 +9,6 @@ import { piSettingsPath, readPiSettings, writePiSettings } from "./setup/package
 /** Pi's automatic pair format: the light theme first, the dark theme second. */
 export const AXON_THEME_SETTING = "axon-light/axon-dark";
 
-function settingsObject(value: unknown): Record<string, unknown> {
-  if (value === undefined) return {};
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error("Pi LiteLLM settings must be an object");
-  }
-  return value as Record<string, unknown>;
-}
-
-/** Configure the installed provider without saving a session token or a relay capability. */
-export async function applyPiProviderDefaults(paths: AxonPaths): Promise<void> {
-  // Cache cleanup belongs to the adapter, which knows whether discovery will replace stale models.
-  // Keep optional cache failures separate from required provider settings initialization.
-  await withFileLock(paths.piPackageLock, async () => {
-    const settings = await readPiSettings(piSettingsPath(paths.pi));
-    const litellm = settingsObject(settings.config["litellm"]);
-    const mcp = settingsObject(litellm["mcp"]);
-    const config = {
-      ...settings.config,
-      // Without a fetched backend policy, leave the optional bridge off by default.
-      // Keep previously applied/local preferences and all organization MCP servers.
-      litellm: { ...litellm, mcp: { enabled: false, ...mcp } },
-    };
-
-    if (JSON.stringify(settings.config) !== JSON.stringify(config)) {
-      await writePiSettings(settings, config);
-    }
-  });
-}
-
 /** Suppress Pi's upstream startup notes; Axon tracks its own releases separately. */
 export async function applyPiChangelogDefaults(paths: AxonPaths, piVersion: string): Promise<void> {
   await withFileLock(paths.piPackageLock, async () => {
@@ -79,13 +50,12 @@ export async function applyPiDefaults(
         }
       }
 
-      const litellm = settingsObject(settings.config["litellm"]);
-      const mcp = settingsObject(litellm["mcp"]);
+      // LiteLLM's optional features are launch environment (LITELLM_ENABLE_*), not settings;
+      // litellm.* blocks saved by earlier Axon releases are left as they are.
       const config = {
         ...settings.config,
         defaultTools: tools,
         showCacheMissNotices: defaults.showCacheMissNotices ?? true,
-        litellm: { ...litellm, mcp: { ...mcp, enabled: defaults.litellmMcpEnabled } },
         // Unmanaged defaults keep the user's last /model selection.
         ...(defaults.defaultProvider !== undefined && defaults.defaultModel !== undefined
           ? { defaultProvider: defaults.defaultProvider, defaultModel: defaults.defaultModel }

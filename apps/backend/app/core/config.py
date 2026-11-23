@@ -12,19 +12,24 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from sentry_sdk.utils import Dsn
 
+from app.core.admin_dashboard import AdminDashboardSettings, parse_admin_dashboard
 from app.core.axon_safehouse import AxonSafehouseSettings, parse_axon_safehouse
 from app.core.cli_config import (
     CliCompactionConfig,
     CliLiteLLMClientConfig,
+    CliLiteLLMFeaturesConfig,
     CliModelRecommenderConfig,
     CliPiConfig,
     CliTelemetryConfig,
+    CliTuiDefaultModelConfig,
     OtelProxySettings,
     parse_cli_compaction,
     parse_cli_litellm_client,
+    parse_cli_litellm_features,
     parse_cli_model_recommender,
     parse_cli_pi,
     parse_cli_telemetry,
+    parse_cli_tui_default_model,
     parse_otel_proxy,
 )
 from app.core.s3 import S3StorageSettings, parse_s3_storage
@@ -213,8 +218,11 @@ class Settings:
     cli_compaction: CliCompactionConfig | None = None
     cli_model_recommender: CliModelRecommenderConfig | None = None
     cli_litellm_client: CliLiteLLMClientConfig | None = None
+    cli_litellm_features: CliLiteLLMFeaturesConfig | None = None
+    cli_tui_default_model: CliTuiDefaultModelConfig | None = None
     terminal_permissions: TerminalPermissionsSettings | None = None
     axon_safehouse: AxonSafehouseSettings = field(default_factory=AxonSafehouseSettings)
+    admin_dashboard: AdminDashboardSettings = field(default_factory=AdminDashboardSettings)
 
 
 def _cli_pi_settings(raw_config: dict[str, Any]) -> CliPiConfig | None:
@@ -222,6 +230,20 @@ def _cli_pi_settings(raw_config: dict[str, Any]) -> CliPiConfig | None:
         return parse_cli_pi(raw_config)
     except (ValueError, TypeError):
         raise ConfigurationError("config.CLI_CLIENT_CONFIG.PI contains invalid Pi defaults") from None
+
+
+def _cli_litellm_features(raw_config: dict[str, Any]) -> CliLiteLLMFeaturesConfig | None:
+    try:
+        return parse_cli_litellm_features(raw_config)
+    except (ValueError, TypeError):
+        raise ConfigurationError("config.CLI_CLIENT_CONFIG.LITELLM_FEATURES contains invalid features") from None
+
+
+def _cli_tui_default_model(raw_config: dict[str, Any]) -> CliTuiDefaultModelConfig | None:
+    try:
+        return parse_cli_tui_default_model(raw_config)
+    except (ValueError, TypeError):
+        raise ConfigurationError("config.CLI_CLIENT_CONFIG.TUI_DEFAULT_MODEL contains an invalid model") from None
 
 
 def _cli_launch_preferences(
@@ -597,6 +619,16 @@ def _axon_safehouse(raw: dict[str, Any]) -> AxonSafehouseSettings:
         raise ConfigurationError("config.AXON_SAFEHOUSE contains invalid settings") from None
 
 
+def _admin_dashboard(raw: dict[str, Any], *, auth_service_configured: bool) -> AdminDashboardSettings:
+    try:
+        return parse_admin_dashboard(raw, auth_service_configured=auth_service_configured)
+    except ValueError as exc:
+        # Parser messages name config keys only; they never echo member addresses or values.
+        raise ConfigurationError(f"config.{exc}") from None
+    except TypeError:
+        raise ConfigurationError("config.ADMIN_DASHBOARD contains invalid settings") from None
+
+
 @cache
 def get_settings() -> Settings:
     """Parse and cache the backend configuration from its project directory."""
@@ -762,7 +794,9 @@ def get_settings() -> Settings:
         # Suppress chained validation inputs, including credentials in invalid URLs.
         raise ConfigurationError("config.CLI_CLIENT_CONFIG contains invalid telemetry settings") from None
 
+    cli_litellm_features = _cli_litellm_features(raw_config)
     cli_pi = _cli_pi_settings(raw_config)
+    cli_tui_default_model = _cli_tui_default_model(raw_config)
     cli_compaction, cli_model_recommender, cli_litellm_client = _cli_launch_preferences(raw_config)
     session_backups = _session_backups(raw_config)
     web_search = _web_search(raw_config)
@@ -790,12 +824,15 @@ def get_settings() -> Settings:
         cli_compaction=cli_compaction,
         cli_model_recommender=cli_model_recommender,
         cli_litellm_client=cli_litellm_client,
+        cli_litellm_features=cli_litellm_features,
+        cli_tui_default_model=cli_tui_default_model,
         otel_proxy=otel_proxy,
         session_backups=session_backups,
         web_search=web_search,
         model_recommender=_model_recommender(raw_config),
         terminal_permissions=terminal_permissions,
         axon_safehouse=_axon_safehouse(raw_config),
+        admin_dashboard=_admin_dashboard(raw_config, auth_service_configured=auth_service is not None),
         backend_telemetry=backend_telemetry,
         sentry=_sentry_settings(raw_config),
         log_level=log_level,

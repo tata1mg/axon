@@ -55,6 +55,18 @@ describe("Pi LiteLLM provider configuration", () => {
     expect(environment["LITELLM_API_KEY"]).toBe("relay-capability");
     expect(inheritedEnvironment).toEqual(original);
   });
+
+  test("forwards LiteLLM feature switches that override managed settings, without setting them", () => {
+    const switches = {
+      LITELLM_ENABLE_MCP: "0",
+      LITELLM_ENABLE_SKILLS: "1",
+      LITELLM_ENABLE_BUDGET: "false",
+    };
+    const environment = createPiEnvironment(switches, paths);
+    for (const [name, value] of Object.entries(switches)) expect(environment[name]).toBe(value);
+    const unset = createPiEnvironment({}, paths);
+    for (const name of Object.keys(switches)) expect(unset[name]).toBeUndefined();
+  });
 });
 
 describe("Pi provider display name", () => {

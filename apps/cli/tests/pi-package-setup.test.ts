@@ -207,9 +207,9 @@ describe("Pi package manifest", () => {
       },
       {
         id: "pi-provider-litellm",
-        installTarget: "npm:pi-provider-litellm@4.7.3",
+        installTarget: "npm:pi-provider-litellm@4.9.0",
         updateOwner: "axon",
-        versionPolicy: { kind: "exact", version: "4.7.3" },
+        versionPolicy: { kind: "exact", version: "4.9.0" },
       },
       {
         id: "pi-review",
@@ -974,6 +974,7 @@ describe("package and resource locks", () => {
     const materializedPaths = first.arguments.filter((_argument, index) => index % 2 === 1);
     expect(materializedPaths.map((path) => path.split("/").at(-1))).toEqual([
       "managed-config.ts",
+      "tui-default-model.ts",
       "axon.ts",
       "axon-changelog.ts",
       "axon-auth.ts",
@@ -981,14 +982,15 @@ describe("package and resource locks", () => {
       "model-recommender.ts",
       "session-backup.mjs",
       "web-search.ts",
-      "git-ai.ts",
       "compaction.ts",
       "request-context.mjs",
       "terminal-permissions.mjs",
+      "SKILL.md",
       "axon-dark.json",
       "axon-light.json",
     ]);
     expect(first.arguments.filter((argument) => argument === "--theme")).toHaveLength(2);
+    expect(first.arguments.filter((argument) => argument === "--skill")).toHaveLength(1);
     for (const path of materializedPaths) {
       expect(await Bun.file(path).exists()).toBe(true);
     }

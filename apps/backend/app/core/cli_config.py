@@ -35,6 +35,7 @@ class CliPiConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     codemode_enabled: bool = Field(alias="codemodeEnabled", strict=True)
+    # Projected from LITELLM_FEATURES for CLI 1.0.x, which requires it; newer CLIs read litellmFeatures.
     litellm_mcp_enabled: bool = Field(alias="litellmMcpEnabled", strict=True)
     show_cache_miss_notices: bool = Field(default=True, alias="showCacheMissNotices", strict=True)
     # Pi only uses a saved default when both are set, so they are managed as a pair.
@@ -74,6 +75,7 @@ def parse_cli_pi(raw: dict[str, object]) -> CliPiConfig | None:
         return None
     if not isinstance(pi, dict) or set(pi) - {
         "CODEMODE_ENABLED",
+        # Deprecated: LITELLM_FEATURES.MCP_ENABLED replaces it.
         "LITELLM_MCP_ENABLED",
         "SHOW_CACHE_MISS_NOTICES",
         "DEFAULT_PROVIDER",
@@ -83,11 +85,99 @@ def parse_cli_pi(raw: dict[str, object]) -> CliPiConfig | None:
     return CliPiConfig.model_validate(
         {
             "codemodeEnabled": pi.get("CODEMODE_ENABLED"),
-            "litellmMcpEnabled": pi.get("LITELLM_MCP_ENABLED"),
+            "litellmMcpEnabled": features.mcp if (features := parse_cli_litellm_features(raw)) else False,
             "showCacheMissNotices": pi.get("SHOW_CACHE_MISS_NOTICES", True),
             "defaultProvider": pi.get("DEFAULT_PROVIDER"),
             "defaultModel": pi.get("DEFAULT_MODEL"),
         }
+    )
+
+
+class CliLiteLLMFeaturesConfig(BaseModel):
+    """pi-provider-litellm's optional features; the CLI passes them to Pi as LITELLM_ENABLE_*."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    mcp: bool = Field(strict=True)
+    skills: bool = Field(strict=True)
+    budget: bool = Field(strict=True)
+
+
+_LITELLM_FEATURE_KEYS = {"MCP_ENABLED": "mcp", "SKILLS_ENABLED": "skills", "BUDGET_ENABLED": "budget"}
+
+
+def parse_cli_litellm_features(raw: dict[str, object]) -> CliLiteLLMFeaturesConfig | None:
+    """LITELLM_FEATURES, with the deprecated PI.LITELLM_MCP_ENABLED as the MCP fallback.
+
+    Omitted or null switches are off. Neither source configured means no section, so clients keep
+    their own fallback (every feature off).
+    """
+    section = raw.get("CLI_CLIENT_CONFIG")
+    if section is None:
+        return None
+    if not isinstance(section, dict):
+        raise ValueError("CLI_CLIENT_CONFIG must be an object")
+    features = section.get("LITELLM_FEATURES")
+    pi = section.get("PI")
+    legacy_mcp = pi.get("LITELLM_MCP_ENABLED") if isinstance(pi, dict) else None
+    if features is None and legacy_mcp is None:
+        return None
+    if features is None:
+        features = {}
+    if not isinstance(features, dict) or set(features) - set(_LITELLM_FEATURE_KEYS):
+        raise ValueError("LITELLM_FEATURES must contain only supported features")
+    values = {name: features.get(key) for key, name in _LITELLM_FEATURE_KEYS.items()}
+    if legacy_mcp is not None:
+        if values["mcp"] is None:
+            values["mcp"] = legacy_mcp
+        elif values["mcp"] != legacy_mcp or type(values["mcp"]) is not type(legacy_mcp):
+            raise ValueError("PI.LITELLM_MCP_ENABLED conflicts with LITELLM_FEATURES.MCP_ENABLED")
+    return CliLiteLLMFeaturesConfig.model_validate(
+        {name: False if value is None else value for name, value in values.items()}
+    )
+
+
+CliThinkingLevel = Literal["off", "minimal", "low", "medium", "high", "xhigh", "max"]
+
+
+class CliTuiDefaultModelConfig(BaseModel):
+    """The model a new interactive session starts with while the user has no saved Pi default."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    provider: str = Field(strict=True, min_length=1, max_length=256)
+    model: str = Field(strict=True, min_length=1, max_length=256)
+    thinking_level: CliThinkingLevel | None = Field(default=None, alias="thinkingLevel")
+
+    @field_validator("provider", "model")
+    @classmethod
+    def setting_text(cls, value: str) -> str:
+        if value != value.strip(_JS_WHITESPACE) or any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in value):
+            raise ValueError("Expected trimmed text without control characters")
+        return value
+
+
+def parse_cli_tui_default_model(raw: dict[str, object]) -> CliTuiDefaultModelConfig | None:
+    """TUI_DEFAULT_MODEL. Empty or null PROVIDER and MODEL leave Pi's own initial model choice."""
+    section = raw.get("CLI_CLIENT_CONFIG")
+    if section is None:
+        return None
+    if not isinstance(section, dict):
+        raise ValueError("CLI_CLIENT_CONFIG must be an object")
+    default = section.get("TUI_DEFAULT_MODEL")
+    if default is None:
+        return None
+    if not isinstance(default, dict) or set(default) - {"PROVIDER", "MODEL", "THINKING_LEVEL"}:
+        raise ValueError("TUI_DEFAULT_MODEL must contain only PROVIDER, MODEL and THINKING_LEVEL")
+    provider, model, thinking_level = (
+        None if (value := default.get(key)) == "" else value for key in ("PROVIDER", "MODEL", "THINKING_LEVEL")
+    )
+    if provider is None and model is None:
+        if thinking_level is not None:
+            raise ValueError("TUI_DEFAULT_MODEL.THINKING_LEVEL requires PROVIDER and MODEL")
+        return None
+    return CliTuiDefaultModelConfig.model_validate(
+        {"provider": provider, "model": model, "thinkingLevel": thinking_level}
     )
 
 

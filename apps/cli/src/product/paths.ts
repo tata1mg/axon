@@ -11,6 +11,7 @@ export interface AxonPaths {
   readonly bin: string;
   readonly managedBinary: string;
   readonly previousBinary: string;
+  readonly piWrapper: string;
   readonly runtime: string;
   readonly runtimeCurrent: string;
   readonly pi: string;
@@ -20,7 +21,7 @@ export interface AxonPaths {
   readonly piInstallLock: string;
   readonly piRuntime: string;
   readonly piExecutableState: string;
-  readonly piMcpSyncState: string;
+  readonly hubCatalogInstalls: string;
   readonly materializationLock: string;
   readonly staged: string;
   readonly stagedBinary: string;
@@ -53,6 +54,7 @@ export function resolveAxonPaths(
     bin,
     managedBinary: join(bin, PRODUCT_IDENTITY.command),
     previousBinary: join(bin, `${PRODUCT_IDENTITY.command}.prev`),
+    piWrapper: join(bin, `${PRODUCT_IDENTITY.command}-pi`),
     runtime,
     runtimeCurrent: join(runtime, "current"),
     pi,
@@ -62,7 +64,7 @@ export function resolveAxonPaths(
     piInstallLock: join(locks, "pi-install.lock"),
     piRuntime: join(home, "pi-runtime"),
     piExecutableState: join(home, "pi-executable.json"),
-    piMcpSyncState: join(home, "pi-mcp-sync.json"),
+    hubCatalogInstalls: join(home, "hub-catalog-installs.json"),
     materializationLock: join(locks, "materialization.lock"),
     staged,
     stagedBinary: join(staged, PRODUCT_IDENTITY.command),

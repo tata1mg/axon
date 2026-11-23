@@ -8,9 +8,6 @@ import axonChangelogExtensionAsset from "../harnesses/pi/resources/extensions/ax
 import compactionExtensionAsset from "../harnesses/pi/resources/extensions/compaction.ts" with {
   type: "file",
 };
-import gitAiExtensionAsset from "../harnesses/pi/resources/extensions/git-ai.ts" with {
-  type: "file",
-};
 import managedConfigExtensionAsset from "../harnesses/pi/resources/extensions/managed-config.ts" with {
   type: "file",
 };
@@ -26,14 +23,17 @@ import requestContextExtensionAsset from "../harnesses/pi/resources/extensions/r
 import sessionBackupExtensionAsset from "../harnesses/pi/resources/extensions/session-backup.mjs" with {
   type: "file",
 };
-
 // Keep the embedded asset distinct from the TypeScript module imported as code.
 import terminalPermissionsExtensionAsset from "../harnesses/pi/resources/extensions/terminal-permissions.mjs" with {
+  type: "file",
+};
+import tuiDefaultModelExtensionAsset from "../harnesses/pi/resources/extensions/tui-default-model.ts" with {
   type: "file",
 };
 import webSearchExtensionAsset from "../harnesses/pi/resources/extensions/web-search.ts" with {
   type: "file",
 };
+import axonSkillAsset from "../harnesses/pi/resources/skills/axon/SKILL.md" with { type: "file" };
 import axonDarkThemeAsset from "../harnesses/pi/resources/themes/axon-dark.json" with {
   type: "file",
 };
@@ -46,12 +46,6 @@ import {
   parseAxonManifest,
 } from "../harnesses/pi/setup/packages/manifest.ts";
 
-const GIT_AI_RESOURCE = Object.freeze({
-  id: "git-ai",
-  type: "extension",
-  destination: "pi/extensions/git-ai.ts",
-}) satisfies PiResourceManifestEntry;
-
 const SESSION_BACKUP_RESOURCE = Object.freeze({
   id: "session-backup",
   type: "extension",
@@ -62,6 +56,12 @@ const MANAGED_CONFIG_RESOURCE = Object.freeze({
   id: "managed-config",
   type: "extension",
   destination: "pi/extensions/managed-config.ts",
+}) satisfies PiResourceManifestEntry;
+
+const TUI_DEFAULT_MODEL_RESOURCE = Object.freeze({
+  id: "tui-default-model",
+  type: "extension",
+  destination: "pi/extensions/tui-default-model.ts",
 }) satisfies PiResourceManifestEntry;
 
 const AXON_CORE_RESOURCE = Object.freeze({
@@ -117,6 +117,15 @@ const TERMINAL_PERMISSIONS_RESOURCE = Object.freeze({
   type: "extension",
   destination: "pi/extensions/terminal-permissions.mjs",
 }) satisfies PiResourceManifestEntry;
+
+// A single-file skill: every resource gets its own `--skill` flag, so bundled
+// reference files would each load as a separate standalone skill.
+const AXON_SKILL_RESOURCE = Object.freeze({
+  id: "axon-skill",
+  type: "skill",
+  destination: "pi/skills/axon/SKILL.md",
+}) satisfies PiResourceManifestEntry;
+
 const AXON_DARK_THEME_RESOURCE = Object.freeze({
   id: "axon-dark-theme",
   type: "theme",
@@ -131,7 +140,7 @@ const AXON_LIGHT_THEME_RESOURCE = Object.freeze({
 
 export const AXON_MANIFEST = parseAxonManifest({
   schemaVersion: 1,
-  revision: "25",
+  revision: "30",
   pi: {
     packages: [
       {
@@ -145,7 +154,7 @@ export const AXON_MANIFEST = parseAxonManifest({
         id: "pi-provider-litellm",
         source: "npm:pi-provider-litellm",
         required: true,
-        versionPolicy: { kind: "exact", version: "4.7.3" },
+        versionPolicy: { kind: "exact", version: "4.9.0" },
         install: { action: "pi.install" },
       },
       {
@@ -161,6 +170,8 @@ export const AXON_MANIFEST = parseAxonManifest({
     ],
     resources: [
       MANAGED_CONFIG_RESOURCE,
+      // Switch the model before the other extensions observe the new session.
+      TUI_DEFAULT_MODEL_RESOURCE,
       AXON_CORE_RESOURCE,
       AXON_CHANGELOG_RESOURCE,
       AXON_AUTH_RESOURCE,
@@ -169,11 +180,11 @@ export const AXON_MANIFEST = parseAxonManifest({
       // Close telemetry after backup shutdown has emitted its final outcomes.
       PI_ORG_TELEMETRY_RESOURCE,
       WEB_SEARCH_RESOURCE,
-      GIT_AI_RESOURCE,
       COMPACTION_RESOURCE,
       REQUEST_CONTEXT_RESOURCE,
       // Run permission checks after the other managed tool-call handlers.
       TERMINAL_PERMISSIONS_RESOURCE,
+      AXON_SKILL_RESOURCE,
       AXON_DARK_THEME_RESOURCE,
       AXON_LIGHT_THEME_RESOURCE,
     ],
@@ -188,6 +199,10 @@ export const EMBEDDED_PI_RESOURCES = Object.freeze([
   Object.freeze({
     ...MANAGED_CONFIG_RESOURCE,
     sourcePath: managedConfigExtensionAsset as unknown as string,
+  }),
+  Object.freeze({
+    ...TUI_DEFAULT_MODEL_RESOURCE,
+    sourcePath: tuiDefaultModelExtensionAsset as unknown as string,
   }),
   Object.freeze({
     ...AXON_CORE_RESOURCE,
@@ -219,10 +234,6 @@ export const EMBEDDED_PI_RESOURCES = Object.freeze([
     sourcePath: webSearchExtensionAsset as unknown as string,
   }),
   Object.freeze({
-    ...GIT_AI_RESOURCE,
-    sourcePath: gitAiExtensionAsset as unknown as string,
-  }),
-  Object.freeze({
     ...COMPACTION_RESOURCE,
     sourcePath: compactionExtensionAsset as unknown as string,
   }),
@@ -233,6 +244,10 @@ export const EMBEDDED_PI_RESOURCES = Object.freeze([
   Object.freeze({
     ...TERMINAL_PERMISSIONS_RESOURCE,
     sourcePath: terminalPermissionsExtensionAsset,
+  }),
+  Object.freeze({
+    ...AXON_SKILL_RESOURCE,
+    sourcePath: axonSkillAsset,
   }),
   Object.freeze({
     ...AXON_DARK_THEME_RESOURCE,

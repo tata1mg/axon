@@ -39,8 +39,6 @@ describe("managed terminal permissions configuration", () => {
 
   test.each([
     { yoloMode: "true" },
-    { allowYoloMode: true },
-    { autoApproveCommands: [] },
     { requireApprovalCommands: [""] },
     { requireApprovalCommands: [" "] },
     { requireApprovalCommands: ["rm\n"] },
@@ -50,7 +48,6 @@ describe("managed terminal permissions configuration", () => {
     { approvalTimeoutMs: 999 },
     { approvalTimeoutMs: 300_001 },
     { approvalTimeoutMs: 1_000.5 },
-    { apiKey: "private" },
   ])("rejects invalid or private terminal settings: %j", (patch) => {
     const config = parseClientConfig({
       schemaVersion: 1,
@@ -59,5 +56,18 @@ describe("managed terminal permissions configuration", () => {
     });
     expect(config.terminalPermissions).toBeUndefined();
     expect(config.telemetry?.enabled).toBe(false);
+  });
+
+  test("drops unknown terminal fields without granting or loosening anything", () => {
+    for (const patch of [
+      { allowYoloMode: true },
+      { autoApproveCommands: [] },
+      { apiKey: "private" },
+    ]) {
+      expect(
+        parseClientConfig({ schemaVersion: 1, terminalPermissions: { ...policy, ...patch } })
+          .terminalPermissions,
+      ).toEqual(policy);
+    }
   });
 });

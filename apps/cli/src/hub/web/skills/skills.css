@@ -1,0 +1,30 @@
+/* My skills: reuses the MCP list rows, plus Pi's load problems. */
+
+/* Without the filter toolbar, keep the list clear of the page head. */
+.skills-list-spaced {
+  margin-top: 28px;
+}
+
+.server[data-state="not_loaded"] .server-icon {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.server[data-state="shadowed"] .server-icon {
+  background: var(--hover);
+  color: var(--text-3);
+}
+.server[data-state="shadowed"] .server-main {
+  opacity: 0.62;
+}
+.skill-problems {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--warn);
+  font-size: 12.5px;
+}
+.server[data-state="shadowed"] .skill-problems {
+  color: var(--text-2);
+}
+.skill-problems li + li {
+  margin-top: 2px;
+}

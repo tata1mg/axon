@@ -426,6 +426,54 @@ export default function axonExtension(pi: ExtensionAPI): void {
     return new Text(theme.fg("accent", message), 1, 0);
   });
 
+  pi.registerCommand("axon-hub", {
+    description: "Open Axon Hub in your browser to manage MCP servers",
+    handler: async (args, ctx) => {
+      if (!ctx.hasUI) return;
+      if (args.trim()) {
+        ctx.ui.notify("Usage: /axon-hub", "warning");
+        return;
+      }
+      const relay = authRelayConfiguration();
+      // The launcher serves the Hub only to the TUI and local RPC clients.
+      if ((ctx.mode !== "tui" && ctx.mode !== "rpc") || relay === undefined) {
+        ctx.ui.notify("Run axon hub from a terminal to open Axon Hub.", "warning");
+        return;
+      }
+      try {
+        const response = await fetch(new URL("/_axon/hub/open", relay.origin), {
+          method: "POST",
+          headers: { Authorization: `Bearer ${relay.capability}` },
+          redirect: "error",
+          cache: "no-store",
+          signal: AbortSignal.timeout(5000),
+        });
+        if (response.status === 204) {
+          ctx.ui.notify("Axon Hub opened. Run /reload after saving MCP changes.", "info");
+          return;
+        }
+        if (response.ok) {
+          const { launchUrl } = (await response.json()) as { launchUrl?: unknown };
+          if (
+            typeof launchUrl === "string" &&
+            /^http:\/\/127\.0\.0\.1:[1-9]\d{0,4}\/_axon\/hub\/#token=[a-f0-9]{64}$/.test(launchUrl)
+          ) {
+            ctx.ui.notify(
+              `Could not open the browser. Open this private link manually: ${launchUrl}`,
+              "warning",
+            );
+            return;
+          }
+        } else {
+          await response.body?.cancel();
+        }
+      } catch {
+        // Do not surface raw fetch errors or relay credentials in the TUI.
+      }
+      ctx.ui.notify("Could not open Axon Hub. Try axon hub from a terminal.", "warning");
+    },
+  });
+
   pi.registerCommand("axon-status", {
     description: "Show the active Axon integration status",
     handler: async () => {

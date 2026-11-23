@@ -1,9 +1,9 @@
-import { spawn } from "node:child_process";
 import { setTimeout as sleep } from "node:timers/promises";
 
 import { isCancel, select } from "@clack/prompts";
 
 import { BUILD_INFO } from "../../build-info.ts";
+import { openBrowser } from "../../launcher/browser.ts";
 import { LauncherError } from "../../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../../product/endpoints.ts";
@@ -113,20 +113,6 @@ async function pollEncryptedSession(
     await sleep(POLL_INTERVAL_MS, undefined, { signal });
   }
   throw new Error("Browser login timed out");
-}
-
-async function openBrowser(url: string): Promise<void> {
-  const command =
-    process.platform === "darwin" ? "open" : process.platform === "win32" ? "rundll32" : "xdg-open";
-  const arguments_ = process.platform === "win32" ? ["url.dll,FileProtocolHandler", url] : [url];
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn(command, arguments_, { stdio: "ignore" });
-    child.once("error", reject);
-    child.once("exit", (code) => {
-      if (code === 0) resolve();
-      else reject(new Error("Could not open the browser"));
-    });
-  });
 }
 
 async function runAuthLoginInternal(paths: AxonPaths, options: AuthLoginOptions): Promise<boolean> {

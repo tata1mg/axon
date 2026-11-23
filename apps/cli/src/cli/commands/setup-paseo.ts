@@ -1,30 +1,20 @@
-import { confirm, isCancel } from "@clack/prompts";
-
-import { currentPiInvocationEnvironment } from "../../harnesses/pi/setup/packages/invocation.ts";
 import { configurePaseo, type PaseoSetupOptions } from "../../integrations/paseo.ts";
+import { replacementConfirmation } from "./integration-setup.ts";
 
 export async function runPaseoSetup(
   options: PaseoSetupOptions,
   environment: NodeJS.ProcessEnv,
   cwd: string,
 ): Promise<void> {
-  const invocation = currentPiInvocationEnvironment(environment);
-  const interactive = !invocation.ci && invocation.stdinIsTty && invocation.stdoutIsTty;
   const result = await configurePaseo({
     ...options,
     environment,
     cwd,
-    ...(interactive
-      ? {
-          confirmReplacement: async (configPath: string) => {
-            const answer = await confirm({
-              message: `Update Axon setup in ${configPath} (enable relay and integration features, configure the terminal profile, and disable other built-in providers)?`,
-              initialValue: false,
-            });
-            return !isCancel(answer) && answer === true;
-          },
-        }
-      : {}),
+    ...replacementConfirmation(
+      environment,
+      (configPath) =>
+        `Update Axon setup in ${configPath} (enable relay and integration features, configure the terminal profile, and disable other built-in providers)?`,
+    ),
   });
 
   if (result.status === "cancelled") {

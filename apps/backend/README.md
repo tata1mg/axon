@@ -4,7 +4,7 @@ The centralized management API for Axon CLI installations. It also serves the `a
 
 ## Prerequisites
 
-- Python 3.12
+- Python 3.14
 - [uv](https://docs.astral.sh/uv/)
 
 ## Setup
@@ -297,6 +297,8 @@ Routing, in match order:
 | `/install.sh` | Public, unauthenticated CLI installer |
 | `/api/v1/auth/browser-login` | Existing public browser-login start POST and GET polling at `/{session_id}` |
 | `/api/v1/cli/config` | Session-authenticated, non-secret telemetry, search, and Pi preferences |
+| `/api/v1/admin/*` | Admin dashboard API (`ADMIN_DASHBOARD.ENABLED`); cookie-held axon-auth session plus config-listed role. 404 when disabled |
+| `/api/v1/catalog` | Session-authenticated, published organization catalog for `axon hub` (see [Organization catalog](#organization-catalog)) |
 | `/litellm/*` | Session-authenticated LiteLLM proxy; streaming, native identity, and model authorization |
 | `/litellm-admin/*` | Opt-in browser proxy (`LITELLM.UI_ENABLED`); LiteLLM's own login/auth, no backend credential injection |
 | `/api/v1/otel/v1/{traces,metrics,logs}` | Session-authenticated OTLP/HTTP proxy with authoritative identity |
@@ -319,6 +321,7 @@ For `https://deputydev.ai/axon/`, keep the public mount consistent across the CL
 | CLI build/publishing `AXON_SERVICE_ORIGIN` | `https://deputydev.ai/axon` (no trailing slash) |
 | Backend `CLI_INSTALL.RELEASES_URL` | `https://deputydev.ai/axon/api/v1/cli/releases` |
 | Backend `AUTH_SERVICE.BROWSER_LOGIN_URL` | The actual browser login application's HTTPS URL ending in `/external-auth`; include its mount if applicable |
+| Backend `ADMIN_DASHBOARD.PUBLIC_BASE_PATH` | `/axon`, so admin cookies are scoped to `/axon/api/v1/admin` |
 
 Ingress must strip `/axon` before forwarding to this app: `/axon/install.sh` becomes `/install.sh`, `/axon/api/v1/*` becomes `/api/v1/*`, and `/axon/litellm/*` becomes `/litellm/*`. Preserve HTTP methods, ordered queries, and streaming responses. Forward the entire mount, not only installer/release URLs. The backend's internal routes do not gain a hard-coded `/axon` prefix.
 
@@ -326,7 +329,7 @@ Restart the backend after changing its ignored `config.json` and rebuild the CLI
 
 The Dockerfile builds the console using `apps/frontend/config_template.json`, which sets `VITE_BASE_PATH` to `/axon/` and `BASE_API_URL` to `/axon`. Asset requests such as `/axon/assets/index-….js` must also have `/axon` stripped by ingress. No custom frontend build arguments are needed; change the template and rebuild the image for root hosting or another prefix. See [frontend build-time deployment paths](../frontend/README.md#build-time-deployment-paths).
 
-The current console is a scaffold, not the external-auth application. Only use `https://deputydev.ai/axon/external-auth` for `BROWSER_LOGIN_URL` if your deployment actually serves the login page there. The separate MCP catalog must likewise be available as JSON at `https://deputydev.ai/axon/v1/cli/pi/mcp.json`; the SPA fallback is not a catalog implementation.
+The console is not the external-auth application. Only use `https://deputydev.ai/axon/external-auth` for `BROWSER_LOGIN_URL` if your deployment actually serves the login page there.
 
 Public smoke checks after publication:
 
@@ -337,6 +340,62 @@ curl -i https://deputydev.ai/axon/api/v1/cli/releases/0.2.0/checksums.txt
 ```
 
 The release base URL itself has no GET route. An empty `LATEST_VERSION` intentionally makes `/latest/VERSION` return 503 until a verified release is promoted.
+
+### Admin dashboard
+
+The console serves an admin dashboard at `/admin` (`/axon/admin` in production). It is the home for organization-wide management; the first version provides sign-in, roles, and an audit log. It is disabled unless configured:
+
+```json
+"ADMIN_DASHBOARD": {
+  "ENABLED": true,
+  "PUBLIC_BASE_PATH": "/axon",
+  "MEMBERS": { "lead@example.com": "admin", "oncall@example.com": "viewer" },
+  "SESSION_TTL_SECONDS": 28800,
+  "LOGIN_TIMEOUT_SECONDS": 600,
+  "SECURE_COOKIES": true
+}
+```
+
+- **Access is configuration.** `MEMBERS` maps email addresses (case-insensitive) to `admin` (view and change) or `viewer` (view only). The dashboard can list members but never grant access; edit `config.json` and restart. Roles are re-read on every request, so removing someone ends their dashboard session on the next request. Enabling requires `AUTH_SERVICE` and at least one `admin`.
+- **Sign-in uses axon-auth.** The dashboard starts the same browser-login pairing as the CLI, opens `AUTH_SERVICE.BROWSER_LOGIN_URL` in a new tab, and polls. It is a separate, browser-bound exchange: the login cookie (HttpOnly) holds a random secret, and the browser URL carries only a pairing ID derived one-way from it. The dashboard poll needs the secret, and the public CLI poll route (`/api/v1/auth/browser-login/{id}`) refuses dashboard pairing IDs, so code that reads the login URL cannot collect the credential. This assumes axon-auth's own session lookup is reachable only from the backend. On success the backend verifies the axon-auth session, checks the email against `MEMBERS`, and stores that axon-auth session credential in an HttpOnly cookie. There is no dashboard session table.
+- **Every request is verified with axon-auth**, like a CLI bearer token. Credential rotations update the cookie on every response, error responses included, and are never exposed as a readable header. Signing out clears the cookie, even when the sign-out cannot be audited (that returns a 500 that still deletes the cookie); the dashboard shows "signed out" only after the server confirms the session is gone. the axon-auth session itself remains valid until axon-auth expires it. `SESSION_TTL_SECONDS` only caps how long the browser keeps the cookie.
+- **Cookies** are HttpOnly, `SameSite=Strict`, and scoped to `PUBLIC_BASE_PATH + /api/v1/admin`, so the LiteLLM proxies on the same origin never receive them; the LiteLLM UI proxy also strips them by name. Set `SECURE_COOKIES` to `false` only for local plain-HTTP development. A credential that cannot fit in a browser cookie (about 3.9 KB after encoding) fails sign-in with a clear 503 rather than silently.
+- **CSRF and cross-origin.** Every admin request must send `X-Axon-Admin: 1` and must not be `Sec-Fetch-Site: cross-site`. Together with `SameSite=Strict`, that blocks cross-site use without a separate CSRF token.
+- **Audit log.** `META_HARNESS_admin_audit_events` (migration `20261117120000`) records sign-ins, denied sign-ins, sign-outs, and catalog changes. New admin features must record every write with `AdminAuditLog.record(...)`.
+
+As with the CLI, anyone who completes a sign-in link started by someone else hands that browser their session. Only open sign-in tabs that you started.
+
+To add a dashboard feature: add routes on an `APIRouter` using `AdminRoute` and `dependencies=[Depends(require_admin_api)]` (see `app/routers/admin.py`), require a role with the `AnyAdmin`/`FullAdmin` dependencies from `app/services/admin/guards.py`, and register a page in `apps/frontend/src/admin/sections.ts`.
+
+For local development, set `PUBLIC_BASE_PATH` to `""` and `SECURE_COOKIES` to `false`, run the frontend with root-based paths, and open `http://localhost:8010/admin`.
+
+### Organization catalog
+
+Admins curate MCP servers (and, as a preview, skills) that developers install from `axon hub`. The
+design and the rollout plan are in [`docs/hub-catalog-plan.md`](../../docs/hub-catalog-plan.md).
+Migration `20261117160000` adds two tables; it seeds nothing, so admins create entries through the
+dashboard.
+
+- `META_HARNESS_catalog_items` holds one row per entry: `kind` (`mcp`, `skill`), `slug` (the name
+  users install under, unique per kind), `status` (`draft`, `published`, `archived`), and the
+  admin's working `draft`. Every write must send the row's current `lock_version`; a stale one
+  returns 409.
+- `META_HARNESS_catalog_item_revisions` is append-only. Publishing validates the draft, stores a
+  normalized copy as revision N+1, and points the item at it. Revisions cannot be deleted with their
+  item.
+- **Validation is structural.** Drafts may be saved incomplete; reads return their `errors` and
+  `warnings`. Publishing requires no errors. Warnings (unpinned `npx`/`uvx` packages, literal
+  credential values, `http://` URLs, missing descriptions or prerequisites, non-`codemode` exposure)
+  are guidance for the dashboard and never block publishing. Spec schemas, warnings, and install tiers
+  (`one_click`, `guided`, `manual`) live in `app/services/catalog/specs.py`.
+- **Admin routes** are under `/api/v1/admin/catalog` (viewers read, admins write): `items`
+  (list, create), `items/{id}` (get, `PATCH` the draft, slug, `featured` or `sort_order`, `DELETE`
+  only if never published), `items/{id}/publish`, `unpublish`, `archive`, `unarchive`,
+  `items/{id}/revisions[/{n}]`, `items/{id}/revisions/{n}/restore` (copies into the draft), and
+  `validate`. Each write records a `catalog.*` audit event in the same transaction as the change.
+- **Client route.** `GET /api/v1/catalog?kinds=mcp:1,skill:0` requires a CLI bearer session and
+  returns published items whose kind and spec version the client names (default `mcp:1`). Unknown
+  kinds are ignored, so older backends serve newer clients.
 
 ### Web search
 
@@ -438,38 +497,58 @@ Environment fallback retains standard HTTP/protobuf or gRPC exporters and enviro
 
 #### Pi startup defaults
 
-The template enables codemode, the LiteLLM MCP bridge, and cache notices independently for managed Pi launches:
+The template enables codemode, the LiteLLM MCP bridge, and cache notices, and leaves LiteLLM Skill Hub
+and the budget footer off, independently for managed Pi launches:
 
 ```json
 "CLI_CLIENT_CONFIG": {
   "PI": {
     "CODEMODE_ENABLED": true,
-    "LITELLM_MCP_ENABLED": true,
     "SHOW_CACHE_MISS_NOTICES": true,
     "DEFAULT_PROVIDER": "",
     "DEFAULT_MODEL": ""
+  },
+  "LITELLM_FEATURES": {
+    "MCP_ENABLED": true,
+    "SKILLS_ENABLED": false,
+    "BUDGET_ENABLED": false
   }
 }
 ```
 
-When `PI` is configured, both toggles must be JSON booleans. The config API projects them as
+When `PI` is configured, `CODEMODE_ENABLED` must be a JSON boolean. The config API projects it as
 `"pi": { "codemodeEnabled": true, "litellmMcpEnabled": true, "showCacheMissNotices": true }`. Before launching Pi,
-`axon` merges `"+codemode"` and `"litellm": { "mcp": { "enabled": true } }` into
-`$AXON_HOME/pi/settings.json` (normally `~/.axon/pi/settings.json`), preserving other tool choices,
-packages, LiteLLM MCP exposure/tool preferences, and unrelated settings. Enabling the bridge lets
-Pi discover MCP tools through the authenticated LiteLLM relay; upstream permissions still apply.
+`axon` merges `"+codemode"` into `$AXON_HOME/pi/settings.json` (normally `~/.axon/pi/settings.json`),
+preserving other tool choices, packages, and unrelated settings.
+
+`LITELLM_FEATURES` switches `pi-provider-litellm`'s optional features: the MCP bridge, Skill Hub (enabled
+skills fetched into the system prompt before each turn, plus skill-management tools), and the budget footer
+(spend against LiteLLM limits, plus `/litellm-budget`). Each value is a JSON boolean; an omitted or null
+switch is off. The config API projects the section as `"litellmFeatures": { "mcp": true, "skills": false,
+"budget": false }`, and also projects `MCP_ENABLED` as `pi.litellmMcpEnabled`, which CLI 1.0.x requires
+(newer CLIs ignore it). The deprecated `PI.LITELLM_MCP_ENABLED` is still accepted as the MCP value when
+`LITELLM_FEATURES.MCP_ENABLED` is unset; configuring both with different values fails startup.
+
+The switches reach Pi as launch environment, not settings: `axon` sets `LITELLM_ENABLE_MCP`,
+`LITELLM_ENABLE_SKILLS`, and `LITELLM_ENABLE_BUDGET` to `1` or `0`, which `pi-provider-litellm` reads before
+its `litellm.*` settings blocks. A non-blank value the user already exported is passed through unchanged,
+so automated pipelines can turn features on or off, for example `LITELLM_ENABLE_MCP=0 axon pi -p ...`.
+Without backend values (offline, a failed fetch, or neither key configured), all three are `0`.
+`litellm.*.enabled` values written by earlier Axon releases stay in `settings.json` but are overridden.
+Enabling the MCP bridge lets Pi discover MCP tools through the authenticated LiteLLM relay; upstream
+permissions still apply.
 It leaves `codemode.inlineBudget` unset, so Pi uses its default of 3000 unless the user has configured it.
 Standalone `~/.pi/agent/settings.json` is never modified.
 
 These are defaults, not enforced policy: Pi CLI flags and trusted project settings can override them.
 On `/reload`, a managed online session fetches fresh backend Pi defaults through the launcher
 relay before Pi reloads settings and provider extensions. This reapplies managed Pi defaults, including
-restoring the backend MCP value after a local edit. It does not refresh telemetry/search or launch-only compaction/recommender/provider preferences
+updating the LiteLLM switches Axon set (never ones the user exported). It does not refresh telemetry/search or launch-only compaction/recommender/provider preferences
 or poll in the background. Fetch/auth/schema failures preserve the current settings and warn safely.
 Pi preserves already-active tools on reload: changing `CODEMODE_ENABLED` updates its tool-selection
-default but does not forcibly deactivate an active codemode tool. The MCP bridge is recreated using
-the freshly applied value.
-`CODEMODE_ENABLED: false` sets a disabled codemode startup default; `LITELLM_MCP_ENABLED: false`
+default but does not forcibly deactivate an active codemode tool. The LiteLLM provider reloads with
+the freshly applied MCP, skills, and budget switches.
+`CODEMODE_ENABLED: false` sets a disabled codemode startup default; `LITELLM_FEATURES.MCP_ENABLED: false`
 disables the LiteLLM MCP bridge without changing codemode or separately configured MCP servers.
 `SHOW_CACHE_MISS_NOTICES` projects as `pi.showCacheMissNotices` and writes Pi's `showCacheMissNotices`
 setting. It defaults to `true` when omitted from a configured `PI` section; set it to `false` to hide
@@ -489,6 +568,43 @@ and reused offline. Unsafe settings or a busy settings lock are left untouched, 
 Restart the backend after a config edit; defaults apply on the next online authenticated CLI launch
 or `/reload` in an updated managed online session. Existing sessions need one updated CLI launch
 to load the managed reload hook.
+
+#### TUI default model
+
+`TUI_DEFAULT_MODEL` picks the model, and optionally the thinking level, that new interactive (TUI)
+sessions start with while the user has no saved default model. Without a saved default, Pi starts on
+the first available model, which for LiteLLM is the first in alphabetical order:
+
+```json
+"TUI_DEFAULT_MODEL": {
+  "PROVIDER": "litellm",
+  "MODEL": "z-ai/glm-5.3",
+  "THINKING_LEVEL": "max"
+}
+```
+
+`PROVIDER` and `MODEL` are trimmed text without control characters, at most 256 characters, set
+together. `THINKING_LEVEL` is optional: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`.
+Empty or null `PROVIDER` and `MODEL` (the template) turn it off. The config API projects it as
+`"tuiDefaultModel": { "provider": "litellm", "model": "z-ai/glm-5.3", "thinkingLevel": "max" }`, a
+top-level section because CLI 1.0.x rejects unknown fields inside `pi`; 1.0.x ignores it.
+
+Unlike `PI.DEFAULT_PROVIDER`/`DEFAULT_MODEL`, nothing is written to settings and the user's choice
+always wins:
+
+- It applies only to the TUI, never to RPC, print, or json mode, and not when the launch passes
+  `--model`, `--models`, `--provider`, or `--thinking`.
+- It applies only to a new session (startup or `/new`) without messages. Resumed (`--continue`,
+  `/resume`), forked, and reloaded sessions keep their own model.
+- It does not apply when the user has a saved `defaultProvider`/`defaultModel` (from `/model`) or a
+  model scope (`enabledModels`). Picking a model with `/model` saves it, so the backend model stops
+  applying from then on.
+- A model that is unavailable to the user is skipped, leaving Pi's own choice.
+- The backend thinking level gives way to one the user saved, globally or for that model.
+- Users can override it per launch by exporting `PI_AXON_TUI_MODEL_PROVIDER` with `PI_AXON_TUI_MODEL`,
+  and `PI_AXON_TUI_THINKING_LEVEL`. An exported thinking level applies even over a saved one.
+
+`/reload` refreshes the backend values for later `/new` sessions.
 
 #### Launch-only compaction, recommender, and provider preferences
 
@@ -534,7 +650,7 @@ startup with a bounded non-secret diagnostic.
 still govern automatic compaction/retention; model/auth checks, idle thresholds, overflow recovery,
 and failure cancellation remain unchanged. Client recommender enablement cannot override a server
 204 eligibility response. Provider context fallback only fills metadata gaps, never known context or
-output limits. The pinned `pi-provider-litellm@4.5.0` may retain older custom fallback values in offline
+output limits. The managed LiteLLM provider may retain older custom fallback values in offline
 caches; do not promise to rewrite all cached metadata without discovery. Publish correct model metadata.
 
 Restart backend workers after edits; values apply on the **next authenticated online non-administrative
@@ -822,7 +938,7 @@ The image builds the frontend and embeds it, so **the build context is the repos
 docker build -t axon-backend .
 ```
 
-The shared Python base stage defaults to the private base `831059512818.dkr.ecr.ap-south-1.amazonaws.com/python:wolfi-3.12.16-r1-test1`. Internal builds do not need to pass `PYTHON_BASE_IMAGE`, but the build runner must have ECR pull permissions and log in before building:
+The shared Python base stage defaults to the private bare Wolfi base `831059512818.dkr.ecr.ap-south-1.amazonaws.com/wolfi:20261023` (the same base as `deputydev-extension-backend`). Internal builds do not need to pass `BASE_IMAGE`, but the build runner must have ECR pull permissions and log in before building:
 
 ```bash
 aws ecr get-login-password --region ap-south-1 | \
@@ -837,11 +953,11 @@ Use the public Wolfi base explicitly; no AWS credentials are required:
 
 ```bash
 docker build \
-  --build-arg PYTHON_BASE_IMAGE=cgr.dev/chainguard/wolfi-base:latest \
+  --build-arg BASE_IMAGE=cgr.dev/chainguard/wolfi-base:latest \
   -t axon-backend .
 ```
 
-The builder and runtime inherit the selected image and shared Python setup. The private base already supplies Python 3.12.14; the public base installs Wolfi's `python-3.12` package. The frontend stage remains `node:24-alpine`.
+The builder and runtime inherit the selected image and shared Python setup. Neither base ships Python: both install Wolfi's `python-3.14` package, intentionally unpinned so every build gets the latest patched 3.14 release, and the build fails fast if the interpreter or its core shared libraries are broken. The frontend stage remains `node:24-alpine`.
 
 ### Optional private-first fallback wrapper
 

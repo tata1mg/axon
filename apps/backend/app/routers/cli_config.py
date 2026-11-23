@@ -10,9 +10,11 @@ from app.core.axon_safehouse import CliAxonSafehousePolicy
 from app.core.cli_config import (
     CliCompactionConfig,
     CliLiteLLMClientConfig,
+    CliLiteLLMFeaturesConfig,
     CliModelRecommenderConfig,
     CliPiConfig,
     CliTelemetryConfig,
+    CliTuiDefaultModelConfig,
 )
 from app.core.config import Settings, get_settings
 from app.core.terminal_permissions import CliTerminalPermissionsConfig
@@ -34,6 +36,9 @@ class CliConfigResponse(BaseModel):
     compaction: CliCompactionConfig | None = None
     model_recommender: CliModelRecommenderConfig | None = Field(default=None, alias="modelRecommender")
     litellm_client: CliLiteLLMClientConfig | None = Field(default=None, alias="litellmClient")
+    litellm_features: CliLiteLLMFeaturesConfig | None = Field(default=None, alias="litellmFeatures")
+    # A top-level section: CLI 1.0.x rejects unknown fields inside the sections it knows.
+    tui_default_model: CliTuiDefaultModelConfig | None = Field(default=None, alias="tuiDefaultModel")
     web_search: CliWebSearchConfig | None = Field(default=None, alias="webSearch")
     terminal_permissions: CliTerminalPermissionsConfig | None = Field(default=None, alias="terminalPermissions")
 
@@ -67,6 +72,8 @@ async def client_config(settings: Annotated[Settings, Depends(get_settings)]) ->
         compaction=settings.cli_compaction,
         modelRecommender=settings.cli_model_recommender,
         litellmClient=settings.cli_litellm_client,
+        litellmFeatures=settings.cli_litellm_features,
+        tuiDefaultModel=settings.cli_tui_default_model,
         webSearch=settings.web_search.cli_config(),
         terminalPermissions=settings.terminal_permissions.cli_config()
         if settings.terminal_permissions is not None

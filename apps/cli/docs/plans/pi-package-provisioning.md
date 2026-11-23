@@ -7,7 +7,7 @@
 Implemented:
 
 - Embedded, schema-validated manifest with typed `pi.install` actions and exact, minimum, and floating policies.
-- Required floating entry for `@juicesharp/rpiv-ask-user-question` and an exact `3.0.1` entry for `pi-provider-litellm`. The legacy `pi-mcp-adapter` is retired and removed by package reconciliation when verified as Axon-managed.
+- Required entries for `@juicesharp/rpiv-ask-user-question` and `pi-provider-litellm`, pinned in the embedded manifest. The legacy `pi-mcp-adapter` is retired and removed by package reconciliation when verified as Axon-managed.
 - Content-addressed Axon Pi resource materialization with checksum verification, atomic `runtime/current` activation, and a separately typechecked core extension.
 - Local settings/package inspection, enforced required entries, package provenance state, same-user locks, direct Pi install/remove subprocesses, exact-version fallback, minimum floors, and Pi/user-owned floating updates.
 - Automatic interactive provisioning, local-only non-interactive validation, forwarded Pi administration exemptions, explicit `axon setup pi --sync-packages`, and package-aware doctor output.
@@ -166,7 +166,7 @@ Expected implementation paths; final names may be adjusted to existing module bo
 - `resolveExecutablePath()` and direct `Bun.spawn` patterns in `src/launcher/` rather than shell execution.
 - `BUILD_INFO` and the existing Bun compile-time define pipeline for binding the embedded manifest to a Axon release.
 - Existing temporary-home/fake-harness test patterns in `tests/launcher.test.ts` and MCP setup dependency-injection patterns in `tests/pi-mcp-setup.test.ts`.
-- The temporary-file, restrictive-mode, re-read, and atomic-rename patterns in `src/harnesses/pi/setup/mcp-config.ts`; extract a shared helper only if package settings/state need identical semantics.
+- The temporary-file, restrictive-mode, re-read, and atomic-rename patterns in `src/hub/mcp-store.ts` (the launch-time `mcp-config.ts` sync that used to show them was removed); extract a shared helper only if package settings/state need identical semantics.
 
 ## Steps
 

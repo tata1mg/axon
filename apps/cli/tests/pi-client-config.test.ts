@@ -65,7 +65,11 @@ beforeAll(async () => {
             schemaVersion: 1,
             ...(codemodeEnabled === undefined
               ? {}
-              : { pi: { codemodeEnabled, litellmMcpEnabled, showCacheMissNotices } }),
+              : {
+                  // Like the backend: pi.litellmMcpEnabled for CLI 1.0.x, litellmFeatures for newer.
+                  pi: { codemodeEnabled, litellmMcpEnabled, showCacheMissNotices },
+                  litellmFeatures: { mcp: litellmMcpEnabled, skills: false, budget: false },
+                }),
             ...launchPreferences,
             terminalPermissions: terminalPolicy,
             webSearch: {
@@ -256,7 +260,12 @@ describe("real Pi adapter client config integration", () => {
     const settings = await Bun.file(join(paths.pi, "settings.json")).json();
     expect(settings.defaultTools).toEqual(["+codemode"]);
     expect(settings.showCacheMissNotices).toBe(true);
-    expect(settings.litellm.mcp.enabled).toBe(true);
+    // Optional LiteLLM features reach Pi as LITELLM_ENABLE_*, never as managed settings.
+    expect(settings.litellm).toBeUndefined();
+    expect(environment["LITELLM_ENABLE_MCP"]).toBe("1");
+    expect(environment["LITELLM_ENABLE_SKILLS"]).toBe("0");
+    expect(environment["LITELLM_ENABLE_BUDGET"]).toBe("0");
+    expect(environment["PI_AXON_LITELLM_MANAGED_FEATURES"]).toBe("mcp,skills,budget");
     expect(settings.codemode).toBeUndefined();
     expect(settings.packages).toEqual(
       normalizeManifestPackages(AXON_MANIFEST).map((entry) => entry.configuredSource),
@@ -311,16 +320,27 @@ describe("real Pi adapter client config integration", () => {
         for (const mcp of [true, false]) {
           codemodeEnabled = codemode;
           litellmMcpEnabled = mcp;
-          await launchSpec({
+          const environment = await launchSpec({
             disabled: true,
             searchDisabled: true,
             userArguments: ["--tools", "read,bash", "hello"],
           });
           const settings = await Bun.file(settingsPath).json();
           expect(settings.defaultTools).toEqual([codemode ? "+codemode" : "-codemode"]);
-          expect(settings.litellm.mcp.enabled).toBe(mcp);
+          expect(environment["LITELLM_ENABLE_MCP"]).toBe(mcp ? "1" : "0");
         }
       }
+      // A pipeline's own switch wins over the backend and is not managed on reload.
+      litellmMcpEnabled = false;
+      const environment = await launchSpec({
+        disabled: true,
+        searchDisabled: true,
+        environment: { LITELLM_ENABLE_MCP: "1", LITELLM_ENABLE_BUDGET: "true" },
+      });
+      expect(environment["LITELLM_ENABLE_MCP"]).toBe("1");
+      expect(environment["LITELLM_ENABLE_BUDGET"]).toBe("true");
+      expect(environment["LITELLM_ENABLE_SKILLS"]).toBe("0");
+      expect(environment["PI_AXON_LITELLM_MANAGED_FEATURES"]).toBe("skills");
     } finally {
       codemodeEnabled = true;
       litellmMcpEnabled = true;
@@ -469,6 +489,72 @@ describe("real Pi adapter client config integration", () => {
       expect(removed["PI_COMPACTION_MODEL"]).toBe("litellm/local");
       expect(removed["LITELLM_DEFAULT_CONTEXT_WINDOW"]).toBe("9999");
       expect(await Bun.file(settingsPath).text()).toBe(settings);
+    } finally {
+      launchPreferences = original;
+    }
+  });
+
+  test("the TUI default model reaches interactive launches without model flags only", async () => {
+    const original = launchPreferences;
+    const settingsPath = join(root, "pi", "settings.json");
+    const tui = (environment: Record<string, string>) => [
+      environment["PI_AXON_TUI_MODEL_MANAGED"],
+      environment["PI_AXON_TUI_MODEL_PROVIDER"],
+      environment["PI_AXON_TUI_MODEL"],
+      environment["PI_AXON_TUI_THINKING_LEVEL"],
+    ];
+    const none = [undefined, undefined, undefined, undefined];
+    // An inherited marker never makes exported values look backend-managed.
+    const marker = { PI_AXON_TUI_MODEL_MANAGED: "model,thinkingLevel" };
+    const exported = {
+      PI_AXON_TUI_MODEL_PROVIDER: "litellm",
+      PI_AXON_TUI_MODEL: "anthropic/claude-opus-5.5",
+      PI_AXON_TUI_THINKING_LEVEL: "high",
+    };
+    try {
+      launchPreferences = {
+        ...original,
+        tuiDefaultModel: { provider: "litellm", model: "z-ai/glm-5.3", thinkingLevel: "max" },
+      };
+      const settings = await Bun.file(settingsPath).text();
+      expect(tui(await launchSpec({ environment: marker }))).toEqual([
+        "model,thinkingLevel",
+        "litellm",
+        "z-ai/glm-5.3",
+        "max",
+      ]);
+      expect(await Bun.file(settingsPath).text()).toBe(settings);
+      // Values the user exported win over the backend's.
+      expect(tui(await launchSpec({ environment: { ...marker, ...exported } }))).toEqual([
+        undefined,
+        "litellm",
+        "anthropic/claude-opus-5.5",
+        "high",
+      ]);
+      expect(tui(await launchSpec({ environment: { PI_AXON_TUI_THINKING_LEVEL: "low" } }))).toEqual(
+        ["model", "litellm", "z-ai/glm-5.3", "low"],
+      );
+      for (const options of [
+        { interactive: false },
+        { userArguments: ["--mode", "rpc"] },
+        { userArguments: ["-p", "hello"] },
+        { userArguments: ["--model", "litellm/other"] },
+        { userArguments: ["--models=litellm/*"] },
+        { userArguments: ["--provider", "litellm", "--model", "other"] },
+        { userArguments: ["--thinking", "low"] },
+      ]) {
+        expect(
+          tui(await launchSpec({ ...options, environment: { ...marker, ...exported } })),
+        ).toEqual(none);
+      }
+      // Managed without a backend value, so a /reload can still supply one.
+      launchPreferences = original;
+      expect(tui(await launchSpec())).toEqual([
+        "model,thinkingLevel",
+        undefined,
+        undefined,
+        undefined,
+      ]);
     } finally {
       launchPreferences = original;
     }

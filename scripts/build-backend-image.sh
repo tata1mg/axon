@@ -4,19 +4,19 @@
 set -eu
 
 REPOSITORY_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-PRIVATE_IMAGE=831059512818.dkr.ecr.ap-south-1.amazonaws.com/python:wolfi-3.12.16-r1-test1
+PRIVATE_IMAGE=831059512818.dkr.ecr.ap-south-1.amazonaws.com/wolfi:20261023
 PUBLIC_IMAGE=cgr.dev/chainguard/wolfi-base:latest
 
 if docker pull --platform=linux/amd64 "$PRIVATE_IMAGE"; then
-    PYTHON_BASE_IMAGE=$PRIVATE_IMAGE
+    BASE_IMAGE=$PRIVATE_IMAGE
 else
-    printf '%s\n' 'Internal Python image unavailable; falling back to public Wolfi.' >&2
-    PYTHON_BASE_IMAGE=$PUBLIC_IMAGE
+    printf '%s\n' 'Internal Wolfi image unavailable; falling back to public Wolfi.' >&2
+    BASE_IMAGE=$PUBLIC_IMAGE
 fi
 
-printf 'Building backend with Python base: %s\n' "$PYTHON_BASE_IMAGE"
+printf 'Building backend with Wolfi base: %s\n' "$BASE_IMAGE"
 exec docker build \
     --file "$REPOSITORY_ROOT/Dockerfile" \
-    --build-arg "PYTHON_BASE_IMAGE=$PYTHON_BASE_IMAGE" \
+    --build-arg "BASE_IMAGE=$BASE_IMAGE" \
     "$@" \
     "$REPOSITORY_ROOT"
