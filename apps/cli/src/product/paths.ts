@@ -11,6 +11,7 @@ export interface AxonPaths {
   readonly bin: string;
   readonly managedBinary: string;
   readonly previousBinary: string;
+  readonly piWrapper: string;
   readonly runtime: string;
   readonly runtimeCurrent: string;
   readonly pi: string;
@@ -53,6 +54,7 @@ export function resolveAxonPaths(
     bin,
     managedBinary: join(bin, PRODUCT_IDENTITY.command),
     previousBinary: join(bin, `${PRODUCT_IDENTITY.command}.prev`),
+    piWrapper: join(bin, `${PRODUCT_IDENTITY.command}-pi`),
     runtime,
     runtimeCurrent: join(runtime, "current"),
     pi,

@@ -1,22 +1,14 @@
-import { rm, stat } from "node:fs/promises";
+import { rm } from "node:fs/promises";
 import { dirname, parse, resolve } from "node:path";
 
 import { LauncherError } from "../../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
+import { isRunningManagedBinary } from "../../launcher/managed-binary.ts";
 import { PRODUCT_IDENTITY } from "../../product/identity.ts";
 import type { AxonPaths } from "../../product/paths.ts";
 
 export interface UninstallOptions {
   readonly removeRuntimes?: boolean;
-}
-
-async function sameFile(left: string, right: string): Promise<boolean> {
-  try {
-    const [leftStatus, rightStatus] = await Promise.all([stat(left), stat(right)]);
-    return leftStatus.dev === rightStatus.dev && leftStatus.ino === rightStatus.ino;
-  } catch {
-    return false;
-  }
 }
 
 function assertSafeManagedHome(paths: AxonPaths): void {
@@ -33,7 +25,7 @@ function assertSafeManagedHome(paths: AxonPaths): void {
 export async function runUninstall(paths: AxonPaths, options: UninstallOptions): Promise<void> {
   assertSafeManagedHome(paths);
 
-  if (!(await sameFile(process.execPath, paths.managedBinary))) {
+  if (!(await isRunningManagedBinary(paths))) {
     throw new LauncherError(
       `refusing to remove an unmanaged executable; this process is not ${paths.managedBinary}`,
       LAUNCHER_EXIT_STATUS.unsupportedEnvironment,
@@ -46,7 +38,9 @@ export async function runUninstall(paths: AxonPaths, options: UninstallOptions):
 
   await rm(paths.managedBinary, { force: true });
   await rm(paths.previousBinary, { force: true });
+  await rm(paths.piWrapper, { force: true });
   console.log(`removed managed binary: ${paths.managedBinary}`);
+  console.log(`removed Pi wrapper: ${paths.piWrapper}`);
 
   if (options.removeRuntimes === true) {
     await rm(paths.runtime, { force: true, recursive: true });

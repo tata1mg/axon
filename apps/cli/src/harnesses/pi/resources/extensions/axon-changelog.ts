@@ -24,8 +24,11 @@ export const AXON_RELEASES = [
 ### New Features
 - Open the local Axon Hub with \`axon hub\` or \`/axon-hub\` in Pi to manage MCP servers and see which user-level skills Pi loads.
 - Discover and install organization-published MCP servers with guided setup.
+- Add Axon as a T3 Code provider with \`axon setup t3code\`.
+- Apps that run a Pi binary directly can use the \`axon-pi\` wrapper; \`axon paths\` shows where it is.
 
 ### Changed
+- Set \`AXON_IGNORE_OFFLINE=1\` to run \`--offline\` or \`PI_OFFLINE\` Pi launches online, for apps that request offline launches on their own.
 - Updated Pi to 1.6.0 and the managed LiteLLM provider to 4.9.0.
 - LiteLLM MCP, Skill Hub, and budget footer are configured by your organization; \`LITELLM_ENABLE_MCP\`, \`LITELLM_ENABLE_SKILLS\`, and \`LITELLM_ENABLE_BUDGET\` override them for automation.
 - New sessions start on your organization's recommended model and thinking level until you pick a default with \`/model\`. Export \`PI_AXON_TUI_MODEL_PROVIDER\` with \`PI_AXON_TUI_MODEL\`, or \`PI_AXON_TUI_THINKING_LEVEL\`, to choose your own.

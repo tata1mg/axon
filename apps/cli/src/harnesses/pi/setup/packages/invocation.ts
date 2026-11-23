@@ -25,6 +25,7 @@ const NONINTERACTIVE_FLAGS = new Set(["--print", "-p", "--export"]);
 const OPTION_TERMINATOR = "--";
 const OFFLINE_FLAG = "--offline";
 const OFFLINE_ENVIRONMENT_VARIABLE = "PI_OFFLINE";
+const IGNORE_OFFLINE_ENVIRONMENT_VARIABLE = "AXON_IGNORE_OFFLINE";
 
 /**
  * Pi stops option parsing at `--`; everything after it is a message or file.
@@ -92,6 +93,27 @@ export function classifyPiInvocation(
   }
 
   return "interactive";
+}
+
+/**
+ * Axon verifies the session online before every Pi launch, so an offline launch
+ * always fails. Clients that request offline launches on their own (for example
+ * short-lived model-discovery probes) can set `AXON_IGNORE_OFFLINE=1` to get a
+ * normal online launch instead. This removes `--offline` before `--` and deletes
+ * `PI_OFFLINE` from `environment`, so the launcher and Pi agree on the result.
+ */
+export function ignoreOfflineRequest(
+  environment: NodeJS.ProcessEnv,
+  argumentsVector: readonly string[],
+): readonly string[] {
+  if (!isTrue(Reflect.get(environment, IGNORE_OFFLINE_ENVIRONMENT_VARIABLE) as string | undefined))
+    return argumentsVector;
+  Reflect.deleteProperty(environment, OFFLINE_ENVIRONMENT_VARIABLE);
+  const options = piOptionTokens(argumentsVector);
+  return [
+    ...options.filter((argument) => argument !== OFFLINE_FLAG),
+    ...argumentsVector.slice(options.length),
+  ];
 }
 
 /**

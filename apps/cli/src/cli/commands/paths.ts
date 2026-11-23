@@ -7,6 +7,7 @@ export function printPaths(paths: AxonPaths): void {
     ["shared authentication lock", paths.sharedAuthLock],
     ["managed binary", paths.managedBinary],
     ["previous binary", paths.previousBinary],
+    ["Pi wrapper", paths.piWrapper],
     ["runtime", paths.runtime],
     ["active runtime", paths.runtimeCurrent],
     ["Pi agent directory", paths.pi],

@@ -3,6 +3,7 @@ import { intro } from "@clack/prompts";
 import {
   classifyPiInvocation,
   currentPiInvocationEnvironment,
+  ignoreOfflineRequest,
   isPiOffline,
   isPiRpcMode,
 } from "../harnesses/pi/setup/packages/invocation.ts";
@@ -10,6 +11,8 @@ import { resolveHarnessRegistration } from "../harnesses/registry.ts";
 import { LauncherError } from "../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../launcher/exit-status.ts";
 import { launchRegisteredHarness } from "../launcher/launch-harness.ts";
+import { isRunningManagedBinary } from "../launcher/managed-binary.ts";
+import { ensurePiWrapper } from "../launcher/pi-wrapper.ts";
 import { PRODUCT_IDENTITY } from "../product/identity.ts";
 import { resolveAxonPaths } from "../product/paths.ts";
 import { runStartupUpdate, scheduleBackgroundUpdate } from "../updater/startup.ts";
@@ -30,6 +33,24 @@ async function runDefaultHarness(): Promise<void> {
   // Bare axon and axon pi share one verification and browser-login path.
   // Noninteractive runs still validate, but never prompt for browser login.
   await dispatch(["pi"]);
+}
+
+/** Applies launch-wide opt-ins before anything inspects the arguments or environment. */
+export function prepareLaunchArguments(
+  argumentsVector: readonly string[],
+  environment: NodeJS.ProcessEnv = process.env,
+): readonly string[] {
+  const [head, ...harnessArguments] = argumentsVector;
+  if (head === undefined || resolveHarnessRegistration(head) === undefined) return argumentsVector;
+  return [head, ...ignoreOfflineRequest(environment, harnessArguments)];
+}
+
+/** Best effort: a missing wrapper must never block Axon itself. */
+async function refreshPiWrapper(): Promise<void> {
+  try {
+    const paths = resolveAxonPaths();
+    if (await isRunningManagedBinary(paths)) await ensurePiWrapper(paths);
+  } catch {}
 }
 
 export async function dispatch(argumentsVector: readonly string[]): Promise<void> {
@@ -55,6 +76,7 @@ export async function dispatch(argumentsVector: readonly string[]): Promise<void
         },
       );
     }
+    await refreshPiWrapper();
     // Interactive launches update in the foreground; RPC/JSON/scripted ones in a
     // detached, throttled worker that takes effect on the next launch.
     await runStartupUpdate(harnessArguments);

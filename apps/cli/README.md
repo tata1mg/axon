@@ -94,10 +94,11 @@ axon paths
 axon doctor [pi]
 axon setup pi --sync-packages   # installs Pi if needed, required packages, resources, and MCP defaults
 axon setup paseo                # configure Axon and integration settings in Paseo
+axon setup t3code               # add Axon as a T3 Code provider
 axon uninstall [--remove-runtimes]
 ```
 
-`uninstall` only mutates an installation when the running executable is the managed binary at `~/.axon/bin/axon`. It preserves Pi settings, provider authentication, and sessions under `${AXON_HOME}/pi`, as well as the shared DeputyDev authentication file; `--remove-runtimes` removes only cached runtimes. Files created by earlier releases for other harnesses are not deleted automatically.
+`uninstall` only mutates an installation when the running executable is the managed binary at `~/.axon/bin/axon`. It also removes the `axon-pi` wrapper. It preserves Pi settings, provider authentication, and sessions under `${AXON_HOME}/pi`, as well as the shared DeputyDev authentication file; `--remove-runtimes` removes only cached runtimes. Files created by earlier releases for other harnesses are not deleted automatically.
 
 Set `AXON_DEBUG=1` for a redacted launch preview on stderr. `AXON_PI_BIN` is rejected. A different `AXON_PI_VERSION` is allowed only when running the CLI from source, not in any compiled CLI.
 
@@ -174,6 +175,46 @@ private sibling `config.json.axon-backup.<timestamp>.<id>` file before changing 
 Restart Paseo after setup and select **Axon** when starting a new chat. Setup does not choose
 a model or create an agent profile, and it never restarts Paseo or interrupts running agents.
 
+### T3 Code integration
+
+If you use [T3 Code](https://github.com/pingdotgg/t3code), add Axon as a provider with:
+
+```bash
+axon setup t3code
+axon setup t3code --config /custom/t3/userdata/settings.json  # non-default T3 Code home
+axon setup t3code --yes                                       # accept updates in scripts
+```
+
+This local-only command does not require sign-in or install T3 Code. It edits
+`${T3CODE_HOME:-~/.t3}/userdata/settings.json`, adding `providerInstances.axon`: a `pi` driver
+instance named **Axon** whose binary is the `axon-pi` wrapper (see below), which setup creates
+or repairs. Its environment sets `PI_CODING_AGENT_DIR`, `PI_CODING_AGENT_SESSION_DIR`,
+`PI_MODEL_RECOMMENDER_RPC=1`, and `AXON_IGNORE_OFFLINE=1` as plain, non-sensitive values;
+other variables you added are kept. Setup also sets `enabled: false` on the built-in `codex`,
+`cursor`, `grok`, `opencode`, `antigravity`, `kiro`, `pi`, `muse`, and `fx` instances. Claude
+(`claudeAgent`), instances you created, and all other settings are left unchanged.
+
+If the settings file does not exist, setup creates it only when it finds `t3` on `PATH` or the
+`T3 Code` or `T3 Code (Beta)` macOS app. The same safeguards as Paseo setup apply: an existing
+Axon provider is replaced only after confirmation or `--yes`, invalid or concurrently edited
+files are left unchanged, and a private backup is saved before changing an existing file.
+T3 Code reloads the file itself; select **Axon** when starting a new thread.
+
+### Using Axon from other apps
+
+Some apps run a Pi binary directly (`<binary> --mode rpc`, `<binary> --version`) and have no
+place for Axon's `pi` argument. Point them at `~/.axon/bin/axon-pi` (`axon paths` shows the
+exact path) instead. It is a small script that runs `axon pi` with the same arguments, so
+`axon-pi --version` reports Pi's version as those apps expect. The managed binary creates the
+wrapper, and repairs it if it changed, whenever it launches Pi; source runs never touch it.
+
+Axon verifies the session online before every Pi launch, so `--offline` and `PI_OFFLINE`
+launches fail. Apps that request offline launches on their own, such as short-lived
+model-discovery probes, can set `AXON_IGNORE_OFFLINE=1` in the environment they give Axon.
+Pi launches then drop `--offline` (before `--`) and `PI_OFFLINE` and run as normal online
+launches, including session verification, client configuration, and update scheduling.
+Launcher commands are unaffected.
+
 ### First-run login and client configuration
 
 Axon and the existing DeputyDev VS Code/binary application use the **same** user-wide authentication file: `~/.deputydev/264325ba-cbd0-47d5-9269-ac4bd19067c2.json`, under the `extension_auth_token` key. Axon does not use the separate `cli_auth_token` key. `AXON_HOME` changes only Axon's managed installation/runtime data, never this authentication location. Existing `.axon` authentication files are ignored; there is no fallback or migration.
@@ -184,7 +225,7 @@ Login and refresh write that shared token while preserving other JSON keys. Requ
 
 RPC launches (`axon pi --mode rpc`, as used by Paseo) are the exception for a missing or unusable login: Pi starts signed out instead of failing. The relay rejects every managed model request at once with a "not signed in" error (nothing waits, so RPC client timeouts cannot fire), and the `axon-auth` extension offers a **Login from browser / Not now** card at startup and again after each rejected message; `/axon-login` also works. A login from another terminal ends the signed-out state too. Launch-time backend preferences such as terminal policy were not fetched, so the chat asks the user to restart the agent after signing in. Offline RPC launches and auth-service outages still fail startup. Over RPC, dialogs cannot be retracted, so cards stay open until answered; under Paseo, which discards open cards when a run fails or is interrupted, a fresh card replaces the discarded one.
 
-Launcher-owned `setup pi --sync-packages`, `doctor`, `paths`, and `harnesses` retain a local saved-session preflight: if absent, interactive online invocations offer browser login, while scripted runs fail with login guidance. Launcher help/version, auth, update, uninstall, and local `setup paseo` remain exempt from that preflight. API routes still validate saved sessions server-side.
+Launcher-owned `setup pi --sync-packages`, `doctor`, `paths`, and `harnesses` retain a local saved-session preflight: if absent, interactive online invocations offer browser login, while scripted runs fail with login guidance. Launcher help/version, auth, update, uninstall, and local `setup paseo` and `setup t3code` remain exempt from that preflight. API routes still validate saved sessions server-side.
 
 Online non-administrative Pi launches (including scripted modes) fetch `/api/v1/cli/config` using that session, capped at 700 ms and 16 KiB, even when telemetry/search are locally disabled. Accepted backend telemetry/search and partial compaction/recommender/provider preferences override inherited environment values. Managed telemetry has no supported local opt-out; unavailable or absent policies retain documented environment fallback, never changing authenticated search routing. Offline and administrative launches skip the request. There is no config disk cache and no public bootstrap/config endpoint. See [client configuration](docs/plans/cli-client-config.md) and [backend configuration](../backend/README.md#cli-client-configuration).
 

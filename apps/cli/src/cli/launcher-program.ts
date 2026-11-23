@@ -132,11 +132,14 @@ function createLauncherProgram(): Command {
 
   program
     .command("setup")
-    .description("prepare Pi or configure the Paseo integration")
-    .argument("<target>", "setup target: pi or paseo")
+    .description("prepare Pi or configure the Paseo or T3 Code integration")
+    .argument("<target>", "setup target: pi, paseo, or t3code")
     .option("--sync-packages", "install or repair required Pi packages")
-    .option("--config <path>", "Paseo config path (default: ~/.paseo/config.json)")
-    .option("--yes", "accept updating existing Paseo Axon integration settings without prompting")
+    .option(
+      "--config <path>",
+      "app config path (defaults: ~/.paseo/config.json, ~/.t3/userdata/settings.json)",
+    )
+    .option("--yes", "accept updating an existing Axon integration without prompting")
     .action(async (target: string, options: SetupOptions) => {
       await runSetup(target, options);
     });
@@ -184,7 +187,7 @@ function createLauncherProgram(): Command {
     // Let the action report invalid harness/operation usage without prompting.
     const harness = actionCommand.args[0];
     const setupOptions = actionCommand.opts<SetupOptions>();
-    // Paseo setup only edits local configuration and does not require sign-in.
+    // App integration setup only edits local configuration and does not require sign-in.
     if (
       (name === "doctor" && harness !== undefined && !resolveHarnessRegistration(harness)) ||
       (name === "setup" &&

@@ -557,7 +557,7 @@ describe("axon setup paseo CLI", () => {
     const { environment } = await fixture("cli help");
     const help = await runCli(["setup", "--help"], environment);
     expect(help.status).toBe(0);
-    expect(help.stdout).toContain("pi or paseo");
+    expect(help.stdout).toContain("pi, paseo, or t3code");
     expect(help.stdout).toContain("--config");
     expect(help.stdout).toContain("--yes");
     for (const args of [
