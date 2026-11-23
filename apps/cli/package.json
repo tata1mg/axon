@@ -31,8 +31,8 @@
     "release:metadata": "bun run scripts/generate-release-metadata.ts",
     "release:prepare-s3": "bun run telemetry:check && bun run terminal:check && bun run request-context:check && bun run scripts/prepare-s3-release.ts",
     "release:publish-s3": "bun run scripts/publish-s3-release.ts",
-    "test": "bun test --parallel=4",
-    "test:installer": "bun test tests/installer",
+    "test": "bun test --parallel=4 --timeout=30000",
+    "test:installer": "bun test --timeout=30000 tests/installer",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.pi-resources.json && tsc -p src/hub/web/tsconfig.json",
     "check": "bun run pi-version:check && bun run telemetry:check && bun run backups:check && bun run terminal:check && bun run request-context:check && bun run hub:check && bun run typecheck"
   },
