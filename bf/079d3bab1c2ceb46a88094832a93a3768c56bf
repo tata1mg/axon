@@ -1,0 +1,46 @@
+apps/cli/src/harnesses/pi/telemetry/docs/telemetry-schema.md
+  s_5b97ac2fad575a::t_173abb2e4bcd87 3
+apps/cli/README.md
+  s_5b97ac2fad575a::t_173abb2e4bcd87 23,46,241
+docs/session-backup-and-restore.md
+  s_5b97ac2fad575a::t_173abb2e4bcd87 12
+apps/cli/tests/terminal-permissions.test.ts
+  s_5b97ac2fad575a::t_5e6c855ff714c4 707-708
+apps/cli/src/harnesses/pi/telemetry/docs/limitations.md
+  s_5b97ac2fad575a::t_173abb2e4bcd87 15
+apps/cli/pi-version.json
+  s_5b97ac2fad575a::t_db539cc0978ba3 2
+apps/cli/tests/axon-header.test.ts
+  s_5b97ac2fad575a::t_5e6c855ff714c4 721-722
+apps/cli/tests/pi-telemetry-extension-integration.test.ts
+  s_5b97ac2fad575a::t_5e6c855ff714c4 70-71
+apps/cli/package.json
+  s_5b97ac2fad575a::t_db539cc0978ba3 49-50
+apps/cli/src/harnesses/pi/resources/extensions/axon-changelog.ts
+  s_5b97ac2fad575a::t_bde23359433e65 29
+apps/cli/tests/axon-changelog.test.ts
+  s_5b97ac2fad575a::t_5e6c855ff714c4 385-386
+bun.lock
+  s_5b97ac2fad575a::t_fc407e2b1e7196 27-28,121,123,125,127,129,131,133,135,137,391,447
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bf079d3bab1c2ceb46a88094832a93a3768c56bf",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_5b97ac2fad575a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d729aaee-83c3-479c-b3e1-c21d42812a77",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}

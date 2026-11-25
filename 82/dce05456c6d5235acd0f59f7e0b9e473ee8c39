@@ -1,0 +1,14 @@
+README.md
+  h_cbc19accedcd8a 68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "82dce05456c6d5235acd0f59f7e0b9e473ee8c39",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}

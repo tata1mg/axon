@@ -1,0 +1,35 @@
+apps/cli/src/harnesses/pi/resources/extensions/axon-changelog.ts
+  s_ef17e3523dde41::t_178c91a2eecc9e 36
+apps/cli/src/harnesses/pi/resources/extensions/request-context.mjs
+  s_ef17e3523dde41::t_178c91a2eecc9e 2
+apps/cli/tests/web-search.test.ts
+  s_ef17e3523dde41::t_178c91a2eecc9e 142-144
+  s_ef17e3523dde41::t_574d1d25da3108 139-141,145,155-156
+apps/cli/tests/request-context.test.ts
+  s_ef17e3523dde41::t_7efcd3895312ae 10-11,15,20-25,33-34,122,536-635,637-659
+  s_ef17e3523dde41::t_4e5073df5ad29e 636
+apps/cli/tests/compaction-launch-preferences.test.ts
+  s_ef17e3523dde41::t_574d1d25da3108 211-214
+apps/cli/src/harnesses/pi/resources/extensions/web-search.ts
+  s_ef17e3523dde41::t_c4bc97ae0180b2 111-112,538
+apps/cli/src/harnesses/pi/resources/extensions/request-context.ts
+  s_ef17e3523dde41::t_5d287320a6b0a0 273
+  s_ef17e3523dde41::t_8cdc0821d00b17 16-21,32-33,53-62,179-196,201-204,209,236,249-272,274-287,299,341-346,357,361,364-372,388-396
+  s_ef17e3523dde41::t_178c91a2eecc9e 197-200
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e2dd5c21f2928979f130b868e0641deead01c835",
+  "prompts": {},
+  "sessions": {
+    "s_ef17e3523dde41": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8237f42-adaa-471b-bfad-6c8c3116c48b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}

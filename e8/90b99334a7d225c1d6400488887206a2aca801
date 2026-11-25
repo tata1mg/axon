@@ -1,0 +1,452 @@
+.github/workflows/ci.yml
+  h_cbc19accedcd8a 109,159-161
+CLAUDE.md
+  h_cbc19accedcd8a 125
+Dockerfile
+  h_cbc19accedcd8a 3-4,19,21-26,39
+README.md
+  h_cbc19accedcd8a 16,27,41,116
+apps/backend/README.md
+  h_cbc19accedcd8a 7,31,300-301,324,332,344-399,596,884,899,903
+apps/backend/app/core/admin_dashboard.py
+  h_cbc19accedcd8a 1-130
+apps/backend/app/core/axon_safehouse.py
+  h_cbc19accedcd8a 1-91
+apps/backend/app/core/config.py
+  h_cbc19accedcd8a 15-16,152-157,171-185,228-229,478-505,521,539,541,605-621,820-821
+apps/backend/app/core/terminal_permissions.py
+  h_cbc19accedcd8a 3
+apps/backend/app/main.py
+  h_cbc19accedcd8a 24
+apps/backend/app/models/__init__.py
+  h_cbc19accedcd8a 3,5,8
+apps/backend/app/models/admin.py
+  h_cbc19accedcd8a 1-22
+apps/backend/app/models/catalog.py
+  h_cbc19accedcd8a 1-47
+apps/backend/app/observability/sentry.py
+  h_cbc19accedcd8a 98-108,123-124,142-145,161,196-199
+apps/backend/app/proxies/litellm_ui.py
+  h_cbc19accedcd8a 42-52
+apps/backend/app/routers/__init__.py
+  h_cbc19accedcd8a 6-7,9,28-30
+apps/backend/app/routers/admin.py
+  h_cbc19accedcd8a 1-237
+apps/backend/app/routers/admin_catalog.py
+  h_cbc19accedcd8a 1-449
+apps/backend/app/routers/browser_login.py
+  h_cbc19accedcd8a 1,3-10,12,15,26,44-74,114,116,121,128-132
+apps/backend/app/routers/catalog.py
+  h_cbc19accedcd8a 1-98
+apps/backend/app/routers/cli_config.py
+  h_cbc19accedcd8a 1,5,9,21-26,31,41-60,64
+apps/backend/app/routers/cli_releases.py
+  h_cbc19accedcd8a 1,4,6,23-52,85-88,92-96
+apps/backend/app/services/admin/__init__.py
+  h_cbc19accedcd8a 1
+apps/backend/app/services/admin/audit.py
+  h_cbc19accedcd8a 1-88
+apps/backend/app/services/admin/guards.py
+  h_cbc19accedcd8a 1-261
+apps/backend/app/services/catalog/__init__.py
+  h_cbc19accedcd8a 1
+apps/backend/app/services/catalog/specs.py
+  h_cbc19accedcd8a 1-583
+apps/backend/app/services/catalog/store.py
+  h_cbc19accedcd8a 1-382
+apps/backend/config_template.json
+  h_cbc19accedcd8a 36-39,125-134,208-216
+apps/backend/db/migrations/20261117120000_create_admin_audit_events.sql
+  h_cbc19accedcd8a 1-25
+apps/backend/db/migrations/20261117160000_create_catalog.sql
+  h_cbc19accedcd8a 1-63
+apps/backend/deployment/generate_session_schema.py
+  h_cbc19accedcd8a 51-57
+apps/backend/pyproject.toml
+  h_cbc19accedcd8a 3,7
+apps/backend/ruff.toml
+  h_cbc19accedcd8a 1
+apps/backend/tests/test_admin_audit_database.py
+  h_cbc19accedcd8a 1-115
+apps/backend/tests/test_admin_dashboard.py
+  h_cbc19accedcd8a 1-516
+apps/backend/tests/test_build_backend_image.py
+  h_cbc19accedcd8a 14,54,68-69,74-75
+apps/backend/tests/test_catalog_database.py
+  h_cbc19accedcd8a 1-380
+apps/backend/tests/test_catalog_routes.py
+  h_cbc19accedcd8a 1-597
+apps/backend/tests/test_catalog_specs.py
+  h_cbc19accedcd8a 1-352
+apps/backend/tests/test_cli_config.py
+  h_cbc19accedcd8a 14,62-64,66,94,113,124,129-183
+apps/backend/tests/test_litellm_streaming.py
+  h_cbc19accedcd8a 55,156
+apps/backend/tests/test_sentry.py
+  h_cbc19accedcd8a 6-7,27-28,178-190,386-429,570-618
+apps/backend/tests/test_session_database.py
+  h_cbc19accedcd8a 153-163,169,200,210-212,214,243,252
+apps/backend/tests/test_terminal_permissions.py
+  h_cbc19accedcd8a 10,38
+apps/backend/uv.lock
+  h_cbc19accedcd8a 3,51-68,73,170-193,211-247,307-319,404-413,444-469,817-847,923-940,1104-1115,1157-1170,1179-1218,1228-1249
+apps/cli/.env.example
+  h_cbc19accedcd8a 57-58
+apps/cli/README.md
+  h_cbc19accedcd8a 21,23,31,46,70,89,104-122,241,333,379-380,438,478,524,535,537-540,589
+apps/cli/docs/launcher-plan.md
+  h_cbc19accedcd8a 100,106,398,402
+apps/cli/docs/plans/pi-package-provisioning.md
+  h_cbc19accedcd8a 10,169
+apps/cli/docs/shipplan.md
+  h_cbc19accedcd8a 20
+apps/cli/docs/ux-orchestrator-os-feasibility.md
+  h_cbc19accedcd8a 34,77,219
+apps/cli/install.sh
+  h_cbc19accedcd8a 17-18,39,45-59,263-286,295,297-302,315-319,347-350,352-355,357,368-378,380
+apps/cli/package.json
+  h_cbc19accedcd8a 3,17-18,26-29,32,36-37,49-50,69-73
+apps/cli/pi-version.json
+  h_cbc19accedcd8a 2
+apps/cli/scripts/build-hub.ts
+  h_cbc19accedcd8a 1-44
+apps/cli/scripts/build-request-context.ts
+  h_cbc19accedcd8a 1-41
+apps/cli/src/cli/auth/request-relay.ts
+  h_cbc19accedcd8a 5,465,487,492-515,562
+apps/cli/src/cli/commands/auth.ts
+  h_cbc19accedcd8a 6
+apps/cli/src/cli/commands/hub.ts
+  h_cbc19accedcd8a 1-35
+apps/cli/src/cli/dispatch.ts
+  h_cbc19accedcd8a 15,58-59,61
+apps/cli/src/cli/launcher-program.ts
+  h_cbc19accedcd8a 21,58-63
+apps/cli/src/harnesses/pi/adapter.ts
+  h_cbc19accedcd8a 7,79-80,84,178-180
+apps/cli/src/harnesses/pi/npm-registry.ts
+  h_cbc19accedcd8a 34-36,38
+apps/cli/src/harnesses/pi/resources/extensions/axon-changelog.ts
+  h_cbc19accedcd8a 20-48
+apps/cli/src/harnesses/pi/resources/extensions/axon.ts
+  h_cbc19accedcd8a 429-475
+apps/cli/src/harnesses/pi/resources/extensions/compaction.ts
+  h_cbc19accedcd8a 34-80,162,188,240-241,244-250,271,340-345,353,360-361,460
+apps/cli/src/harnesses/pi/resources/extensions/pi-org-telemetry.mjs
+  h_cbc19accedcd8a 231,233,235,238-245,247,249,251-252,256,258,260-261,263-269
+apps/cli/src/harnesses/pi/resources/extensions/request-context.mjs
+  h_cbc19accedcd8a 1-2
+apps/cli/src/harnesses/pi/resources/extensions/request-context.ts
+  h_cbc19accedcd8a 1-302
+apps/cli/src/harnesses/pi/resources/extensions/session-backup.mjs
+  h_cbc19accedcd8a 2,6,17-18,23,28-29,49,52-53,56,58-65
+apps/cli/src/harnesses/pi/resources/extensions/terminal-permissions.mjs
+  h_cbc19accedcd8a 2-9,11-12
+apps/cli/src/harnesses/pi/resources/extensions/web-search.ts
+  h_cbc19accedcd8a 102-121,286-291,304,502,515-517,533-540,566-569,595
+apps/cli/src/harnesses/pi/setup/packages/invocation.ts
+  h_cbc19accedcd8a 38-43,48
+apps/cli/src/harnesses/pi/telemetry/README.md
+  h_cbc19accedcd8a 116-122
+apps/cli/src/harnesses/pi/telemetry/docs/limitations.md
+  h_cbc19accedcd8a 14-15
+apps/cli/src/harnesses/pi/telemetry/docs/product-telemetry.md
+  h_cbc19accedcd8a 19,37-38
+apps/cli/src/harnesses/pi/telemetry/docs/telemetry-schema.md
+  h_cbc19accedcd8a 3,28-29,37-38,121
+apps/cli/src/harnesses/pi/telemetry/grafana-metrics-only.json
+  h_cbc19accedcd8a 53,98,143,188,233,278,323,369,414,459,504,549,607,613,619,665,670,716,773,826,834,842,850,858,866,874,1065,1112,1159,1219,1269,1316,1321,1326,1331,1381,1388,1395,1402,1449,1457,1465,1473,1481,1489,1497,1701,1748,1795,1842,1892,1939,1982,2030,2077,2124,2171,2176,2221,2226,2271,2276,2321,2326,2371,2378,2425,2479,2533,2538,2543,2548,2592,2597,2602,2607,2652,2657,2662,2667,2712,2757,2804,2851,2898,2903,2961,2966,2971,3017,3063,3068,3073,3107,3112,3117,3170,3217,3256,3291,3296,3331,3374,3414,3419,3424,3469,3474,3532,3567,3602,3607,3642,3647,3696,3731,3736,3771,3821,3868,3915,3962,3967,4012,4059,4120,4167,4214,4219,4264,4311,4316,4361,4408,4465-4479,4488-4489
+apps/cli/src/harnesses/pi/telemetry/grafana.json
+  h_cbc19accedcd8a 61,106,151,196,241,286,331,377,422,467,512,557,615,621,627,673,678,724,781,834,842,850,858,866,874,882,1073,1120,1167,1255,1305,1352,1357,1362,1367,1417,1424,1431,1438,1485,1493,1501,1509,1517,1525,1533,1737,1784,1831,1878,1928,1975,2018,2066,2113,2160,2207,2212,2257,2262,2307,2312,2357,2362,2407,2414,2461,2515,2595,2600,2605,2610,2654,2659,2664,2669,2714,2719,2724,2729,2774,2819,2866,2913,2960,2965,3023,3028,3033,3079,3125,3130,3135,3169,3174,3179,3232,3279,3318,3353,3358,3393,3436,3476,3481,3486,3531,3536,3620,3655,3690,3695,3730,3735,3784,3819,3824,3859,3909,3956,4003,4050,4055,4100,4147,4234,4281,4328,4333,4378,4425,4430,4475,4522,4605-4619,4628-4629
+apps/cli/src/harnesses/pi/telemetry/src/attributes.ts
+  h_cbc19accedcd8a 12
+apps/cli/src/harnesses/pi/telemetry/src/environment.ts
+  h_cbc19accedcd8a 1,4-5,10,65,73
+apps/cli/src/harnesses/pi/telemetry/src/otel/runtime.ts
+  h_cbc19accedcd8a 51,337-338,358
+apps/cli/src/harnesses/pi/telemetry/tests/environment.test.ts
+  h_cbc19accedcd8a 5,40-63
+apps/cli/src/harnesses/pi/telemetry/tests/grafana-counters.promql.json
+  h_cbc19accedcd8a 15,37,59,80,102,124
+apps/cli/src/harnesses/pi/telemetry/tests/grafana.test.ts
+  h_cbc19accedcd8a 53-55,79,86-104,222,229,306,322
+apps/cli/src/harnesses/pi/telemetry/tests/helpers.ts
+  h_cbc19accedcd8a 15-17
+apps/cli/src/harnesses/pi/telemetry/tests/runtime.test.ts
+  h_cbc19accedcd8a 5,100-117
+apps/cli/src/harnesses/pi/workflow.ts
+  h_cbc19accedcd8a 1-13
+apps/cli/src/hub/assets/hub.css
+  h_cbc19accedcd8a 1-2
+apps/cli/src/hub/assets/hub.js
+  h_cbc19accedcd8a 1-10
+apps/cli/src/hub/browser-session.ts
+  h_cbc19accedcd8a 1-68
+apps/cli/src/hub/catalog-client.ts
+  h_cbc19accedcd8a 1-111
+apps/cli/src/hub/catalog-install.ts
+  h_cbc19accedcd8a 1-37,40-52,55-59,62-67,70-71,74-105,107,110-129,131-138,140,143-148,152-158,160,163,165-167,171-181,184-189,191-200,202-211,213,215-218,221-228,231-244,247-249,252-261
+apps/cli/src/hub/catalog-installs.ts
+  h_cbc19accedcd8a 1-74
+apps/cli/src/hub/catalog-schema.ts
+  h_cbc19accedcd8a 1-189
+apps/cli/src/hub/catalog.ts
+  h_cbc19accedcd8a 1-270
+apps/cli/src/hub/errors.ts
+  h_cbc19accedcd8a 1-10
+apps/cli/src/hub/features.ts
+  h_cbc19accedcd8a 1-6
+apps/cli/src/hub/mcp-store.ts
+  h_cbc19accedcd8a 1-497
+apps/cli/src/hub/pi-hub.ts
+  h_cbc19accedcd8a 1-51
+apps/cli/src/hub/server.ts
+  h_cbc19accedcd8a 3-29,32-48,50-51,54,56,60-64,67-70,74-99,101-102,104-119,121-143,145-199,201-209
+apps/cli/src/hub/skills.ts
+  h_cbc19accedcd8a 1-224
+apps/cli/src/hub/web/App.tsx
+  h_cbc19accedcd8a 1-154
+apps/cli/src/hub/web/api.ts
+  h_cbc19accedcd8a 1-89
+apps/cli/src/hub/web/app.css
+  h_cbc19accedcd8a 1-240
+apps/cli/src/hub/web/assets.d.ts
+  h_cbc19accedcd8a 1-2
+apps/cli/src/hub/web/base.css
+  h_cbc19accedcd8a 1-272
+apps/cli/src/hub/web/catalog/Blocks.tsx
+  h_cbc19accedcd8a 1-223
+apps/cli/src/hub/web/catalog/DiscoverPage.tsx
+  h_cbc19accedcd8a 1-253
+apps/cli/src/hub/web/catalog/InstallDialog.tsx
+  h_cbc19accedcd8a 1-295
+apps/cli/src/hub/web/catalog/catalog-context.tsx
+  h_cbc19accedcd8a 1-12,14-25,27-32,35-57
+apps/cli/src/hub/web/catalog/catalog.css
+  h_cbc19accedcd8a 1-303
+apps/cli/src/hub/web/catalog/kinds.ts
+  h_cbc19accedcd8a 1-94
+apps/cli/src/hub/web/catalog/model.ts
+  h_cbc19accedcd8a 1-257
+apps/cli/src/hub/web/catalog/status.tsx
+  h_cbc19accedcd8a 1-62
+apps/cli/src/hub/web/hub-context.ts
+  h_cbc19accedcd8a 1-16
+apps/cli/src/hub/web/index.html
+  h_cbc19accedcd8a 1-15
+apps/cli/src/hub/web/main.tsx
+  h_cbc19accedcd8a 1-15
+apps/cli/src/hub/web/mcp/KeyValueEditor.tsx
+  h_cbc19accedcd8a 1-147
+apps/cli/src/hub/web/mcp/McpPage.tsx
+  h_cbc19accedcd8a 1-472
+apps/cli/src/hub/web/mcp/ServerEditor.tsx
+  h_cbc19accedcd8a 1-518
+apps/cli/src/hub/web/mcp/ServerRow.tsx
+  h_cbc19accedcd8a 1-107
+apps/cli/src/hub/web/mcp/mcp.css
+  h_cbc19accedcd8a 1-418
+apps/cli/src/hub/web/mcp/model.ts
+  h_cbc19accedcd8a 1-449
+apps/cli/src/hub/web/skills/SkillsPage.tsx
+  h_cbc19accedcd8a 1-253
+apps/cli/src/hub/web/skills/model.ts
+  h_cbc19accedcd8a 1-59
+apps/cli/src/hub/web/skills/skills.css
+  h_cbc19accedcd8a 1-30
+apps/cli/src/hub/web/tsconfig.json
+  h_cbc19accedcd8a 1-9
+apps/cli/src/hub/web/ui/Icon.tsx
+  h_cbc19accedcd8a 1-67
+apps/cli/src/hub/web/ui/Modal.tsx
+  h_cbc19accedcd8a 1-57
+apps/cli/src/hub/web/ui/RichText.tsx
+  h_cbc19accedcd8a 1-12
+apps/cli/src/hub/web/ui/StatePanel.tsx
+  h_cbc19accedcd8a 1-43
+apps/cli/src/hub/web/ui/feedback.css
+  h_cbc19accedcd8a 1,3-14,16-39,42-49
+apps/cli/src/hub/web/ui/feedback.tsx
+  h_cbc19accedcd8a 1-154
+apps/cli/src/hub/web/ui/modal.css
+  h_cbc19accedcd8a 1-321
+apps/cli/src/index.ts
+  h_cbc19accedcd8a 7,9,34-37,46-51
+apps/cli/src/launcher/browser.ts
+  h_cbc19accedcd8a 1-16
+apps/cli/src/launcher/environment.ts
+  h_cbc19accedcd8a 41-46
+apps/cli/src/launcher/errors.ts
+  h_cbc19accedcd8a 2,19-43
+apps/cli/src/launcher/file-lock.ts
+  h_cbc19accedcd8a 1-4,9,19-20,26-60,66-95,98,100-113,119,124-158,163,165,171-175,178-182,185-204,207,209,211-218,221-248,263-281,288,291-296,298-310,312-319,322-323,326,328-333,345,348-355,357-358
+apps/cli/src/product/endpoints.ts
+  h_cbc19accedcd8a 12,49-51
+apps/cli/src/product/manifest.ts
+  h_cbc19accedcd8a 20-22,94-99,125,139,164,215-218
+apps/cli/src/product/paths.ts
+  h_cbc19accedcd8a 23,65
+apps/cli/src/types/assets.d.ts
+  h_cbc19accedcd8a 1-10
+apps/cli/src/updater/startup.ts
+  h_cbc19accedcd8a 1,8,10,12-24,44,61,68-70,87-137
+apps/cli/src/updater/update.ts
+  h_cbc19accedcd8a 16,19,37-38,40-52,66-67,138,143-171,207-214,218-219,242,255-258,263-265,268,270,274-275,279-288,292-296,328,339,343-345,363,365,369-374,376-377,379
+apps/cli/tests/axon-changelog.test.ts
+  h_cbc19accedcd8a 41,232,241,248,323-330
+apps/cli/tests/compaction-launch-preferences.test.ts
+  h_cbc19accedcd8a 2-5,10-13,25-29,40-42,51-56,69-73,83,120-122,125-143,159-166,171-181,201-307
+apps/cli/tests/endpoints.test.ts
+  h_cbc19accedcd8a 24-25,34-35,37-38,62-63,65,70
+apps/cli/tests/file-lock.test.ts
+  h_cbc19accedcd8a 1-377
+apps/cli/tests/hub-catalog-install.test.ts
+  h_cbc19accedcd8a 1-2,5-19,21-36,39-46,50-55,57-67,69-70,73-78,80-94,98-104,106-110,112-121,125-128,130-132,136-148,150-152,155-169,171-172,174-175,178-183,185-189,191-202
+apps/cli/tests/hub-catalog.test.ts
+  h_cbc19accedcd8a 1-447
+apps/cli/tests/hub-command.test.ts
+  h_cbc19accedcd8a 1-116
+apps/cli/tests/hub-mcp-store.test.ts
+  h_cbc19accedcd8a 1-2,4-8,11-15,17-19,25-27,29-30,32-42,45-54,57-67,69-75,78-111,114-129,132-156,159-172,174-196,199-208,210-223,227-249,252-279,281,284-302,305-317,319-322,325-335,337,339-342,344-346,349-360,363-377,379,382-403,406-421,424-438,441-445
+apps/cli/tests/hub-server.test.ts
+  h_cbc19accedcd8a 1-245
+apps/cli/tests/hub-skills.test.ts
+  h_cbc19accedcd8a 1-158
+apps/cli/tests/hub-web-catalog-model.test.ts
+  h_cbc19accedcd8a 1-189
+apps/cli/tests/hub-web-model.test.ts
+  h_cbc19accedcd8a 1-244
+apps/cli/tests/hub-web-skills-model.test.ts
+  h_cbc19accedcd8a 1-35
+apps/cli/tests/launcher.test.ts
+  h_cbc19accedcd8a 91-98,184-193,336-337,354-407
+apps/cli/tests/litellm-client-provider.test.ts
+  h_cbc19accedcd8a 43
+apps/cli/tests/npm-registry.test.ts
+  h_cbc19accedcd8a 95-112
+apps/cli/tests/pi-hub.test.ts
+  h_cbc19accedcd8a 1-148
+apps/cli/tests/pi-model-cache.test.ts
+  h_cbc19accedcd8a 12-14,34,107-112
+apps/cli/tests/pi-package-setup.test.ts
+  h_cbc19accedcd8a 210,212,985
+apps/cli/tests/request-context-bundle.test.ts
+  h_cbc19accedcd8a 1-66
+apps/cli/tests/request-context.test.ts
+  h_cbc19accedcd8a 1-524
+apps/cli/tests/update.test.ts
+  h_cbc19accedcd8a 2,6,8,18,20,33-34,59,159,175,179-223,385-386,408,433,440,449,462-476,486,505-633
+apps/cli/tests/web-search.test.ts
+  h_cbc19accedcd8a 3-6,118-158
+apps/cli/tsconfig.json
+  h_cbc19accedcd8a 4-10
+apps/frontend/README.md
+  h_cbc19accedcd8a 21,33-47,61
+apps/frontend/package.json
+  h_cbc19accedcd8a 14-15
+apps/frontend/src/App.tsx
+  h_cbc19accedcd8a 1-3,5-10
+apps/frontend/src/admin/AdminApp.tsx
+  h_cbc19accedcd8a 1-73
+apps/frontend/src/admin/AdminAuthProvider.tsx
+  h_cbc19accedcd8a 1-84
+apps/frontend/src/admin/AdminLayout.tsx
+  h_cbc19accedcd8a 1-122
+apps/frontend/src/admin/LoginPage.tsx
+  h_cbc19accedcd8a 1-172
+apps/frontend/src/admin/auth-context.ts
+  h_cbc19accedcd8a 1-41
+apps/frontend/src/admin/catalog/CatalogEditorPage.tsx
+  h_cbc19accedcd8a 1-859
+apps/frontend/src/admin/catalog/CatalogListPage.tsx
+  h_cbc19accedcd8a 1-126
+apps/frontend/src/admin/catalog/CatalogSection.tsx
+  h_cbc19accedcd8a 1-43
+apps/frontend/src/admin/catalog/EditorSections.tsx
+  h_cbc19accedcd8a 1-997
+apps/frontend/src/admin/catalog/ImportDialog.tsx
+  h_cbc19accedcd8a 1-205
+apps/frontend/src/admin/catalog/Preview.tsx
+  h_cbc19accedcd8a 1-341
+apps/frontend/src/admin/catalog/api.ts
+  h_cbc19accedcd8a 1-80
+apps/frontend/src/admin/catalog/fields.tsx
+  h_cbc19accedcd8a 1-643
+apps/frontend/src/admin/catalog/model.ts
+  h_cbc19accedcd8a 1-641
+apps/frontend/src/admin/catalog/types.ts
+  h_cbc19accedcd8a 1-88
+apps/frontend/src/admin/components.tsx
+  h_cbc19accedcd8a 1-104
+apps/frontend/src/admin/format.ts
+  h_cbc19accedcd8a 1-33
+apps/frontend/src/admin/pages/AccessPage.tsx
+  h_cbc19accedcd8a 1-44
+apps/frontend/src/admin/pages/AuditLogPage.tsx
+  h_cbc19accedcd8a 1-139
+apps/frontend/src/admin/pages/OverviewPage.tsx
+  h_cbc19accedcd8a 1-84
+apps/frontend/src/admin/sections.ts
+  h_cbc19accedcd8a 1-54
+apps/frontend/src/admin/types.ts
+  h_cbc19accedcd8a 1-51
+apps/frontend/src/admin/use-admin-query.ts
+  h_cbc19accedcd8a 1-48
+apps/frontend/src/components/ui/badge-variants.ts
+  h_cbc19accedcd8a 1-24
+apps/frontend/src/components/ui/badge.tsx
+  h_cbc19accedcd8a 1-27
+apps/frontend/src/components/ui/checkbox.tsx
+  h_cbc19accedcd8a 1-30
+apps/frontend/src/components/ui/dialog.tsx
+  h_cbc19accedcd8a 1-164
+apps/frontend/src/components/ui/input.tsx
+  h_cbc19accedcd8a 1-18
+apps/frontend/src/components/ui/label.tsx
+  h_cbc19accedcd8a 1-21
+apps/frontend/src/components/ui/tabs-variants.ts
+  h_cbc19accedcd8a 1-16
+apps/frontend/src/components/ui/tabs.tsx
+  h_cbc19accedcd8a 1-76
+apps/frontend/src/components/ui/textarea.tsx
+  h_cbc19accedcd8a 1-17
+apps/frontend/src/lib/api.ts
+  h_cbc19accedcd8a 1,3-5,7-11,14-16,19,21-35,38,40-43,45-51,53-55,57-59,61,63,65,67-75,77
+apps/frontend/src/lib/router.ts
+  h_cbc19accedcd8a 1-38
+apps/frontend/tests/catalog-model.test.ts
+  h_cbc19accedcd8a 1-320
+apps/frontend/tsconfig.node.json
+  h_cbc19accedcd8a 26
+biome.json
+  h_cbc19accedcd8a 40,42-44
+bun.lock
+  h_cbc19accedcd8a 13,27-28,47-51,121,123,125,127,129,131,133,135,223-226,305-306,375-376,399,411-414,421-422
+docs/github-actions-core-ci.md
+  h_cbc19accedcd8a 15,117
+docs/hub-catalog-plan.md
+  h_cbc19accedcd8a 1-501
+docs/investigations/paseo-support-layer.md
+  h_cbc19accedcd8a 283,289
+docs/local-hub.md
+  h_cbc19accedcd8a 1-232
+docs/session-backup-and-restore.md
+  h_cbc19accedcd8a 12
+docs/user-guide.md
+  h_cbc19accedcd8a 161
+package.json
+  h_cbc19accedcd8a 19,25
+scripts/build-backend-image.sh
+  h_cbc19accedcd8a 7,11,13-14,17,20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e890b99334a7d225c1d6400488887206a2aca801",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}

@@ -1,0 +1,35 @@
+apps/cli/README.md
+  s_d5ee06148d8004::t_d5e517611598aa 513-514
+apps/cli/src/types/assets.d.ts
+  s_d5ee06148d8004::t_845d4b46eb6036 16-21
+apps/cli/src/product/manifest.ts
+  s_d5ee06148d8004::t_b8e2a0d9a8450d 120-128
+  s_d5ee06148d8004::t_54dc18862299d8 36
+  s_d5ee06148d8004::t_32b48088939ed4 187
+  s_d5ee06148d8004::t_87a27b305487be 249-251
+  s_d5ee06148d8004::t_80db06840f084e 143
+  s_d5ee06148d8004::t_c197391d89ba4f 248
+apps/cli/tests/pi-package-setup.test.ts
+  s_d5ee06148d8004::t_51949fa1b1cdca 988,993
+apps/cli/src/harnesses/pi/resources/skills/axon/SKILL.md
+  s_d5ee06148d8004::t_22b502a3a885b9 1-69,71-130
+  s_d5ee06148d8004::t_8220edb4f3e7af 70
+apps/cli/tests/launcher.test.ts
+  s_d5ee06148d8004::t_aa95db6862ef89 341-342
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "181c639969c6b090d3e4f1e0e77c9d23c3b47c5a",
+  "prompts": {},
+  "sessions": {
+    "s_d5ee06148d8004": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "46808099-fc2a-419a-9aa0-979941d2cf6a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}

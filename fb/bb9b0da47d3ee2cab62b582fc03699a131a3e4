@@ -1,0 +1,19 @@
+apps/backend/pyproject.toml
+  s_ef17e3523dde41::t_f3da0276e59093 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fbbb9b0da47d3ee2cab62b582fc03699a131a3e4",
+  "prompts": {},
+  "sessions": {
+    "s_ef17e3523dde41": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8237f42-adaa-471b-bfad-6c8c3116c48b",
+        "model": "unknown"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}

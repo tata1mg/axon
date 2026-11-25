@@ -1,0 +1,88 @@
+apps/backend/tests/test_terminal_permissions.py
+  s_5b97ac2fad575a::t_a5d15416eb096e 45
+apps/cli/docs/plans/cli-client-config.md
+  s_5b97ac2fad575a::t_f1bbb07ecc7550 97-104
+apps/cli/tests/pi-package-setup.test.ts
+  s_5b97ac2fad575a::t_3373e282c88710 977
+apps/cli/tests/managed-config.test.ts
+  s_5b97ac2fad575a::t_1b7318d15b5ddc 172,180,209-216,218,220
+  s_5b97ac2fad575a::t_3373e282c88710 18-21,171,173-179,181-208,217,219,221
+  s_5b97ac2fad575a::t_b274397afa3a65 222
+apps/cli/src/product/manifest.ts
+  s_5b97ac2fad575a::t_5722976716cee5 30-32,60-65,133,163-164,192-194
+  s_5b97ac2fad575a::t_d4455f0ac19a39 195
+apps/backend/app/routers/cli_config.py
+  s_5b97ac2fad575a::t_eea6924a5b5f29 17,40-41,76
+apps/cli/tests/launcher.test.ts
+  s_5b97ac2fad575a::t_3373e282c88710 320-321
+apps/cli/src/harnesses/pi/resources/extensions/managed-config.ts
+  s_5b97ac2fad575a::t_5722976716cee5 30-41,44-45,47-48,55-56,64-66,99-101
+  s_5b97ac2fad575a::t_5a29790340e6cd 42-43,46,49-54,57-63
+apps/cli/tests/request-relay.test.ts
+  s_5b97ac2fad575a::t_3373e282c88710 1432-1435
+  s_5b97ac2fad575a::t_df9e0033736d85 1381-1383,1391-1392,1424
+apps/cli/tests/tui-default-model.test.ts
+  s_5b97ac2fad575a::t_1b7318d15b5ddc 23,113-114,122-128,137-138,141-142,147-153,155-157,161,200-202,208-211,213-225,227-251
+  s_5b97ac2fad575a::t_5722d0b73fc161 1-22,24-112,115-121,129-136,139-140,143-146,154,158-160,162-199,203-207,212,226,252-253
+apps/cli/src/cli/auth/request-relay.ts
+  s_5b97ac2fad575a::t_d25605fc222159 402,408,462
+  s_5b97ac2fad575a::t_5722976716cee5 463
+apps/backend/app/core/config.py
+  s_5b97ac2fad575a::t_199e79484b405d 24,32
+  s_5b97ac2fad575a::t_eea6924a5b5f29 222,242-248,799,828
+apps/cli/src/harnesses/pi/resources/extensions/tui-default-model.ts
+  s_5b97ac2fad575a::t_5a29790340e6cd 24-31,36,53,55-60
+  s_5b97ac2fad575a::t_5722976716cee5 1-23,32-35,37-52,54,61-62
+apps/backend/tests/test_cli_config.py
+  s_5b97ac2fad575a::t_a5d15416eb096e 88-94,120,134,350,481-533
+  s_5b97ac2fad575a::t_199e79484b405d 24
+  s_5b97ac2fad575a::t_24538690198e6f 534-535
+apps/cli/src/harnesses/pi/adapter.ts
+  s_5b97ac2fad575a::t_5722976716cee5 36
+  s_5b97ac2fad575a::t_5a29790340e6cd 174
+  s_5b97ac2fad575a::t_d25605fc222159 173,175-178
+apps/cli/tests/client-config.test.ts
+  s_5b97ac2fad575a::t_5a29790340e6cd 117-121
+  s_5b97ac2fad575a::t_3373e282c88710 116,122-151
+apps/cli/src/cli/client-config.ts
+  s_5b97ac2fad575a::t_d25605fc222159 141-156,166,178
+apps/backend/app/core/cli_config.py
+  s_5b97ac2fad575a::t_982633f3d64665 150
+  s_5b97ac2fad575a::t_eea6924a5b5f29 140-149,151-183
+apps/backend/config_template.json
+  s_5b97ac2fad575a::t_eea6924a5b5f29 72-76
+apps/cli/src/harnesses/pi/environment.ts
+  s_5b97ac2fad575a::t_d25605fc222159 7,15
+  s_5b97ac2fad575a::t_5a29790340e6cd 14
+apps/cli/src/harnesses/pi/tui-default-model.ts
+  s_5b97ac2fad575a::t_5a29790340e6cd 5,7,20,27-31,33-38,41,47-54,56-59
+  s_5b97ac2fad575a::t_d25605fc222159 1-4,6,8-19,21-26,32,39-40,42-46,55,60-61
+apps/cli/src/harnesses/pi/resources/extensions/axon-changelog.ts
+  s_5b97ac2fad575a::t_f1bbb07ecc7550 31
+apps/backend/README.md
+  s_5b97ac2fad575a::t_f1bbb07ecc7550 572-608
+apps/cli/tests/pi-client-config.test.ts
+  s_5b97ac2fad575a::t_1b7318d15b5ddc 506-512,520-521,527-536,546-548,552-553
+  s_5b97ac2fad575a::t_5722d0b73fc161 497-505,513-519,522-526,537-545,549-551,554-562
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4aba5291b826faf189289bffaa5c20afe999b621",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_5b97ac2fad575a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d729aaee-83c3-479c-b3e1-c21d42812a77",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
