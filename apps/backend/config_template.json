@@ -81,6 +81,11 @@
       "MAX_OUTPUT_TOKENS": null,
       "TIMEOUT_MS": null
     },
+    "SESSION_NAMING": {
+      "ENABLED": null,
+      "MODEL": "litellm/google/gemini-2.5-pro",
+      "TIMEOUT_MS": 30000
+    },
     "MODEL_RECOMMENDER": {
       "ENABLED": null,
       "TIMEOUT_MS": null,

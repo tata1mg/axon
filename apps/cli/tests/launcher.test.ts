@@ -329,6 +329,8 @@ describe("launcher dispatch", () => {
       "--extension",
       join(axonHome, "runtime", activeRuntime, "pi", "extensions", "model-recommender.ts"),
       "--extension",
+      join(axonHome, "runtime", activeRuntime, "pi", "extensions", "session-naming.ts"),
+      "--extension",
       join(axonHome, "runtime", activeRuntime, "pi", "extensions", "session-backup.mjs"),
       "--extension",
       join(axonHome, "runtime", activeRuntime, "pi", "extensions", "web-search.ts"),

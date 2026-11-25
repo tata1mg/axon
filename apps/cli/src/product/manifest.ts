@@ -23,6 +23,9 @@ import requestContextExtensionAsset from "../harnesses/pi/resources/extensions/r
 import sessionBackupExtensionAsset from "../harnesses/pi/resources/extensions/session-backup.mjs" with {
   type: "file",
 };
+import sessionNamingExtensionAsset from "../harnesses/pi/resources/extensions/session-naming.ts" with {
+  type: "file",
+};
 // Keep the embedded asset distinct from the TypeScript module imported as code.
 import terminalPermissionsExtensionAsset from "../harnesses/pi/resources/extensions/terminal-permissions.mjs" with {
   type: "file",
@@ -50,6 +53,12 @@ const SESSION_BACKUP_RESOURCE = Object.freeze({
   id: "session-backup",
   type: "extension",
   destination: "pi/extensions/session-backup.mjs",
+}) satisfies PiResourceManifestEntry;
+
+const SESSION_NAMING_RESOURCE = Object.freeze({
+  id: "session-naming",
+  type: "extension",
+  destination: "pi/extensions/session-naming.ts",
 }) satisfies PiResourceManifestEntry;
 
 const MANAGED_CONFIG_RESOURCE = Object.freeze({
@@ -140,7 +149,7 @@ const AXON_LIGHT_THEME_RESOURCE = Object.freeze({
 
 export const AXON_MANIFEST = parseAxonManifest({
   schemaVersion: 1,
-  revision: "30",
+  revision: "31",
   pi: {
     packages: [
       {
@@ -176,6 +185,7 @@ export const AXON_MANIFEST = parseAxonManifest({
       AXON_CHANGELOG_RESOURCE,
       AXON_AUTH_RESOURCE,
       MODEL_RECOMMENDER_RESOURCE,
+      SESSION_NAMING_RESOURCE,
       SESSION_BACKUP_RESOURCE,
       // Close telemetry after backup shutdown has emitted its final outcomes.
       PI_ORG_TELEMETRY_RESOURCE,
@@ -224,6 +234,10 @@ export const EMBEDDED_PI_RESOURCES = Object.freeze([
   Object.freeze({
     ...MODEL_RECOMMENDER_RESOURCE,
     sourcePath: modelRecommenderExtensionAsset as unknown as string,
+  }),
+  Object.freeze({
+    ...SESSION_NAMING_RESOURCE,
+    sourcePath: sessionNamingExtensionAsset as unknown as string,
   }),
   Object.freeze({
     ...SESSION_BACKUP_RESOURCE,

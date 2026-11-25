@@ -123,6 +123,11 @@ const compactionSchema = z.object({
   maxOutputTokens: optionalOverride(positiveInteger),
   timeoutMs: optionalOverride(positiveInteger),
 });
+const sessionNamingSchema = z.object({
+  enabled: compactionSchema.shape.enabled,
+  model: compactionSchema.shape.model,
+  timeoutMs: optionalOverride(z.number().int().min(1).max(60_000)),
+});
 const modelRecommenderSchema = z.object({
   enabled: optionalOverride(z.boolean()),
   timeoutMs: optionalOverride(countdown),
@@ -160,6 +165,7 @@ const featureSchemas = {
   webSearch: webSearchSchema,
   terminalPermissions: terminalPermissionsSchema,
   compaction: compactionSchema.nullish(),
+  sessionNaming: sessionNamingSchema.nullish(),
   modelRecommender: modelRecommenderSchema.nullish(),
   litellmClient: litellmClientSchema.nullish(),
   litellmFeatures: litellmFeaturesSchema,
@@ -171,6 +177,7 @@ export type ClientConfig = { schemaVersion: 1 } & {
   [K in keyof typeof featureSchemas]?: NonNullable<z.infer<(typeof featureSchemas)[K]>>;
 };
 export type CompactionConfig = z.infer<typeof compactionSchema>;
+export type SessionNamingConfig = z.infer<typeof sessionNamingSchema>;
 export type ModelRecommenderConfig = z.infer<typeof modelRecommenderSchema>;
 export type LiteLLMClientConfig = z.infer<typeof litellmClientSchema>;
 export type LiteLLMFeaturesConfig = z.infer<typeof litellmFeaturesSchema>;
