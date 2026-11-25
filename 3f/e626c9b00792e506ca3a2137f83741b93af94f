@@ -1,0 +1,25 @@
+apps/cli/src/cli/commands/auth.ts
+  s_fbae7755318ab0::t_dec5e7c95c3f51 181
+apps/backend/tests/test_catalog_database.py
+  s_fbae7755318ab0::t_2209f62488423e 375-376
+apps/cli/tests/axon-changelog.test.ts
+  s_fbae7755318ab0::t_d5d4266b65d403 246,248,328-343
+apps/cli/src/harnesses/pi/resources/extensions/axon-changelog.ts
+  s_fbae7755318ab0::t_2e809cbf8a7dbc 192
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3fe626c9b00792e506ca3a2137f83741b93af94f",
+  "prompts": {},
+  "sessions": {
+    "s_fbae7755318ab0": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "509354",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  }
+}
