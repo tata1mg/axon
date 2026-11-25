@@ -1,0 +1,19 @@
+apps/cli/src/harnesses/pi/setup/index.ts
+  s_d812460477f924::t_2800841ebd7562 88-89
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "28ea64986d19bb66d3fab05d2d5f52f0232ea1a3",
+  "prompts": {},
+  "sessions": {
+    "s_d812460477f924": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "509573",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  }
+}
