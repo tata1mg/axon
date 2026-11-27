@@ -49,10 +49,12 @@ function createProcessLogger(home, options = {}) {
   function ensureDirectory(path) {
     mkdirSync(path, { recursive: true, mode: 0o700 });
     const status = lstatSync(path);
+    // A readable home is allowed, but other users must not be able to replace the log path.
+    const modeUnsafe = path === home ? (status.mode & 0o022) !== 0 : (status.mode & 0o077) !== 0;
     if (
       !status.isDirectory() ||
       (process.getuid && status.uid !== process.getuid()) ||
-      (path !== home && (status.mode & 0o077) !== 0)
+      modeUnsafe
     ) {
       throw new Error("Log directory is not private");
     }

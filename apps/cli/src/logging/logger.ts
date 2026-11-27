@@ -60,10 +60,13 @@ export async function createPiLoggingOverrides(
     for (const parent of [paths.home, logsDirectory, directory]) {
       await mkdir(parent, { recursive: true, mode: 0o700 });
       const status = await lstat(parent);
+      // A readable home is allowed, but other users must not be able to replace the preload path.
+      const modeUnsafe =
+        parent === paths.home ? (status.mode & 0o022) !== 0 : (status.mode & 0o077) !== 0;
       if (
         !status.isDirectory() ||
         (process.getuid !== undefined && status.uid !== process.getuid()) ||
-        (parent !== paths.home && (status.mode & 0o077) !== 0)
+        modeUnsafe
       ) {
         throw new Error("Unsafe logging directory");
       }
