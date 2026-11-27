@@ -1394,7 +1394,8 @@ test("refreshes Pi defaults through the pinned config API and safely rotates the
       assert.equal(response.headers.get("x-session-refresh-token"), null);
       const settings = await Bun.file(settingsPath).json();
       assert.deepEqual(settings.defaultTools, ["read", enabled ? "-codemode" : "+codemode"]);
-      assert.equal(settings.showCacheMissNotices, enabled);
+      assert.equal(settings.notices.cacheMisses, enabled);
+      assert.equal(settings.notices.reasoningDrops, enabled);
       // LiteLLM features travel as LITELLM_ENABLE_* variables; settings stay as they were.
       assert.deepEqual(settings.litellm, initial.litellm);
       assert.equal(settings.theme, "custom");

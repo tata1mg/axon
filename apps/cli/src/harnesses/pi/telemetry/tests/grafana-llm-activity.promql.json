@@ -1,0 +1,109 @@
+{
+  "evaluation_interval": "5m",
+  "tests": [
+    {
+      "name": "Count new and increasing call series, dedupe per email, and exclude idle or never-opened users from LLM activity",
+      "interval": "5m",
+      "input_series": [
+        {
+          "series": "pi_session_started_total{user_email=\"idle@example.com\"}",
+          "values": "1+0x289"
+        },
+        {
+          "series": "gen_ai_client_operation_duration_seconds_count{user_email=\"idle@example.com\",service_instance_id=\"idle\"}",
+          "values": "100+0x289"
+        },
+        {
+          "series": "pi_session_started_total{user_email=\"opener@example.com\"}",
+          "values": "_x288 1"
+        },
+        {
+          "series": "pi_session_started_total{user_email=\"returning@example.com\"}",
+          "values": "1+0x289"
+        },
+        {
+          "series": "gen_ai_client_operation_duration_seconds_count{user_email=\"returning@example.com\",service_instance_id=\"existing\"}",
+          "values": "3 3 4+0x287"
+        },
+        {
+          "series": "gen_ai_client_operation_duration_seconds_count{user_email=\"returning@example.com\",service_instance_id=\"another\"}",
+          "values": "_x288 5"
+        },
+        {
+          "series": "gen_ai_client_operation_duration_seconds_count{user_email=\"one-shot@example.com\",service_instance_id=\"new\"}",
+          "values": "_x288 1"
+        },
+        {
+          "series": "gen_ai_client_operation_duration_seconds_count{user_email=\"\",service_instance_id=\"anonymous\"}",
+          "values": "_x288 1"
+        }
+      ],
+      "promql_expr_test": [
+        {
+          "expr": "(count(count by (user_email) (last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\".+\",axon_workflow_name=~\".*\"}[1d]) > (last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\".+\",axon_workflow_name=~\".*\"}[1w] offset 1d) or (0 * last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\".+\",axon_workflow_name=~\".*\"}[1d]))))) or vector(0)) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"1d\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "eval_time": "1d5m",
+          "exp_samples": [
+            {
+              "labels": "{}",
+              "value": 2
+            }
+          ]
+        },
+        {
+          "expr": "(count(count by (user_email) (count_over_time(pi_session_started_total{user_email=~\".+\",axon_workflow_name=~\".*\"}[1d])) unless on (user_email) count by (user_email) (last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\".+\",axon_workflow_name=~\".*\"}[1d]) > (last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\".+\",axon_workflow_name=~\".*\"}[1w] offset 1d) or (0 * last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\".+\",axon_workflow_name=~\".*\"}[1d]))))) or vector(0)) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"1d\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "eval_time": "1d5m",
+          "exp_samples": [
+            {
+              "labels": "{}",
+              "value": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "A process that stopped exporting before the bucket (laptop asleep) counts as LLM active only if its call count rose",
+      "interval": "1h",
+      "input_series": [
+        {
+          "series": "pi_session_started_total{user_email=\"sleeper@example.com\"}",
+          "values": "1x12 _x12 1x24"
+        },
+        {
+          "series": "gen_ai_client_operation_duration_seconds_count{user_email=\"sleeper@example.com\",service_instance_id=\"sleeper\"}",
+          "values": "100x12 _x12 100x24"
+        },
+        {
+          "series": "pi_session_started_total{user_email=\"waker@example.com\"}",
+          "values": "1x12 _x12 1x24"
+        },
+        {
+          "series": "gen_ai_client_operation_duration_seconds_count{user_email=\"waker@example.com\",service_instance_id=\"waker\"}",
+          "values": "100x12 _x12 101x24"
+        }
+      ],
+      "promql_expr_test": [
+        {
+          "expr": "(count(count by (user_email) (last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\".+\",axon_workflow_name=~\".*\"}[1d]) > (last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\".+\",axon_workflow_name=~\".*\"}[1w] offset 1d) or (0 * last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\".+\",axon_workflow_name=~\".*\"}[1d]))))) or vector(0)) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"1d\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "eval_time": "2d",
+          "exp_samples": [
+            {
+              "labels": "{}",
+              "value": 1
+            }
+          ]
+        },
+        {
+          "expr": "(count(count by (user_email) (count_over_time(pi_session_started_total{user_email=~\".+\",axon_workflow_name=~\".*\"}[1d])) unless on (user_email) count by (user_email) (last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\".+\",axon_workflow_name=~\".*\"}[1d]) > (last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\".+\",axon_workflow_name=~\".*\"}[1w] offset 1d) or (0 * last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\".+\",axon_workflow_name=~\".*\"}[1d]))))) or vector(0)) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"1d\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "eval_time": "2d",
+          "exp_samples": [
+            {
+              "labels": "{}",
+              "value": 1
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

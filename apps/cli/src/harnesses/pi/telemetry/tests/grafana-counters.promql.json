@@ -1,5 +1,6 @@
 {
   "evaluation_interval": "5m",
+  "fuzzy_compare": true,
   "tests": [
     {
       "name": "Idle established session at the default ten-second export cadence",
@@ -7,13 +8,13 @@
       "input_series": [
         {
           "series": "pi_turn_count_total{user_email=\"test@example.com\",pi_repo_slug=\"test/repo\",service_instance_id=\"existing\"}",
-          "values": "100+0x270"
+          "values": "100+0x750"
         }
       ],
       "promql_expr_test": [
         {
-          "expr": "sum ((increase(pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"}[20m]) and (pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"} offset 20m)) or (max_over_time(pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"}[20m]) unless (pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"} offset 20m)))",
-          "eval_time": "45m",
+          "expr": "(sum ((increase(pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"}[1h]) and (pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"} offset 1h)) or (max_over_time(pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"}[1h]) unless (pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"} offset 1h)))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"1h\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "eval_time": "125m",
           "exp_samples": [
             {
               "labels": "{}",
@@ -29,13 +30,13 @@
       "input_series": [
         {
           "series": "pi_turn_count_total{user_email=\"test@example.com\",pi_repo_slug=\"test/repo\",service_instance_id=\"existing\"}",
-          "values": "100+0x9"
+          "values": "100+0x25"
         }
       ],
       "promql_expr_test": [
         {
-          "expr": "sum ((increase(pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"}[20m]) and (pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"} offset 20m)) or (max_over_time(pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"}[20m]) unless (pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"} offset 20m)))",
-          "eval_time": "45m",
+          "expr": "(sum ((increase(pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"}[1h]) and (pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"} offset 1h)) or (max_over_time(pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"}[1h]) unless (pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"} offset 1h)))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"1h\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "eval_time": "125m",
           "exp_samples": [
             {
               "labels": "{}",
@@ -51,13 +52,13 @@
       "input_series": [
         {
           "series": "pi_turn_count_total{user_email=\"test@example.com\",pi_repo_slug=\"test/repo\",service_instance_id=\"existing\"}",
-          "values": "100 100 100 100 100 100 _ _ _ 100"
+          "values": "100+0x13 _x11 100"
         }
       ],
       "promql_expr_test": [
         {
-          "expr": "sum ((increase(pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"}[20m]) and (pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"} offset 20m)) or (max_over_time(pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"}[20m]) unless (pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"} offset 20m)))",
-          "eval_time": "45m",
+          "expr": "(sum ((increase(pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"}[1h]) and (pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"} offset 1h)) or (max_over_time(pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"}[1h]) unless (pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"} offset 1h)))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"1h\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "eval_time": "125m",
           "exp_samples": []
         }
       ]
@@ -68,17 +69,17 @@
       "input_series": [
         {
           "series": "pi_turn_count_total{user_email=\"test@example.com\",pi_repo_slug=\"test/repo\",service_instance_id=\"existing\"}",
-          "values": "100+0x9"
+          "values": "100+0x25"
         },
         {
           "series": "pi_turn_count_total{user_email=\"test@example.com\",pi_repo_slug=\"test/repo\",service_instance_id=\"new\"}",
-          "values": "_ _ _ _ _ _ _ _ _ 3"
+          "values": "_x25 3"
         }
       ],
       "promql_expr_test": [
         {
-          "expr": "sum ((increase(pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"}[20m]) and (pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"} offset 20m)) or (max_over_time(pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"}[20m]) unless (pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"} offset 20m)))",
-          "eval_time": "45m",
+          "expr": "(sum ((increase(pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"}[1h]) and (pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"} offset 1h)) or (max_over_time(pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"}[1h]) unless (pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"} offset 1h)))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"1h\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "eval_time": "125m",
           "exp_samples": [
             {
               "labels": "{}",
@@ -94,13 +95,13 @@
       "input_series": [
         {
           "series": "pi_turn_count_total{user_email=\"test@example.com\",pi_repo_slug=\"test/repo\",service_instance_id=\"new\"}",
-          "values": "_ _ _ _ _ _ 1 2 3 4"
+          "values": "_x22 1 2 3 4"
         }
       ],
       "promql_expr_test": [
         {
-          "expr": "sum ((increase(pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"}[20m]) and (pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"} offset 20m)) or (max_over_time(pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"}[20m]) unless (pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"} offset 20m)))",
-          "eval_time": "45m",
+          "expr": "(sum ((increase(pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"}[1h]) and (pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"} offset 1h)) or (max_over_time(pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"}[1h]) unless (pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"} offset 1h)))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"1h\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "eval_time": "125m",
           "exp_samples": [
             {
               "labels": "{}",
@@ -116,19 +117,96 @@
       "input_series": [
         {
           "series": "pi_turn_count_total{user_email=\"test@example.com\",pi_repo_slug=\"test/repo\",service_instance_id=\"existing\"}",
-          "values": "100+5x9"
+          "values": "100+5x25"
         }
       ],
       "promql_expr_test": [
         {
-          "expr": "sum ((increase(pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"}[20m]) and (pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"} offset 20m)) or (max_over_time(pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"}[20m]) unless (pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"} offset 20m)))",
-          "eval_time": "45m",
+          "expr": "(sum ((increase(pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"}[1h]) and (pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"} offset 1h)) or (max_over_time(pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"}[1h]) unless (pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"} offset 1h)))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"1h\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "eval_time": "125m",
           "exp_samples": [
             {
               "labels": "{}",
-              "value": 20
+              "value": 60
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "Adjacent 1d windows count different first samples without carryover",
+      "interval": "1h",
+      "input_series": [
+        {
+          "series": "pi_turn_count_total{user_email=\"test@example.com\",pi_repo_slug=\"test/repo\",service_instance_id=\"existing\"}",
+          "values": "_ 2 stale"
+        },
+        {
+          "series": "pi_turn_count_total{user_email=\"test@example.com\",pi_repo_slug=\"test/repo\",service_instance_id=\"new\"}",
+          "values": "_x25 3"
+        }
+      ],
+      "promql_expr_test": [
+        {
+          "expr": "(sum ((increase(pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"}[1d]) and (pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"} offset 1d)) or (max_over_time(pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"}[1d]) unless (pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"} offset 1d)))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"1d\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "eval_time": "1d",
+          "exp_samples": [
+            {
+              "labels": "{}",
+              "value": 2
+            }
+          ]
+        },
+        {
+          "expr": "(sum ((increase(pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"}[1d]) and (pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"} offset 1d)) or (max_over_time(pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"}[1d]) unless (pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"} offset 1d)))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"1d\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "eval_time": "2d",
+          "exp_samples": [
+            {
+              "labels": "{}",
+              "value": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Adjacent Monday-to-Monday 1w windows count different first samples without carryover, and other days are hidden",
+      "interval": "1h",
+      "input_series": [
+        {
+          "series": "pi_turn_count_total{user_email=\"test@example.com\",pi_repo_slug=\"test/repo\",service_instance_id=\"existing\"}",
+          "values": "_x97 2 stale"
+        },
+        {
+          "series": "pi_turn_count_total{user_email=\"test@example.com\",pi_repo_slug=\"test/repo\",service_instance_id=\"new\"}",
+          "values": "_x265 3"
+        }
+      ],
+      "promql_expr_test": [
+        {
+          "expr": "(sum ((increase(pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"}[1w]) and (pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"} offset 1w)) or (max_over_time(pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"}[1w]) unless (pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"} offset 1w)))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"1w\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "eval_time": "11d",
+          "exp_samples": [
+            {
+              "labels": "{}",
+              "value": 2
+            }
+          ]
+        },
+        {
+          "expr": "(sum ((increase(pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"}[1w]) and (pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"} offset 1w)) or (max_over_time(pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"}[1w]) unless (pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"} offset 1w)))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"1w\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "eval_time": "18d",
+          "exp_samples": [
+            {
+              "labels": "{}",
+              "value": 3
+            }
+          ]
+        },
+        {
+          "expr": "(sum ((increase(pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"}[1w]) and (pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"} offset 1w)) or (max_over_time(pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"}[1w]) unless (pi_turn_count_total{user_email=~\"test@example.com\",axon_workflow_name=~\".*\",pi_repo_slug=~\"test/repo\"} offset 1w)))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"1w\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "eval_time": "17d",
+          "exp_samples": []
         }
       ]
     }
