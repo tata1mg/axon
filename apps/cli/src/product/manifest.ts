@@ -26,6 +26,9 @@ import sessionBackupExtensionAsset from "../harnesses/pi/resources/extensions/se
 import sessionNamingExtensionAsset from "../harnesses/pi/resources/extensions/session-naming.ts" with {
   type: "file",
 };
+import t3CodemodeExposureExtensionAsset from "../harnesses/pi/resources/extensions/t3-codemode-exposure.ts" with {
+  type: "file",
+};
 // Keep the embedded asset distinct from the TypeScript module imported as code.
 import terminalPermissionsExtensionAsset from "../harnesses/pi/resources/extensions/terminal-permissions.mjs" with {
   type: "file",
@@ -127,6 +130,12 @@ const TERMINAL_PERMISSIONS_RESOURCE = Object.freeze({
   destination: "pi/extensions/terminal-permissions.mjs",
 }) satisfies PiResourceManifestEntry;
 
+const T3_CODEMODE_EXPOSURE_RESOURCE = Object.freeze({
+  id: "t3-codemode-exposure",
+  type: "extension",
+  destination: "pi/extensions/t3-codemode-exposure.ts",
+}) satisfies PiResourceManifestEntry;
+
 // A single-file skill: every resource gets its own `--skill` flag, so bundled
 // reference files would each load as a separate standalone skill.
 const AXON_SKILL_RESOURCE = Object.freeze({
@@ -149,7 +158,7 @@ const AXON_LIGHT_THEME_RESOURCE = Object.freeze({
 
 export const AXON_MANIFEST = parseAxonManifest({
   schemaVersion: 1,
-  revision: "31",
+  revision: "32",
   pi: {
     packages: [
       {
@@ -192,6 +201,7 @@ export const AXON_MANIFEST = parseAxonManifest({
       WEB_SEARCH_RESOURCE,
       COMPACTION_RESOURCE,
       REQUEST_CONTEXT_RESOURCE,
+      T3_CODEMODE_EXPOSURE_RESOURCE,
       // Run permission checks after the other managed tool-call handlers.
       TERMINAL_PERMISSIONS_RESOURCE,
       AXON_SKILL_RESOURCE,
@@ -254,6 +264,10 @@ export const EMBEDDED_PI_RESOURCES = Object.freeze([
   Object.freeze({
     ...REQUEST_CONTEXT_RESOURCE,
     sourcePath: requestContextExtensionAsset as unknown as string,
+  }),
+  Object.freeze({
+    ...T3_CODEMODE_EXPOSURE_RESOURCE,
+    sourcePath: t3CodemodeExposureExtensionAsset as unknown as string,
   }),
   Object.freeze({
     ...TERMINAL_PERMISSIONS_RESOURCE,

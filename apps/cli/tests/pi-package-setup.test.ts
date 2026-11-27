@@ -985,6 +985,7 @@ describe("package and resource locks", () => {
       "web-search.ts",
       "compaction.ts",
       "request-context.mjs",
+      "t3-codemode-exposure.ts",
       "terminal-permissions.mjs",
       "SKILL.md",
       "axon-dark.json",

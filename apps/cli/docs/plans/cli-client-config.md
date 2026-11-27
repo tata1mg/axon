@@ -83,7 +83,8 @@ in new top-level sections such as `litellmFeatures`.
 `CLI_CLIENT_CONFIG.PI.CODEMODE_ENABLED` must be a JSON boolean when the section is present and projects
 as `pi.codemodeEnabled`. The backend also projects `pi.litellmMcpEnabled` for CLI 1.0.x, which requires it;
 this CLI accepts but ignores it. `SHOW_CACHE_MISS_NOTICES` projects as `pi.showCacheMissNotices` and persists
-Pi's `showCacheMissNotices`; it defaults to true when omitted and accepts only explicit JSON booleans.
+Pi's four `notices.*` transcript settings (cache misses, cache warming, compaction costs, reasoning drops),
+which replaced Pi's `showCacheMissNotices` in Pi 1.6.1; it defaults to true when omitted and accepts only explicit JSON booleans.
 Managed launches and `/reload` reapply it alongside the other Pi defaults.
 Optional `DEFAULT_PROVIDER`/`DEFAULT_MODEL` project as `pi.defaultProvider`/`pi.defaultModel`
 and are written to Pi's `defaultProvider`/`defaultModel` as a pair; empty or null values are not sent and

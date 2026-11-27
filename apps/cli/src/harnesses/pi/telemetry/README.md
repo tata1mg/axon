@@ -65,7 +65,12 @@ narrows every panel to those people. Rows, top to bottom:
 
 - **Overview**: active and new users, sessions, interactions, cost, tokens, agent hours, cost per
   user/session, cache hit ratio, and LLM/tool error rates.
-- **Adoption**: DAU/WAU/MAU, sessions and interactions over time, users by terminal, CLI versions.
+- **Adoption**: LLM-active user counts for today, this week and this month (calendar, Monday week
+  start, dashboard timezone) and the last 24 hours, 7 days and 30 days; Axon user activity,
+  sessions and interactions over time, users by terminal, and CLI versions. The tiles count only
+  users with an observed model call, using the **LLM active** definition below, and use their own
+  fixed windows, so they ignore the dashboard time range but follow the User and Workflow filters.
+  The Overview **Active users** tile still counts everyone who opened a Pi session.
 - **Leaderboards**: per-user table (cost, sessions, interactions, tokens, tool calls, agent hours),
   top users by tokens, top repositories and models by cost, and top sessions by cost (Tempo
   `pi.session` spans above the **Min session cost** threshold).
@@ -95,13 +100,42 @@ branch to newly observed series: an established series with too few samples for 
 fall back to its cumulative lifetime count (a test enforces the guard on every panel). Multi-counter
 sums use a `label_replace` union rather than `+`, so a model without cache-write tokens still
 appears. Histogram panels apply the same pattern to `_bucket` series, and product rows use it too:
-launcher processes usually export a single sample. Whole-range totals are instant queries; time
-series use `$__interval`. Active users count emails with any exported sample in the window.
+launcher processes usually export a single sample. Whole-range totals are instant queries; trend
+time series use the **Trend interval** bucket as their window. Active users count emails
+with any Pi session-start counter sample in the window.
 
-**Runs, turns and inputs** uses a minimum 20-minute window, four times the maximum supported
-five-minute metric export interval. The Prometheus regression scenarios exercise its turns query and
-cover default/maximum export cadence, idle and sparse established series, and newly observed
-sessions. From `apps/cli`, run them with
+Use **Trend interval** to set the bucket for usage and cost trends,
+LLM-active users, reasoning effort, session distributions, agent-loop trends, and recommender,
+backup, restore, startup, auth/config and update outcome charts. Choose **Hourly** for short
+ranges, **Daily** for a week, or **Weekly** for a month. Percentile panels compute directly from the
+histogram observations in each selected window, not from averages of smaller percentiles.
+The dashboard time range, short-window diagnostics, and whole-range summaries are unchanged.
+Each point covers the bucket before its timestamp. Hourly and Daily points are one step apart and
+aligned to UTC, so a Daily point ends at 05:30 IST. Grafana aligns a one-week step to Thursdays (the
+Unix epoch), so **Weekly** is evaluated daily with a one-week window and keeps only the points that
+end a Monday-to-Monday week; the hidden `trend_step` variable (derived from Trend interval with a
+Prometheus `query_result`) supplies that one-day step. Trend panels set Max data points to 11000,
+Prometheus' per-query limit, so Grafana does not widen the step past the bucket and skip data;
+only Hourly ranges longer than about 458 days exceed it.
+
+**Axon user activity** shows stacked bars per Trend interval bucket, not a rolling window;
+each bar is the users with Pi session telemetry in that bucket. **LLM active** counts each email
+once if Pi observed a foreground model call in the bucket, successful or not. The query compares
+the latest per-process provider-call count with its last value in the week before the bucket (or
+zero for a series with no sample in that week), so repeated idle exports do not count as calls,
+including after a process stops exporting for a while, such as a laptop asleep overnight. **Session only** counts
+emails with session samples but no observed call in the same bucket. Distinct users do not add up
+across buckets, so the legend shows the mean and peak per bucket rather than a sum. The split is
+based on exported telemetry, not a roster: users who never opened Pi cannot be counted, and missed
+exports or calls outside the observed Pi provider lifecycle are not captured.
+
+Run `promtool test rules src/harnesses/pi/telemetry/tests/grafana-llm-activity.promql.json` from
+`apps/cli` to check the idle, first-export, per-email, and export-gap counting cases.
+
+The shortest **Runs, turns and inputs** window is now one hour, above the four-export minimum
+for the maximum five-minute export cadence. Prometheus regression scenarios exercise the turns
+query at all three intervals and cover idle and sparse established series, newly observed
+sessions, and Monday-aligned weekly points. From `apps/cli`, run them with
 `promtool test rules src/harnesses/pi/telemetry/tests/grafana-counters.promql.json`; Bun tests
 ensure the fixture expression stays identical to the dashboard query.
 

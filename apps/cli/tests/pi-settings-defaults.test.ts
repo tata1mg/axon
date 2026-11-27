@@ -23,6 +23,10 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
+function notices(shown: boolean) {
+  return { cacheMisses: shown, cacheWarming: shown, compactionCosts: shown, reasoningDrops: shown };
+}
+
 async function writeSettings(config: Record<string, unknown>): Promise<void> {
   await mkdir(paths.pi, { recursive: true });
   await Bun.write(settingsPath, JSON.stringify(config));
@@ -66,7 +70,7 @@ describe("managed Pi startup defaults", () => {
     await applyPiDefaults(paths, { codemodeEnabled: true, litellmMcpEnabled: false });
     expect(await Bun.file(settingsPath).json()).toEqual({
       defaultTools: ["+codemode"],
-      showCacheMissNotices: true,
+      notices: notices(true),
     });
     expect((await lstat(settingsPath)).mode & 0o777).toBe(0o600);
   });
@@ -83,21 +87,22 @@ describe("managed Pi startup defaults", () => {
     expect(await Bun.file(settingsPath).json()).toEqual({
       ...settings,
       defaultTools: ["read", "grep", "-bash", "+codemode"],
-      showCacheMissNotices: true,
+      notices: notices(true),
     });
   });
 
-  test("cache notices default on, accept managed toggles, and avoid redundant writes", async () => {
+  test("transcript notices default on, accept managed toggles, and avoid redundant writes", async () => {
     const defaults = { codemodeEnabled: true, litellmMcpEnabled: false };
-    await writeSettings({ showCacheMissNotices: false, theme: "custom" });
+    await writeSettings({ notices: notices(false), theme: "custom" });
     await applyPiDefaults(paths, defaults);
-    expect((await Bun.file(settingsPath).json()).showCacheMissNotices).toBe(true);
+    expect((await Bun.file(settingsPath).json()).notices).toEqual(notices(true));
 
     for (const showCacheMissNotices of [false, true]) {
       const managed = { ...defaults, showCacheMissNotices };
       await applyPiDefaults(paths, managed);
       const settings = await Bun.file(settingsPath).json();
-      expect(settings.showCacheMissNotices).toBe(showCacheMissNotices);
+      expect(settings.notices).toEqual(notices(showCacheMissNotices));
+      expect(settings.showCacheMissNotices).toBeUndefined();
       expect(settings.theme).toBe("custom");
       const content = await Bun.file(settingsPath).text();
       const status = await lstat(settingsPath);
@@ -105,6 +110,22 @@ describe("managed Pi startup defaults", () => {
       expect(await Bun.file(settingsPath).text()).toBe(content);
       expect((await lstat(settingsPath)).ino).toBe(status.ino);
     }
+  });
+
+  test("replaces the pre-1.6.1 notice setting and keeps notices Axon does not manage", async () => {
+    // Pi lets saved notices.* win over the legacy key, so a managed toggle must write notices.*.
+    await writeSettings({
+      showCacheMissNotices: false,
+      notices: { cacheMisses: true, futureNotice: false },
+    });
+    await applyPiDefaults(paths, {
+      codemodeEnabled: true,
+      litellmMcpEnabled: false,
+      showCacheMissNotices: false,
+    });
+    const settings = await Bun.file(settingsPath).json();
+    expect(settings).not.toHaveProperty("showCacheMissNotices");
+    expect(settings.notices).toEqual({ ...notices(false), futureNotice: false });
   });
 
   test("repeated enable and disable are idempotent and retain other selections", async () => {
@@ -160,7 +181,7 @@ describe("managed Pi startup defaults", () => {
         await applyPiDefaults(paths, { codemodeEnabled, litellmMcpEnabled });
         expect(await Bun.file(settingsPath).json()).toEqual({
           defaultTools: ["read", codemodeEnabled ? "+codemode" : "-codemode"],
-          showCacheMissNotices: true,
+          notices: notices(true),
           litellm,
           theme: "custom",
         });
@@ -184,7 +205,7 @@ describe("managed Pi startup defaults", () => {
     expect(await Bun.file(settingsPath).json()).toEqual({
       ...managed,
       theme: "custom",
-      showCacheMissNotices: true,
+      notices: notices(true),
       defaultTools: ["+codemode"],
     });
   });
@@ -197,6 +218,18 @@ describe("managed Pi startup defaults", () => {
         applyPiDefaults(paths, { codemodeEnabled: true, litellmMcpEnabled: false }),
       ).rejects.toThrow();
       expect(await Bun.file(settingsPath).text()).toBe(current);
+    }
+  });
+
+  test("replaces a non-object notices value, as Pi does", async () => {
+    for (const saved of [null, true, [], "on"]) {
+      await writeSettings({ notices: saved, theme: "custom" });
+      await applyPiDefaults(paths, { codemodeEnabled: true, litellmMcpEnabled: false });
+      expect(await Bun.file(settingsPath).json()).toEqual({
+        theme: "custom",
+        notices: notices(true),
+        defaultTools: ["+codemode"],
+      });
     }
   });
 
@@ -222,7 +255,7 @@ describe("managed Pi startup defaults", () => {
     await update;
     expect(await Bun.file(settingsPath).json()).toEqual({
       packages: ["concurrent-package-update"],
-      showCacheMissNotices: true,
+      notices: notices(true),
       defaultTools: ["+codemode"],
     });
   });

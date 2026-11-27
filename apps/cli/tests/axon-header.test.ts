@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { stripVTControlCharacters } from "node:util";
@@ -21,6 +21,7 @@ const environmentKeys = [
   "PI_AXON_AUTH_RELAY_URL",
   "PI_AXON_AUTH_RELAY_KEY",
   "PI_AXON_RELAY_LOG_FILE",
+  "PI_CODING_AGENT_SESSION_DIR",
 ] as const;
 let savedEnvironment: Record<string, string | undefined>;
 let savedKeybindings: ReturnType<typeof getKeybindings>;
@@ -156,6 +157,122 @@ describe("Axon prompt context", () => {
       }
     });
   }
+});
+
+describe("Axon resume hint", () => {
+  let directory: string;
+  let savedIsTTY: PropertyDescriptor | undefined;
+
+  beforeEach(async () => {
+    directory = await mkdtemp(join(tmpdir(), "axon-resume-"));
+    savedIsTTY = Object.getOwnPropertyDescriptor(process.stdout, "isTTY");
+    Object.defineProperty(process.stdout, "isTTY", {
+      value: true,
+      configurable: true,
+      writable: true,
+    });
+  });
+
+  afterEach(async () => {
+    if (savedIsTTY) Object.defineProperty(process.stdout, "isTTY", savedIsTTY);
+    else delete (process.stdout as { isTTY?: boolean }).isTTY;
+    await rm(directory, { recursive: true, force: true });
+  });
+
+  async function quit(options: {
+    reason?: string;
+    mode?: ExtensionContext["mode"];
+    sessionDir?: string;
+    persisted?: boolean;
+  }) {
+    const sessionDir = options.sessionDir ?? directory;
+    const sessionFile = join(sessionDir, "session.jsonl");
+    if (options.persisted !== false) await Bun.write(sessionFile, "{}\n");
+    const { handlers } = setup(options.mode ?? "tui");
+    let exitListener: (() => void) | undefined;
+    const once = spyOn(process, "once").mockImplementation(((
+      name: string,
+      listener: () => void,
+    ) => {
+      if (name === "exit") exitListener = listener;
+      return process;
+    }) as typeof process.once);
+    const write = spyOn(process.stdout, "write").mockImplementation(() => true);
+    try {
+      handlers.get("session_shutdown")?.(
+        { type: "session_shutdown", reason: options.reason ?? "quit" },
+        {
+          mode: options.mode ?? "tui",
+          sessionManager: {
+            getSessionId: () => "01a21646-816f-73ae-a326-25c78cd14e64",
+            getSessionDir: () => sessionDir,
+            getSessionFile: () => sessionFile,
+          },
+        } as unknown as ExtensionContext,
+      );
+      const isTTY = process.stdout.isTTY;
+      exitListener?.();
+      return {
+        isTTY,
+        output: write.mock.calls.map(([chunk]) => stripVTControlCharacters(String(chunk))).join(""),
+      };
+    } finally {
+      once.mockRestore();
+      write.mockRestore();
+    }
+  }
+
+  test("replaces Pi's quit hint with axon pi, omitting the launcher's session directory", async () => {
+    process.env["PI_CODING_AGENT_SESSION_DIR"] = directory;
+    const result = await quit({});
+    expect(result.isTTY).toBe(false);
+    expect(result.output).toBe(
+      "To resume this session:\naxon pi --session 01a21646-816f-73ae-a326-25c78cd14e64\n",
+    );
+  });
+
+  test("keeps an explicitly chosen session directory, quoted for the shell", async () => {
+    process.env["PI_CODING_AGENT_SESSION_DIR"] = join(directory, "elsewhere");
+    const sessionDir = join(directory, "it's mine");
+    await mkdir(sessionDir);
+    const result = await quit({ sessionDir });
+    expect(result.output).toBe(
+      `To resume this session:\naxon pi --session-dir '${sessionDir.replace("'", "'\\''")}' --session 01a21646-816f-73ae-a326-25c78cd14e64\n`,
+    );
+  });
+
+  test("writes a session directory with control characters as ANSI-C escapes", async () => {
+    process.env["PI_CODING_AGENT_SESSION_DIR"] = join(directory, "elsewhere");
+    const sessionDir = join(directory, "a\tb\\c");
+    await mkdir(sessionDir);
+    const result = await quit({ sessionDir });
+    expect(result.output).toBe(
+      `To resume this session:\naxon pi --session-dir $'${join(directory, "a\\x09b\\\\c")}' --session 01a21646-816f-73ae-a326-25c78cd14e64\n`,
+    );
+  });
+
+  test("prints nothing for a session that never reached disk", async () => {
+    process.env["PI_CODING_AGENT_SESSION_DIR"] = directory;
+    expect((await quit({ persisted: false })).output).toBe("");
+  });
+
+  for (const [label, options] of [
+    ["session replacement", { reason: "new" }],
+    ["reload", { reason: "reload" }],
+    ["RPC mode", { mode: "rpc" }],
+    ["print mode", { mode: "print" }],
+  ] as const) {
+    test(`leaves Pi alone on ${label}`, async () => {
+      const result = await quit(options);
+      expect(result.isTTY).toBe(true);
+      expect(result.output).toBe("");
+    });
+  }
+
+  test("leaves Pi alone when stdout is not a terminal", async () => {
+    Object.defineProperty(process.stdout, "isTTY", { value: false, configurable: true });
+    expect((await quit({})).output).toBe("");
+  });
 });
 
 describe("Axon relay error placement", () => {

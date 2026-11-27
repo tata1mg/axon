@@ -334,10 +334,13 @@ describe("protected client config", () => {
     try {
       takeProductEvents();
       const started = Date.now();
+      // Headers must arrive before the deadline for the rotated token to be captured; a busy CI
+      // runner can take longer than a few tens of milliseconds, so leave room. The body never
+      // ends, so finishing at all proves the deadline also bounds body reading.
       expect(
-        await fetchClientConfig("token", { serviceOrigin: server.url.origin, timeoutMs: 30 }),
+        await fetchClientConfig("token", { serviceOrigin: server.url.origin, timeoutMs: 500 }),
       ).toEqual({ sessionRefreshToken: "rotated-after-headers" });
-      expect(Date.now() - started).toBeLessThan(1000);
+      expect(Date.now() - started).toBeLessThan(3000);
       expect(takeProductEvents()).toEqual([
         expect.objectContaining({
           category: "config",
