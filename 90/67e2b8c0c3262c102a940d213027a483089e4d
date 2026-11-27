@@ -1,0 +1,24 @@
+apps/cli/tests/axon-auth.test.ts
+  s_75aa8ad4d6e61b::t_1b70063bac8c80 345-346
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9067e2b8c0c3262c102a940d213027a483089e4d",
+  "prompts": {},
+  "humans": {
+    "h_dc688f708c4675": {
+      "author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_75aa8ad4d6e61b": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "510735",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  }
+}
