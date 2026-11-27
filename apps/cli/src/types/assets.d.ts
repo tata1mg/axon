@@ -13,6 +13,11 @@ declare module "*.mjs" {
   export default assetPath;
 }
 
+declare module "*process-logger-preload.cjs" {
+  const assetPath: string;
+  export default assetPath;
+}
+
 // Embedded Pi skills are loaded with `{ type: "file" }`, which yields an asset path.
 declare module "*/SKILL.md" {
   const assetPath: string;

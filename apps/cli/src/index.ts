@@ -7,6 +7,7 @@ import { isTrue } from "./launcher/debug-preview.ts";
 import { describeLauncherFailure, LauncherError } from "./launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "./launcher/exit-status.ts";
 import { FileLockTimeoutError } from "./launcher/file-lock.ts";
+import { initializeLauncherLogging } from "./logging/logger.ts";
 import { PRODUCT_IDENTITY } from "./product/identity.ts";
 import { resolveAxonPaths } from "./product/paths.ts";
 import { beginProductTelemetryInvocation, flushProductTelemetry } from "./telemetry/client.ts";
@@ -25,12 +26,16 @@ function printUnexpectedError(error: unknown): void {
 export async function main(
   invocationArguments: readonly string[] = process.argv.slice(2),
 ): Promise<void> {
-  const argumentsVector = prepareLaunchArguments(invocationArguments);
+  const logger = initializeLauncherLogging();
+  let argumentsVector = invocationArguments;
   try {
+    argumentsVector = prepareLaunchArguments(invocationArguments);
     await bootstrapCertificates(argumentsVector);
     beginProductTelemetryInvocation();
     await dispatch(argumentsVector);
   } catch (error) {
+    // Persist the complete cause chain even when terminal debugging is disabled.
+    logger.error("Axon launcher failed", error);
     if (error instanceof LauncherError) {
       const { message, remediation } = describeLauncherFailure(error);
       console.error(`${PRODUCT_IDENTITY.command}: ${message}`);
@@ -52,7 +57,15 @@ export async function main(
     }
     process.exitCode = LAUNCHER_EXIT_STATUS.profileFailure;
   } finally {
-    await flushProductTelemetry(resolveAxonPaths(), isPiOffline(process.env, argumentsVector));
+    try {
+      await flushProductTelemetry(resolveAxonPaths(), isPiOffline(process.env, argumentsVector));
+    } catch (error) {
+      logger.error("Failed to flush product telemetry", error);
+      if (!process.exitCode) process.exitCode = LAUNCHER_EXIT_STATUS.profileFailure;
+    } finally {
+      logger.info("Axon launcher finished", { exitCode: process.exitCode ?? 0 });
+      logger.dispose();
+    }
   }
 }
 

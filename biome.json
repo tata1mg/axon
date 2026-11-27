@@ -36,6 +36,7 @@
   "overrides": [
     {
       "includes": [
+        "apps/cli/src/logging/process-logger-preload.cjs",
         "apps/cli/src/harnesses/pi/resources/extensions/pi-org-telemetry.mjs",
         "apps/cli/src/harnesses/pi/resources/extensions/request-context.mjs",
         "apps/cli/src/harnesses/pi/resources/extensions/session-backup.mjs",
