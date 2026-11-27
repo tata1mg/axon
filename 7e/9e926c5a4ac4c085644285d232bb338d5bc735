@@ -1,0 +1,19 @@
+apps/cli/src/harnesses/pi/adapter.ts
+  s_d812460477f924::t_8a22497cae049e 185-188,224-225
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7e9e926c5a4ac4c085644285d232bb338d5bc735",
+  "prompts": {},
+  "sessions": {
+    "s_d812460477f924": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "509573",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  }
+}

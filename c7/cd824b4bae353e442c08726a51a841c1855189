@@ -1,0 +1,57 @@
+apps/cli/src/harnesses/pi/adapter.ts
+  s_f649575573f510::t_fa794c4acc4798 24,171
+apps/backend/tests/test_cli_config.py
+  s_f649575573f510::t_5b6b2f344e46ac 79,132
+apps/cli/src/cli/client-config.ts
+  s_f649575573f510::t_d5a133ee31f33c 126-130,168,180
+apps/cli/src/harnesses/pi/launch-preferences-environment.ts
+  s_f649575573f510::t_347e5eeec5d002 5,32-36
+  s_f649575573f510::t_366ebcea526542 37-39
+apps/backend/config_template.json
+  s_f649575573f510::t_0e2996369f4a51 86
+  s_f649575573f510::t_0c65a0ab2b245e 84-85,88
+  s_f649575573f510::t_49c94da13081e3 87
+apps/cli/src/harnesses/pi/resources/extensions/session-naming.ts
+  s_f649575573f510::t_3b9f33f4f0dceb 215-217,232-236
+  s_f649575573f510::t_7bacc86d4c6bc8 8,13,19-21,57,64,77,159,166,169,172-201,242-248,257,269,271-276,279-283,285
+  s_f649575573f510::t_87f7d88feb18cb 1-4,7,9-11,14-18,22-39,46-56,58-63,65-66,70-76,78-158,160-165,167-168,170-171,202-214,218-231,237-241,249-256,258-268,270,277-278,284,286-309
+  s_f649575573f510::t_cb82a3b9c1a6c7 5-6,12,67-69
+  s_f649575573f510::t_a511c0d57d05fb 40-45
+apps/backend/app/core/cli_config.py
+  s_f649575573f510::t_d4f91fe4bf90a2 227-241,292-298
+  s_f649575573f510::t_190c393b21cb3b 299-300
+apps/cli/src/product/manifest.ts
+  s_f649575573f510::t_f2f378c363ecc7 26-28,58-63,152,188,238-240
+  s_f649575573f510::t_176527855d516e 241
+apps/cli/tests/pi-package-setup.test.ts
+  s_f649575573f510::t_718a116f1446ab 983
+apps/backend/app/core/config.py
+  s_f649575573f510::t_038977e756e95e 23,32,221,254-259,263,809,834
+apps/backend/app/routers/cli_config.py
+  s_f649575573f510::t_4ca8549ca5fae4 16,38,75
+apps/cli/tests/launcher.test.ts
+  s_f649575573f510::t_7b771d21e055d4 332-333
+apps/backend/tests/test_terminal_permissions.py
+  s_f649575573f510::t_9a5b04b26b283f 42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c7cd824b4bae353e442c08726a51a841c1855189",
+  "prompts": {},
+  "humans": {
+    "h_dc688f708c4675": {
+      "author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_f649575573f510": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "509841",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  }
+}
