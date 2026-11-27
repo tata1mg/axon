@@ -1,3 +1,4 @@
+import { log } from "../logging/logger.ts";
 import { resolveAxonPaths } from "../product/paths.ts";
 import { flushProductTelemetry } from "../telemetry/client.ts";
 import { emitProductEvent } from "../telemetry/product-events.ts";
@@ -12,6 +13,7 @@ export async function spawnHarness(specification: LaunchSpec): Promise<never> {
   let spawnError: Error | undefined;
   const startedAt = Date.now();
 
+  log.info("Starting harness", { executable: specification.executable, cwd: specification.cwd });
   try {
     subprocess = Bun.spawn([specification.executable, ...specification.arguments], {
       cwd: specification.cwd,
@@ -39,6 +41,7 @@ export async function spawnHarness(specification: LaunchSpec): Promise<never> {
     );
   }
 
+  log.info("Harness started", { pid: subprocess.pid });
   emitProductEvent({
     category: "startup",
     stage: "spawn",
@@ -82,8 +85,11 @@ export async function spawnHarness(specification: LaunchSpec): Promise<never> {
     );
   }
 
-  return exitLikeChild({
-    exitCode: subprocess.exitCode,
-    signalCode: subprocess.signalCode,
-  });
+  const result = { exitCode: subprocess.exitCode, signalCode: subprocess.signalCode };
+  if (result.exitCode === 0 && result.signalCode === null) {
+    log.info("Harness exited", result);
+  } else {
+    log.error("Harness exited", result);
+  }
+  return exitLikeChild(result);
 }

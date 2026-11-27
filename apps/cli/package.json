@@ -14,8 +14,10 @@
   },
   "scripts": {
     "dev": "bun run src/index.ts",
-    "build": "bun run pi-version:check && bun run telemetry:check && bun run backups:check && bun run terminal:check && bun run request-context:check && bun run hub:check && bun build src/index.ts --compile --format=esm --bytecode --sourcemap=external --no-compile-autoload-dotenv --no-compile-autoload-bunfig --define 'BUILD_VERSION=\"0.1.0-dev\"' --define 'BUILD_KIND=\"dev\"' --define 'BUILD_COMMIT=\"local\"' --define 'BUILD_SERVICE_ORIGIN=\"http://localhost:3000\"' --outfile dist/axon",
-    "build:release": "bun run telemetry:check && bun run backups:check && bun run terminal:check && bun run request-context:check && bun run hub:check && bun run scripts/build-release.ts",
+    "build": "bun run logging:check && bun run pi-version:check && bun run telemetry:check && bun run backups:check && bun run terminal:check && bun run request-context:check && bun run hub:check && bun build src/index.ts --compile --format=esm --bytecode --sourcemap=external --no-compile-autoload-dotenv --no-compile-autoload-bunfig --define 'BUILD_VERSION=\"0.1.0-dev\"' --define 'BUILD_KIND=\"dev\"' --define 'BUILD_COMMIT=\"local\"' --define 'BUILD_SERVICE_ORIGIN=\"http://localhost:3000\"' --outfile dist/axon",
+    "build:release": "bun run logging:check && bun run telemetry:check && bun run backups:check && bun run terminal:check && bun run request-context:check && bun run hub:check && bun run scripts/build-release.ts",
+    "logging:build": "bun run scripts/build-logging.ts",
+    "logging:check": "bun run scripts/build-logging.ts --check",
     "pi-version:check": "bun run scripts/check-pi-version.ts",
     "backups:build": "bun run scripts/build-session-backup.ts",
     "backups:check": "bun run scripts/build-session-backup.ts --check",
@@ -29,12 +31,12 @@
     "hub:check": "bun run scripts/build-hub.ts --check",
     "release:validate": "bun run scripts/validate-release.ts",
     "release:metadata": "bun run scripts/generate-release-metadata.ts",
-    "release:prepare-s3": "bun run telemetry:check && bun run terminal:check && bun run request-context:check && bun run scripts/prepare-s3-release.ts",
+    "release:prepare-s3": "bun run logging:check && bun run telemetry:check && bun run terminal:check && bun run request-context:check && bun run scripts/prepare-s3-release.ts",
     "release:publish-s3": "bun run scripts/publish-s3-release.ts",
     "test": "bun test --parallel=4 --timeout=30000",
     "test:installer": "bun test --timeout=30000 tests/installer",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.pi-resources.json && tsc -p src/hub/web/tsconfig.json",
-    "check": "bun run pi-version:check && bun run telemetry:check && bun run backups:check && bun run terminal:check && bun run request-context:check && bun run hub:check && bun run typecheck"
+    "check": "bun run logging:check && bun run pi-version:check && bun run telemetry:check && bun run backups:check && bun run terminal:check && bun run request-context:check && bun run hub:check && bun run typecheck"
   },
   "dependencies": {
     "@clack/prompts": "^1.8.1",

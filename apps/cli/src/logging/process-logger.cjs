@@ -1,0 +1,251 @@
+const {
+  appendFileSync,
+  closeSync,
+  constants,
+  fchmodSync,
+  fstatSync,
+  lstatSync,
+  mkdirSync,
+  openSync,
+  renameSync,
+} = require("node:fs");
+const { join } = require("node:path");
+const { formatWithOptions, stripVTControlCharacters } = require("node:util");
+
+const MAX_LOG_BYTES = 1024 * 1024;
+const MAX_MESSAGE_CHARACTERS = 64 * 1024;
+const SENSITIVE_NAME = /token|secret|password|credential|api[_-]?key|authorization|cookie/i;
+
+// This standalone CommonJS module is also preloaded by Node before Pi starts.
+// Keep it dependency-free: logging must work even when Pi cannot load its packages.
+function createProcessLogger(home, options = {}) {
+  const directory = join(home, "logs", `pid_${process.pid}`);
+  const logFile = join(directory, "debug.log");
+  const secrets = Object.entries(process.env)
+    .filter(([name, value]) => value && SENSITIVE_NAME.test(name))
+    .map(([, value]) => value)
+    .sort((left, right) => right.length - left.length);
+  let ready = false;
+  let installed = false;
+  let consoleDepth = 0;
+  let pendingStderr = "";
+  let discardingStderr = false;
+  const restorers = [];
+
+  function sanitize(message) {
+    // Omit oversized input rather than retaining half of a credential.
+    if (message.length > MAX_MESSAGE_CHARACTERS) return "[OMITTED: message size limit]";
+    for (const secret of secrets) message = message.split(secret).join("[REDACTED]");
+    if (options.redact) message = options.redact(message);
+    message = message.replace(
+      /(["']?\b(?:[\w-]*(?:token|secret|password|credential|api[_-]?key|authorization|cookie)[\w-]*|encryptedSession|refreshedSession|new_session_data)["']?\s*[:=]\s*)(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|(?:Bearer|Basic)\s+[^\s,;)}\]]+|[^\s,;)}\]&#]+)/gi,
+      "$1[REDACTED]",
+    );
+    message = message.replace(/\b(Bearer|Basic)\s+[^\s"'<>`,;)\]}]+/gi, "$1 [REDACTED]");
+    message = message.replace(/(https?:\/\/)[^\s/@]+@/gi, "$1[REDACTED]@");
+    return stripVTControlCharacters(message).replace(/[\p{Cc}&&[^\n\t]]/v, "");
+  }
+
+  function ensureDirectory(path) {
+    mkdirSync(path, { recursive: true, mode: 0o700 });
+    const status = lstatSync(path);
+    // A readable home is allowed, but other users must not be able to replace the log path.
+    const modeUnsafe = path === home ? (status.mode & 0o022) !== 0 : (status.mode & 0o077) !== 0;
+    if (
+      !status.isDirectory() ||
+      (process.getuid && status.uid !== process.getuid()) ||
+      modeUnsafe
+    ) {
+      throw new Error("Log directory is not private");
+    }
+  }
+
+  function append(line) {
+    if (!ready) {
+      // Do not follow a replaced logs directory or process directory.
+      ensureDirectory(home);
+      ensureDirectory(join(home, "logs"));
+      ensureDirectory(directory);
+      ready = true;
+    }
+    const openLog = () =>
+      openSync(
+        logFile,
+        constants.O_WRONLY |
+          constants.O_APPEND |
+          constants.O_CREAT |
+          constants.O_NOFOLLOW |
+          constants.O_NONBLOCK,
+        0o600,
+      );
+    let descriptor = openLog();
+    try {
+      const status = fstatSync(descriptor);
+      if (
+        !status.isFile() ||
+        status.nlink !== 1 ||
+        (process.getuid && status.uid !== process.getuid())
+      ) {
+        return;
+      }
+      fchmodSync(descriptor, 0o600);
+      if (status.size + Buffer.byteLength(line) > MAX_LOG_BYTES) {
+        closeSync(descriptor);
+        descriptor = undefined;
+        renameSync(logFile, `${logFile}.1`);
+        descriptor = openLog();
+      }
+      appendFileSync(descriptor, line, "utf8");
+    } finally {
+      if (descriptor !== undefined) closeSync(descriptor);
+    }
+  }
+
+  function log(level, ...args) {
+    try {
+      const message = sanitize(
+        formatWithOptions(
+          { colors: false, customInspect: false, getters: false, depth: 6 },
+          ...args,
+        ),
+      );
+      const now = new Date();
+      const day = String(now.getDate()).padStart(2, "0");
+      const month = now.toLocaleString("en-US", { month: "short" });
+      const time = now.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+      });
+      const prefix = `[${day} ${month} ${time}] ${level.toUpperCase()}: `;
+      // Timestamp every physical line, including error stacks and nested causes.
+      append(
+        `${message
+          .trimEnd()
+          .split(/\r?\n/)
+          .map((line) => `${prefix}${line}`)
+          .join("\n")}\n`,
+      );
+    } catch {
+      // Never recurse through console, mask an application error, or break the TUI.
+    }
+  }
+
+  const logger = {
+    logFile,
+    info: (...args) => log("info", ...args),
+    warn: (...args) => log("warn", ...args),
+    error: (...args) => log("error", ...args),
+    debug: (...args) => log("debug", ...args),
+    install() {
+      if (installed) return;
+      installed = true;
+      for (const [method, level] of [
+        ["log", "info"],
+        ["info", "info"],
+        ["warn", "warn"],
+        ["error", "error"],
+        ["debug", "debug"],
+        ["trace", "debug"],
+      ]) {
+        const original = console[method];
+        const replacement = function (...args) {
+          log(level, ...args);
+          consoleDepth++;
+          try {
+            return original.apply(this, args);
+          } finally {
+            consoleDepth--;
+          }
+        };
+        console[method] = replacement;
+        restorers.push(() => {
+          if (console[method] === replacement) console[method] = original;
+        });
+      }
+
+      const originalWrite = process.stderr.write;
+      const replacementWrite = function (chunk, ...args) {
+        // Console is already captured above. Preserve the original bytes, callback,
+        // backpressure and TTY descriptors; only copy direct stderr diagnostics.
+        if (consoleDepth === 0) {
+          try {
+            const text = typeof chunk === "string" ? chunk : Buffer.from(chunk).toString("utf8");
+            for (const part of text.split(/(?<=\n)/)) {
+              if (!discardingStderr) pendingStderr += part;
+              if (pendingStderr.length > MAX_MESSAGE_CHARACTERS) {
+                pendingStderr = "";
+                discardingStderr = true;
+              }
+              if (part.endsWith("\n")) {
+                log(
+                  "error",
+                  discardingStderr ? "[OMITTED: stderr line size limit]" : pendingStderr,
+                );
+                pendingStderr = "";
+                discardingStderr = false;
+              }
+            }
+          } catch {}
+        }
+        return originalWrite.call(this, chunk, ...args);
+      };
+      process.stderr.write = replacementWrite;
+      restorers.push(() => {
+        if (process.stderr.write === replacementWrite) process.stderr.write = originalWrite;
+      });
+
+      const onException = (error, origin) => log("error", origin, error);
+      const onWarning = (warning) => log("warn", warning);
+      const onExit = (code) => {
+        logger.flush();
+        log(code === 0 ? "info" : "error", "Process exited", { exitCode: code });
+      };
+      // Monitoring does not suppress the runtime's normal fatal-error behavior.
+      process.on("uncaughtExceptionMonitor", onException);
+      process.on("warning", onWarning);
+      process.on("exit", onExit);
+      restorers.push(() => {
+        process.off("uncaughtExceptionMonitor", onException);
+        process.off("warning", onWarning);
+        process.off("exit", onExit);
+      });
+    },
+    flush() {
+      if (pendingStderr || discardingStderr) {
+        log("error", discardingStderr ? "[OMITTED: stderr line size limit]" : pendingStderr);
+        pendingStderr = "";
+        discardingStderr = false;
+      }
+    },
+    dispose() {
+      logger.flush();
+      for (const restore of restorers.reverse()) restore();
+      restorers.length = 0;
+      installed = false;
+    },
+  };
+  return logger;
+}
+
+module.exports = { createProcessLogger };
+
+if (process.env["PI_AXON_LOG_PRELOAD"] === __filename) {
+  const home = process.env["PI_AXON_LOG_HOME"];
+  const option = process.env["PI_AXON_LOG_OPTION"];
+  // Do not preload this hook in tools, npm, or other descendants launched by Pi.
+  if (option) {
+    const remaining = (process.env["NODE_OPTIONS"] || "").replace(option, "").trim();
+    if (remaining) process.env["NODE_OPTIONS"] = remaining;
+    else delete process.env["NODE_OPTIONS"];
+  }
+  delete process.env["PI_AXON_LOG_HOME"];
+  delete process.env["PI_AXON_LOG_PRELOAD"];
+  delete process.env["PI_AXON_LOG_OPTION"];
+  if (home) {
+    const logger = createProcessLogger(home);
+    logger.install();
+    logger.info("Pi runtime logging initialized", { pid: process.pid });
+  }
+}

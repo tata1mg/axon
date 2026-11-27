@@ -9,6 +9,7 @@ import type { HarnessAdapter } from "../../launcher/contracts.ts";
 import type { EnvironmentOverrides } from "../../launcher/environment.ts";
 import { LauncherError } from "../../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
+import { createPiLoggingOverrides } from "../../logging/logger.ts";
 import { PRODUCT_IDENTITY } from "../../product/identity.ts";
 import { closeProductTelemetry, initializeProductTelemetry } from "../../telemetry/client.ts";
 import { createPiEnvironment } from "./environment.ts";
@@ -254,6 +255,7 @@ export function createPiAdapter(): HarnessAdapter {
           webSearchOverrides,
           terminalPermissionsOverrides,
           featureOverrides,
+          await createPiLoggingOverrides(context.paths, context.environment),
         ),
         cwd: context.cwd,
         offline: setup.offline,

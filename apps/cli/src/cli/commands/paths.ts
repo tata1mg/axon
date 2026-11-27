@@ -1,8 +1,13 @@
+import { join } from "node:path";
+
+import { processLogFile } from "../../logging/logger.ts";
 import type { AxonPaths } from "../../product/paths.ts";
 
 export function printPaths(paths: AxonPaths): void {
   const entries = [
     ["home", paths.home],
+    ["logs", join(paths.home, "logs")],
+    ["current process log", processLogFile(paths)],
     ["shared authentication file", paths.sharedAuthFile],
     ["shared authentication lock", paths.sharedAuthLock],
     ["managed binary", paths.managedBinary],
