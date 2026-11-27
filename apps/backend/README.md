@@ -550,9 +550,10 @@ default but does not forcibly deactivate an active codemode tool. The LiteLLM pr
 the freshly applied MCP, skills, and budget switches.
 `CODEMODE_ENABLED: false` sets a disabled codemode startup default; `LITELLM_FEATURES.MCP_ENABLED: false`
 disables the LiteLLM MCP bridge without changing codemode or separately configured MCP servers.
-`SHOW_CACHE_MISS_NOTICES` projects as `pi.showCacheMissNotices` and writes Pi's `showCacheMissNotices`
-setting. It defaults to `true` when omitted from a configured `PI` section; set it to `false` to hide
-cache-miss, cache-warming, compaction-usage, and provider-recovery notices. Explicit values must be JSON
+`SHOW_CACHE_MISS_NOTICES` projects as `pi.showCacheMissNotices`; the CLI writes it to Pi's
+`notices.cacheMisses`, `notices.cacheWarming`, `notices.compactionCosts`, and `notices.reasoningDrops`
+settings (Pi 1.6.1 replaced its single `showCacheMissNotices` setting with these). It defaults to `true`
+when omitted from a configured `PI` section; set it to `false` to hide all four notices. Explicit values must be JSON
 booleans (not null, strings, or numbers). Managed launch and `/reload` reapply this value over local
 agent-directory edits; trusted project settings can still override it.
 `DEFAULT_PROVIDER` and `DEFAULT_MODEL` (for example `"litellm"` and `"openai/gpt-6.1-sol"`) set Pi's

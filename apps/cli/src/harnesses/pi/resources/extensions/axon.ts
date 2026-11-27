@@ -1,4 +1,6 @@
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
+import { resolve } from "node:path";
 import {
   type AppKeybinding,
   type ExtensionAPI,
@@ -302,6 +304,69 @@ function createAxonHeader(
     },
   };
 }
+/**
+ * Mirrors Pi's own resume-command quoting. A value with control characters is written as ANSI-C
+ * `$'…'` with escapes instead, so the command still names the real path and no raw control
+ * character reaches the terminal.
+ */
+function shellArgument(value: string): string {
+  if (/\p{Cc}/u.test(value)) {
+    const escaped = value.replace(/[\\']|\p{Cc}/gu, (char) =>
+      char === "\\" || char === "'"
+        ? `\\${char}`
+        : `\\x${char.charCodeAt(0).toString(16).padStart(2, "0")}`,
+    );
+    return `$'${escaped}'`;
+  }
+  return value.length > 0 && !/[^a-zA-Z0-9_\-./~:@]/.test(value)
+    ? value
+    : `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+interface ResumeSession {
+  getSessionId(): string;
+  getSessionDir(): string;
+  getSessionFile(): string | undefined;
+}
+
+/**
+ * Replace Pi's `pi --session <id>` quit hint with the command that resumes through Axon.
+ *
+ * Pi stops the TUI, awaits `session_shutdown` handlers, then prints its hint only while
+ * `process.stdout.isTTY` is true (interactive-mode.js formatResumeCommand, Pi 1.6). Hiding
+ * isTTY here suppresses that line; the exit listener prints the Axon one after Pi has
+ * restored the terminal, which also holds for signal shutdowns that dispose before stopping.
+ * Revisit if Pi gains a supported override for the resume command.
+ */
+function replaceResumeHint(session: ResumeSession): void {
+  if (!process.stdout.isTTY) return;
+  const sessionFile = session.getSessionFile();
+  if (!sessionFile) return;
+  const args = ["axon", "pi"];
+  // Axon exports its session directory to Pi, so only a non-default one needs repeating.
+  const launcherSessionDir = process.env["PI_CODING_AGENT_SESSION_DIR"];
+  const sessionDir = session.getSessionDir();
+  if (!launcherSessionDir || resolve(launcherSessionDir) !== resolve(sessionDir)) {
+    args.push("--session-dir", shellArgument(sessionDir));
+  }
+  args.push("--session", shellArgument(session.getSessionId()));
+  const command = args.join(" ");
+  Object.defineProperty(process.stdout, "isTTY", {
+    value: false,
+    configurable: true,
+    writable: true,
+  });
+  process.once("exit", () => {
+    // Pi writes sessions lazily; like Pi, say nothing for a session that never reached disk.
+    if (!existsSync(sessionFile)) return;
+    try {
+      process.stdout.write(`\u001b[2mTo resume this session:\u001b[22m\n${command}\n`);
+    } catch {
+      // The terminal may already be gone after SIGHUP.
+    }
+  });
+}
+
 // Keep in sync with axon-auth.ts; each extension ships standalone.
 function authRelayConfiguration(): { origin: string; capability: string } | undefined {
   const origin = Reflect.get(process.env, "PI_AXON_AUTH_RELAY_URL") as string | undefined;
@@ -414,10 +479,11 @@ export default function axonExtension(pi: ExtensionAPI): void {
       refreshHeader();
     }
   });
-  pi.on("session_shutdown", () => {
+  pi.on("session_shutdown", (event, ctx) => {
     refreshHeader = undefined;
     backupState = undefined;
     terminalState = undefined;
+    if (event?.reason === "quit" && ctx?.mode === "tui") replaceResumeHint(ctx.sessionManager);
   });
 
   pi.registerEntryRenderer(ENTRY_TYPE, (entry, _options, theme) => {

@@ -2,6 +2,7 @@ import type {
   CompactionConfig,
   LiteLLMClientConfig,
   ModelRecommenderConfig,
+  SessionNamingConfig,
 } from "../../cli/client-config.ts";
 import type { EnvironmentOverrides } from "../../launcher/environment.ts";
 
@@ -25,6 +26,14 @@ export function createCompactionOverrides(policy?: CompactionConfig): Environmen
     thresholdTokens: "PI_COMPACTION_THRESHOLD_TOKENS",
     maxOutputTokens: "PI_COMPACTION_MAX_OUTPUT_TOKENS",
     timeoutMs: "PI_COMPACTION_TIMEOUT_MS",
+  });
+}
+
+export function createSessionNamingOverrides(policy?: SessionNamingConfig): EnvironmentOverrides {
+  return preferenceOverrides(policy, {
+    enabled: "PI_SESSION_NAMING_ENABLED",
+    model: "PI_SESSION_NAMING_MODEL",
+    timeoutMs: "PI_SESSION_NAMING_TIMEOUT_MS",
   });
 }
 

@@ -259,7 +259,7 @@ describe("real Pi adapter client config integration", () => {
     expect(await loadEncryptedSession(paths)).toBe("rotated-token");
     const settings = await Bun.file(join(paths.pi, "settings.json")).json();
     expect(settings.defaultTools).toEqual(["+codemode"]);
-    expect(settings.showCacheMissNotices).toBe(true);
+    expect(settings.notices.cacheMisses).toBe(true);
     // Optional LiteLLM features reach Pi as LITELLM_ENABLE_*, never as managed settings.
     expect(settings.litellm).toBeUndefined();
     expect(environment["LITELLM_ENABLE_MCP"]).toBe("1");
@@ -354,7 +354,7 @@ describe("real Pi adapter client config integration", () => {
         showCacheMissNotices = enabled;
         await launchSpec();
         const settings = await Bun.file(settingsPath).json();
-        expect(settings.showCacheMissNotices).toBe(enabled);
+        expect(settings.notices).toMatchObject({ cacheMisses: enabled, compactionCosts: enabled });
       }
     } finally {
       showCacheMissNotices = undefined;

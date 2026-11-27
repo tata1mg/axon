@@ -13,6 +13,7 @@ from app.core.cli_config import (
     CliLiteLLMFeaturesConfig,
     CliModelRecommenderConfig,
     CliPiConfig,
+    CliSessionNamingConfig,
     CliTelemetryConfig,
     CliTuiDefaultModelConfig,
 )
@@ -34,6 +35,7 @@ class CliConfigResponse(BaseModel):
     telemetry: CliTelemetryConfig | None = None
     pi: CliPiConfig | None = None
     compaction: CliCompactionConfig | None = None
+    session_naming: CliSessionNamingConfig | None = Field(default=None, alias="sessionNaming")
     model_recommender: CliModelRecommenderConfig | None = Field(default=None, alias="modelRecommender")
     litellm_client: CliLiteLLMClientConfig | None = Field(default=None, alias="litellmClient")
     litellm_features: CliLiteLLMFeaturesConfig | None = Field(default=None, alias="litellmFeatures")
@@ -70,6 +72,7 @@ async def client_config(settings: Annotated[Settings, Depends(get_settings)]) ->
         telemetry=settings.cli_telemetry,
         pi=settings.cli_pi,
         compaction=settings.cli_compaction,
+        sessionNaming=settings.cli_session_naming,
         modelRecommender=settings.cli_model_recommender,
         litellmClient=settings.cli_litellm_client,
         litellmFeatures=settings.cli_litellm_features,

@@ -20,7 +20,7 @@ This is a clean-install rename: previous product installations are not automatic
 - Standalone web search through the existing authenticated LiteLLM relay, with grounding, session attribution, and tool usage/cost reporting
 - `axon hub`: a local browser UI for user-level MCP servers, user-level skills, and the organization catalog (Discover), installing admin-published MCP servers with guided setup
 - Pi agent/session isolation under `${AXON_HOME}/pi`, with Pi version checks disabled and every Pi-documented provider API key removed from Pi only (LiteLLM variables are kept)
-- Exact Pi 1.6.0 pin: Axon uses only its isolated executable under `${AXON_HOME}/pi-runtime`, installed from Pi's release API with `npm ci`; the user's PATH Pi is never used or changed
+- Exact Pi 1.6.1 pin: Axon uses only its isolated executable under `${AXON_HOME}/pi-runtime`, installed from Pi's release API with `npm ci`; the user's PATH Pi is never used or changed
 - Content-addressed, checksum-verified Axon Pi resources injected through explicit Pi flags that reference the immutable runtime directory
 - Embedded required-package policy with exact, minimum, and Pi/user-managed floating versions
 - Locked package reconciliation, last-known-good exact fallback, and local-only warm checks
@@ -43,7 +43,7 @@ This is a clean-install rename: previous product installations are not automatic
 
 ## Installation
 
-Releases support macOS on Apple Silicon (`darwin-arm64`) and Intel (`darwin-x64`). The installer picks the build that runs natively, including from a Rosetta terminal on Apple Silicon, and each binary updates only to the same target. The launcher does not bundle Pi. The installer checks for Node.js 22.19 or newer and npm before installing `axon`; if either is unavailable, it offers to install or upgrade Node.js with Homebrew in an interactive terminal. Non-interactive installations require Node.js and npm to be installed first. `axon pi` installs and uses its own exact Pi 1.6.0 release on first use, independently of any user-installed Pi.
+Releases support macOS on Apple Silicon (`darwin-arm64`) and Intel (`darwin-x64`). The installer picks the build that runs natively, including from a Rosetta terminal on Apple Silicon, and each binary updates only to the same target. The launcher does not bundle Pi. The installer checks for Node.js 22.19 or newer and npm before installing `axon`; if either is unavailable, it offers to install or upgrade Node.js with Homebrew in an interactive terminal. Non-interactive installations require Node.js and npm to be installed first. `axon pi` installs and uses its own exact Pi 1.6.1 release on first use, independently of any user-installed Pi.
 
 Once the backend serves the public `/install.sh` endpoint (rendered from this repository's [`install.sh`](install.sh) using its configured release URL), install with:
 
@@ -200,6 +200,11 @@ Axon provider is replaced only after confirmation or `--yes`, invalid or concurr
 files are left unchanged, and a private backup is saved before changing an existing file.
 T3 Code reloads the file itself; select **Axon** when starting a new thread.
 
+Axon exposes T3 Code’s injected MCP tools through Pi’s `codemode` instead of declaring each
+tool directly to the model. This applies only to T3 Code sessions and leaves other MCP
+servers and built-in tools alone. If `codemode` is unavailable, T3 tools keep their usual
+exposure. Existing Axon providers pick this up in new threads without rerunning setup.
+
 ### Using Axon from other apps
 
 Some apps run a Pi binary directly (`<binary> --mode rpc`, `<binary> --version`) and have no
@@ -279,7 +284,7 @@ all settings. `PI_WEB_SEARCH_MODE` and `PI_WEB_SEARCH_SEARCH_TOOL` are obsolete.
 
 ### Pi installation bootstrap
 
-`axon pi` uses **only** the Axon-managed executable at `${AXON_HOME}/pi-runtime/1.6.0/node_modules/.bin/pi`. It verifies the installed package and reported executable version, installs that exact version on demand if missing, and never reads or modifies `pi` on `PATH`, regardless of its version. This also applies to forwarded Pi administration (`install`, `auth`, `mcp`, etc.). `axon pi update` (including `--extensions`) is blocked before launching Pi; use `pi update` directly for a separate global installation. Axon's own required-package reconciliation still works through its pinned executable.
+`axon pi` uses **only** the Axon-managed executable at `${AXON_HOME}/pi-runtime/1.6.1/node_modules/.bin/pi`. It verifies the installed package and reported executable version, installs that exact version on demand if missing, and never reads or modifies `pi` on `PATH`, regardless of its version. This also applies to forwarded Pi administration (`install`, `auth`, `mcp`, etc.). `axon pi update` (including `--extensions`) is blocked before launching Pi; use `pi update` directly for a separate global installation. Axon's own required-package reconciliation still works through its pinned executable.
 
 The official `https://pi.dev/install.sh` cannot pin a version, requires an interactive terminal, and may edit shell profiles, so Axon does not run it. Instead it follows the same steps as Pi's own managed `pi update`: it downloads `package.json` and `package-lock.json` for the exact version from `https://pi.dev/api/installer/releases/<version>/`, plus the release metadata from `https://pi.dev/api/installer/releases/<version>`, validates that all three describe `@earendil-works/pi-coding-agent@<version>`, merges the first-party tarball SHA-512 hashes from the metadata into the lockfile (the published lockfile omits them) so that every resolved tarball is integrity-checked, runs `npm ci --ignore-scripts --omit=dev --include=optional` in a staging directory under a same-user lock, verifies the installed package version and launcher, and atomically renames the tree into place. Shell profiles and `PATH` are never modified.
 
@@ -434,15 +439,17 @@ Axon continues to forward `LITELLM_*` variables. The provider now recognizes `LI
 
 ### Backend-managed launch preferences
 
-`CLI_CLIENT_CONFIG.PI.SHOW_CACHE_MISS_NOTICES` controls Pi's `showCacheMissNotices` setting in
-`~/.axon/pi/settings.json`. It defaults to `true` when the backend manages Pi defaults; set it to
-`false` to hide cache-related notices. Like codemode and model defaults, it is persisted on authenticated
+`CLI_CLIENT_CONFIG.PI.SHOW_CACHE_MISS_NOTICES` controls Pi's transcript notices in
+`~/.axon/pi/settings.json`: `notices.cacheMisses`, `notices.cacheWarming`, `notices.compactionCosts`, and
+`notices.reasoningDrops`, the four settings that replaced `showCacheMissNotices` in Pi 1.6.1. Axon removes
+the legacy key when it writes them. It defaults to `true` when the backend manages Pi defaults; set it to
+`false` to hide these notices. Like codemode and model defaults, it is persisted on authenticated
 online launches and refreshed on `/reload`. Omitted/null `PI`, offline/admin launches, and failed config
 fetches leave the last local settings untouched. Trusted project settings can override this default.
 See [Pi startup defaults](../backend/README.md#pi-startup-defaults) for the full backend configuration.
 
-The authenticated config response can include partial `compaction`, `modelRecommender`, and
-`litellmClient` objects. Each explicitly supplied backend field wins over inherited environment
+The authenticated config response can include partial `compaction`, `sessionNaming`,
+`modelRecommender`, and `litellmClient` objects. Each explicitly supplied backend field wins over inherited environment
 values, including false and discovery timeout zero. Missing/null fields retain local values, then
 existing extension/provider defaults. Removing a field restores that fallback on the next launch.
 
@@ -453,6 +460,9 @@ existing extension/provider defaults. Removing a field restores that fallback on
 | `COMPACTION.THRESHOLD_TOKENS` | `PI_COMPACTION_THRESHOLD_TOKENS` |
 | `COMPACTION.MAX_OUTPUT_TOKENS` | `PI_COMPACTION_MAX_OUTPUT_TOKENS` |
 | `COMPACTION.TIMEOUT_MS` | `PI_COMPACTION_TIMEOUT_MS` |
+| `SESSION_NAMING.ENABLED` | `PI_SESSION_NAMING_ENABLED` |
+| `SESSION_NAMING.MODEL` | `PI_SESSION_NAMING_MODEL` |
+| `SESSION_NAMING.TIMEOUT_MS` | `PI_SESSION_NAMING_TIMEOUT_MS` |
 | `MODEL_RECOMMENDER.ENABLED` | `PI_MODEL_RECOMMENDER_DISABLED` (inverted) |
 | `MODEL_RECOMMENDER.TIMEOUT_MS` | `PI_MODEL_RECOMMENDER_TIMEOUT_MS` |
 | `MODEL_RECOMMENDER.AUTO_SELECT_MS` | `PI_MODEL_RECOMMENDER_AUTO_SELECT_MS` |
@@ -473,6 +483,17 @@ silently switching summary models. Pi 1.4 summaries use the model's output limit
 `COMPACTION.MAX_OUTPUT_TOKENS` / `PI_COMPACTION_MAX_OUTPUT_TOKENS` cap is clamped to the
 selected summary model's known positive output limit. Positive limits are not a guarantee of
 a sensible combination.
+Automatic session naming titles a session from its first prompt, in the background, so the title
+appears within seconds instead of after the first run finishes. It uses
+`litellm/anthropic/claude-haiku-5-5` unless `SESSION_NAMING.MODEL` names another model, and makes
+at most two attempts, 10 seconds apart, before warning once. It stays off when
+Paseo, T3 Code, or Ghostex launched Pi (detected by `PASEO_AGENT_ID`, `T3CODE_THREAD_ID`,
+`T3_PI_MCP_EXTENSION_PATH`, or `GHOSTEX_SESSION_ID`), because those apps title sessions themselves.
+Users choose with `axon pi --session-naming on|off|auto` or `AXON_SESSION_NAMING=on|off|auto`; the
+flag wins, and `auto` is the default. `on` only re-enables naming under those apps: a backend
+`SESSION_NAMING.ENABLED: false` or an offline launch still keeps it off. Pi's `/name` always works,
+and a name set with it is never overwritten.
+
 Recommender countdowns must be positive; backend recommendation eligibility/204 still takes priority.
 Provider discovery timeout zero disables discovery (and affected integrations such as MCP). Context
 window fallback only fills missing metadata; known per-model context/output limits are preserved.

@@ -30,6 +30,7 @@
     "to": "now"
   },
   "timezone": "browser",
+  "weekStart": "monday",
   "title": "Axon Harness Org Telemetry",
   "uid": "axon-harness-org-telemetry",
   "description": "Axon Pi usage, adoption, cost and reliability. Select All users for the organization view or pick emails for a personal view.",
@@ -602,9 +603,9 @@
       "id": 14
     },
     {
-      "type": "timeseries",
-      "title": "Active users (DAU / WAU / MAU)",
-      "description": "Distinct users with any Pi session sample in each window. Widen the time range to at least 7 days for weekly/monthly trends.",
+      "type": "stat",
+      "title": "Active users today",
+      "description": "Distinct verified emails with at least one observed Pi model call (including failures) since midnight today, in the dashboard timezone. Users who only opened a session are not counted. Fixed window: ignores the dashboard time range but follows the User and Workflow filters.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
@@ -612,57 +613,47 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "count(count by (user_email) (count_over_time(pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[1d])))",
-          "legendFormat": "Daily",
-          "interval": "1d"
-        },
-        {
-          "refId": "B",
-          "expr": "count(count by (user_email) (count_over_time(pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[7d])))",
-          "legendFormat": "Weekly (rolling 7d)",
-          "interval": "1d"
-        },
-        {
-          "refId": "C",
-          "expr": "count(count by (user_email) (count_over_time(pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[30d])))",
-          "legendFormat": "Monthly (rolling 30d)",
-          "interval": "1d"
+          "expr": "count(count by (user_email) (last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) > (last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[1w] offset $__range) or (0 * last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]))))) or vector(0)",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
         }
       ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      },
       "fieldConfig": {
         "defaults": {
           "unit": "short",
-          "custom": {
-            "fillOpacity": 10,
-            "lineWidth": 2
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
           }
         },
         "overrides": []
       },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "calcs": ["mean", "max"]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "interval": "1d",
+      "timeFrom": "now/d",
+      "hideTimeOverride": true,
       "gridPos": {
-        "h": 8,
-        "w": 12,
+        "h": 4,
+        "w": 4,
         "x": 0,
         "y": 10
       },
-      "id": 15
+      "id": 104
     },
     {
-      "type": "timeseries",
-      "title": "Sessions and interactions",
-      "description": "",
+      "type": "stat",
+      "title": "Active users, last 24 hours",
+      "description": "Distinct verified emails with at least one observed Pi model call (including failures) in the last 24 hours, in the dashboard timezone. Users who only opened a session are not counted. Fixed window: ignores the dashboard time range but follows the User and Workflow filters.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
@@ -670,13 +661,255 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum ((increase(pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)))",
-          "legendFormat": "Sessions"
+          "expr": "count(count by (user_email) (last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) > (last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[1w] offset $__range) or (0 * last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]))))) or vector(0)",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "timeFrom": "24h",
+      "hideTimeOverride": true,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 10
+      },
+      "id": 105
+    },
+    {
+      "type": "stat",
+      "title": "Active users this week",
+      "description": "Distinct verified emails with at least one observed Pi model call (including failures) since the start of this week (Monday), in the dashboard timezone. Users who only opened a session are not counted. Fixed window: ignores the dashboard time range but follows the User and Workflow filters.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(count by (user_email) (last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) > (last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[1w] offset $__range) or (0 * last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]))))) or vector(0)",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "timeFrom": "now/w",
+      "hideTimeOverride": true,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 10
+      },
+      "id": 106
+    },
+    {
+      "type": "stat",
+      "title": "Active users, last 7 days",
+      "description": "Distinct verified emails with at least one observed Pi model call (including failures) in the last 7 days, in the dashboard timezone. Users who only opened a session are not counted. Fixed window: ignores the dashboard time range but follows the User and Workflow filters.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(count by (user_email) (last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) > (last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[1w] offset $__range) or (0 * last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]))))) or vector(0)",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "timeFrom": "7d",
+      "hideTimeOverride": true,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 10
+      },
+      "id": 107
+    },
+    {
+      "type": "stat",
+      "title": "Active users this month",
+      "description": "Distinct verified emails with at least one observed Pi model call (including failures) since the 1st of this month, in the dashboard timezone. Users who only opened a session are not counted. Fixed window: ignores the dashboard time range but follows the User and Workflow filters.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(count by (user_email) (last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) > (last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[1w] offset $__range) or (0 * last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]))))) or vector(0)",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "timeFrom": "now/M",
+      "hideTimeOverride": true,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 10
+      },
+      "id": 108
+    },
+    {
+      "type": "stat",
+      "title": "Active users, last 30 days",
+      "description": "Distinct verified emails with at least one observed Pi model call (including failures) in the last 30 days, in the dashboard timezone. Users who only opened a session are not counted. Fixed window: ignores the dashboard time range but follows the User and Workflow filters.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(count by (user_email) (last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]) > (last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[1w] offset $__range) or (0 * last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__range]))))) or vector(0)",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "timeFrom": "30d",
+      "hideTimeOverride": true,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 10
+      },
+      "id": 109
+    },
+    {
+      "type": "timeseries",
+      "title": "Sessions and interactions",
+      "description": "Session starts and interactions per selected Trend interval. Use Hourly for short ranges, Daily for a week, or Weekly for a month.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum ((increase(pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) and (pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval})) or (max_over_time(pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) unless (pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval})))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "legendFormat": "Sessions",
+          "interval": "${trend_step}"
         },
         {
           "refId": "B",
-          "expr": "sum ((increase(pi_interaction_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_interaction_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_interaction_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_interaction_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)))",
-          "legendFormat": "Interactions"
+          "expr": "(sum ((increase(pi_interaction_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) and (pi_interaction_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval})) or (max_over_time(pi_interaction_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) unless (pi_interaction_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval})))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "legendFormat": "Interactions",
+          "interval": "${trend_step}"
         }
       ],
       "fieldConfig": {
@@ -701,14 +934,14 @@
           "sort": "desc"
         }
       },
-      "interval": "1h",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 10
+        "y": 14
       },
-      "id": 16
+      "id": 16,
+      "maxDataPoints": 11000
     },
     {
       "type": "timeseries",
@@ -756,7 +989,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 18
+        "y": 22
       },
       "id": 17
     },
@@ -765,7 +998,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 18
+        "y": 22
       },
       "id": 18,
       "type": "bargauge",
@@ -808,6 +1041,65 @@
       }
     },
     {
+      "type": "timeseries",
+      "title": "Axon user activity",
+      "description": "Distinct users per selected Trend interval, stacked so each bar is the users with Pi session telemetry in that bucket. LLM active: at least one observed Pi model call in the bucket (including failures). Session only: Pi session samples but no observed model call in the bucket. Users who never opened Pi are not counted.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(count(count by (user_email) (last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[${trend_interval}]) > (last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[1w] offset ${trend_interval}) or (0 * last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[${trend_interval}]))))) or vector(0)) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "legendFormat": "LLM active",
+          "interval": "${trend_step}"
+        },
+        {
+          "refId": "B",
+          "expr": "(count(count by (user_email) (count_over_time(pi_session_started_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[${trend_interval}])) unless on (user_email) count by (user_email) (last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[${trend_interval}]) > (last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[1w] offset ${trend_interval}) or (0 * last_over_time(gen_ai_client_operation_duration_seconds_count{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[${trend_interval}]))))) or vector(0)) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "legendFormat": "Session only (no LLM call)",
+          "interval": "${trend_step}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "min": 0,
+          "custom": {
+            "fillOpacity": 70,
+            "lineWidth": 1,
+            "drawStyle": "bars",
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": ["mean", "max"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 14
+      },
+      "id": 103,
+      "maxDataPoints": 11000
+    },
+    {
       "type": "row",
       "title": "Leaderboards",
       "collapsed": false,
@@ -815,7 +1107,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 26
+        "y": 30
       },
       "panels": [],
       "id": 19
@@ -1055,7 +1347,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 27
+        "y": 31
       },
       "id": 20
     },
@@ -1102,7 +1394,7 @@
         "h": 9,
         "w": 8,
         "x": 0,
-        "y": 37
+        "y": 41
       },
       "id": 21
     },
@@ -1149,7 +1441,7 @@
         "h": 9,
         "w": 8,
         "x": 8,
-        "y": 37
+        "y": 41
       },
       "id": 22
     },
@@ -1196,7 +1488,7 @@
         "h": 9,
         "w": 8,
         "x": 16,
-        "y": 37
+        "y": 41
       },
       "id": 23
     },
@@ -1224,7 +1516,7 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 46
+        "y": 50
       },
       "id": 24
     },
@@ -1236,7 +1528,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 55
+        "y": 59
       },
       "panels": [],
       "id": 25
@@ -1252,8 +1544,9 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (gen_ai_request_model) ((increase(pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) and (pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)) or (max_over_time(pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) unless (pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)))",
-          "legendFormat": "{{gen_ai_request_model}}"
+          "expr": "(sum by (gen_ai_request_model) ((increase(pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[${trend_interval}]) and (pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset ${trend_interval})) or (max_over_time(pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[${trend_interval}]) unless (pi_cost_USD_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset ${trend_interval})))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "legendFormat": "{{gen_ai_request_model}}",
+          "interval": "${trend_step}"
         }
       ],
       "fieldConfig": {
@@ -1282,14 +1575,14 @@
           "sort": "desc"
         }
       },
-      "interval": "1h",
       "gridPos": {
         "h": 9,
         "w": 16,
         "x": 0,
-        "y": 56
+        "y": 60
       },
-      "id": 26
+      "id": 26,
+      "maxDataPoints": 11000
     },
     {
       "type": "piechart",
@@ -1334,7 +1627,7 @@
         "h": 9,
         "w": 8,
         "x": 16,
-        "y": 56
+        "y": 60
       },
       "id": 27
     },
@@ -1349,23 +1642,27 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum ((increase(pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) and (pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)) or (max_over_time(pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) unless (pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)))",
-          "legendFormat": "Input (uncached)"
+          "expr": "(sum ((increase(pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[${trend_interval}]) and (pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset ${trend_interval})) or (max_over_time(pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[${trend_interval}]) unless (pi_tokens_input_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset ${trend_interval})))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "legendFormat": "Input (uncached)",
+          "interval": "${trend_step}"
         },
         {
           "refId": "B",
-          "expr": "sum ((increase(pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) and (pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)) or (max_over_time(pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) unless (pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)))",
-          "legendFormat": "Cache read"
+          "expr": "(sum ((increase(pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[${trend_interval}]) and (pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset ${trend_interval})) or (max_over_time(pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[${trend_interval}]) unless (pi_tokens_cache_read_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset ${trend_interval})))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "legendFormat": "Cache read",
+          "interval": "${trend_step}"
         },
         {
           "refId": "C",
-          "expr": "sum ((increase(pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) and (pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)) or (max_over_time(pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) unless (pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)))",
-          "legendFormat": "Cache write"
+          "expr": "(sum ((increase(pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[${trend_interval}]) and (pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset ${trend_interval})) or (max_over_time(pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[${trend_interval}]) unless (pi_tokens_cache_write_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset ${trend_interval})))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "legendFormat": "Cache write",
+          "interval": "${trend_step}"
         },
         {
           "refId": "D",
-          "expr": "sum ((increase(pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) and (pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)) or (max_over_time(pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) unless (pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)))",
-          "legendFormat": "Output (incl. reasoning)"
+          "expr": "(sum ((increase(pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[${trend_interval}]) and (pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset ${trend_interval})) or (max_over_time(pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[${trend_interval}]) unless (pi_tokens_output_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset ${trend_interval})))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "legendFormat": "Output (incl. reasoning)",
+          "interval": "${trend_step}"
         }
       ],
       "fieldConfig": {
@@ -1394,14 +1691,14 @@
           "sort": "desc"
         }
       },
-      "interval": "1h",
       "gridPos": {
         "h": 9,
         "w": 16,
         "x": 0,
-        "y": 65
+        "y": 69
       },
-      "id": 28
+      "id": 28,
+      "maxDataPoints": 11000
     },
     {
       "type": "piechart",
@@ -1467,7 +1764,7 @@
         "h": 9,
         "w": 8,
         "x": 16,
-        "y": 65
+        "y": 69
       },
       "id": 29
     },
@@ -1706,7 +2003,7 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 74
+        "y": 78
       },
       "id": 30
     },
@@ -1718,7 +2015,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 83
+        "y": 87
       },
       "panels": [],
       "id": 31
@@ -1766,7 +2063,7 @@
         "h": 9,
         "w": 8,
         "x": 0,
-        "y": 84
+        "y": 88
       },
       "id": 32
     },
@@ -1813,7 +2110,7 @@
         "h": 9,
         "w": 8,
         "x": 8,
-        "y": 84
+        "y": 88
       },
       "id": 33
     },
@@ -1860,7 +2157,7 @@
         "h": 9,
         "w": 8,
         "x": 16,
-        "y": 84
+        "y": 88
       },
       "id": 34
     },
@@ -1875,8 +2172,9 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (pi_thinking_level) ((increase(pi_llm_requests_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) and (pi_llm_requests_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)) or (max_over_time(pi_llm_requests_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) unless (pi_llm_requests_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)))",
-          "legendFormat": "{{pi_thinking_level}}"
+          "expr": "(sum by (pi_thinking_level) ((increase(pi_llm_requests_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[${trend_interval}]) and (pi_llm_requests_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset ${trend_interval})) or (max_over_time(pi_llm_requests_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[${trend_interval}]) unless (pi_llm_requests_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset ${trend_interval})))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "legendFormat": "{{pi_thinking_level}}",
+          "interval": "${trend_step}"
         }
       ],
       "fieldConfig": {
@@ -1905,14 +2203,14 @@
           "sort": "desc"
         }
       },
-      "interval": "1h",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 93
+        "y": 97
       },
-      "id": 35
+      "id": 35,
+      "maxDataPoints": 11000
     },
     {
       "type": "bargauge",
@@ -1957,7 +2255,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 93
+        "y": 97
       },
       "id": 36
     },
@@ -2001,7 +2299,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 101
+        "y": 105
       },
       "id": 37
     },
@@ -2035,7 +2333,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 101
+        "y": 105
       },
       "id": 38
     },
@@ -2047,7 +2345,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 109
+        "y": 113
       },
       "panels": [],
       "id": 39
@@ -2095,7 +2393,7 @@
         "h": 9,
         "w": 8,
         "x": 0,
-        "y": 110
+        "y": 114
       },
       "id": 40
     },
@@ -2142,7 +2440,7 @@
         "h": 9,
         "w": 8,
         "x": 8,
-        "y": 110
+        "y": 114
       },
       "id": 41
     },
@@ -2189,7 +2487,7 @@
         "h": 9,
         "w": 8,
         "x": 16,
-        "y": 110
+        "y": 114
       },
       "id": 42
     },
@@ -2204,13 +2502,15 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.5, sum by (le) ((increase(pi_session_cost_USD_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_session_cost_USD_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_session_cost_USD_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_session_cost_USD_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
-          "legendFormat": "p50"
+          "expr": "(histogram_quantile(0.5, sum by (le) ((increase(pi_session_cost_USD_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) and (pi_session_cost_USD_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval})) or (max_over_time(pi_session_cost_USD_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) unless (pi_session_cost_USD_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval}))))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "legendFormat": "p50",
+          "interval": "${trend_step}"
         },
         {
           "refId": "B",
-          "expr": "histogram_quantile(0.9, sum by (le) ((increase(pi_session_cost_USD_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_session_cost_USD_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_session_cost_USD_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_session_cost_USD_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
-          "legendFormat": "p90"
+          "expr": "(histogram_quantile(0.9, sum by (le) ((increase(pi_session_cost_USD_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) and (pi_session_cost_USD_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval})) or (max_over_time(pi_session_cost_USD_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) unless (pi_session_cost_USD_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval}))))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "legendFormat": "p90",
+          "interval": "${trend_step}"
         }
       ],
       "fieldConfig": {
@@ -2234,14 +2534,14 @@
           "sort": "desc"
         }
       },
-      "interval": "1h",
       "gridPos": {
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 119
+        "y": 123
       },
-      "id": 43
+      "id": 43,
+      "maxDataPoints": 11000
     },
     {
       "type": "timeseries",
@@ -2254,13 +2554,15 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.5, sum by (le) ((increase(pi_session_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_session_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_session_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_session_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
-          "legendFormat": "p50"
+          "expr": "(histogram_quantile(0.5, sum by (le) ((increase(pi_session_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) and (pi_session_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval})) or (max_over_time(pi_session_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) unless (pi_session_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval}))))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "legendFormat": "p50",
+          "interval": "${trend_step}"
         },
         {
           "refId": "B",
-          "expr": "histogram_quantile(0.9, sum by (le) ((increase(pi_session_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_session_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_session_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_session_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
-          "legendFormat": "p90"
+          "expr": "(histogram_quantile(0.9, sum by (le) ((increase(pi_session_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) and (pi_session_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval})) or (max_over_time(pi_session_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) unless (pi_session_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval}))))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "legendFormat": "p90",
+          "interval": "${trend_step}"
         }
       ],
       "fieldConfig": {
@@ -2284,14 +2586,14 @@
           "sort": "desc"
         }
       },
-      "interval": "1h",
       "gridPos": {
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 119
+        "y": 123
       },
-      "id": 44
+      "id": 44,
+      "maxDataPoints": 11000
     },
     {
       "type": "timeseries",
@@ -2304,13 +2606,15 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.5, sum by (le) ((increase(pi_session_interactions_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_session_interactions_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_session_interactions_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_session_interactions_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
-          "legendFormat": "p50"
+          "expr": "(histogram_quantile(0.5, sum by (le) ((increase(pi_session_interactions_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) and (pi_session_interactions_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval})) or (max_over_time(pi_session_interactions_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) unless (pi_session_interactions_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval}))))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "legendFormat": "p50",
+          "interval": "${trend_step}"
         },
         {
           "refId": "B",
-          "expr": "histogram_quantile(0.9, sum by (le) ((increase(pi_session_interactions_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_session_interactions_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_session_interactions_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_session_interactions_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
-          "legendFormat": "p90"
+          "expr": "(histogram_quantile(0.9, sum by (le) ((increase(pi_session_interactions_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) and (pi_session_interactions_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval})) or (max_over_time(pi_session_interactions_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) unless (pi_session_interactions_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval}))))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "legendFormat": "p90",
+          "interval": "${trend_step}"
         }
       ],
       "fieldConfig": {
@@ -2334,14 +2638,14 @@
           "sort": "desc"
         }
       },
-      "interval": "1h",
       "gridPos": {
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 119
+        "y": 123
       },
-      "id": 45
+      "id": 45,
+      "maxDataPoints": 11000
     },
     {
       "type": "timeseries",
@@ -2354,13 +2658,15 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.5, sum by (le) ((increase(pi_session_tokens_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_session_tokens_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_session_tokens_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_session_tokens_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
-          "legendFormat": "p50"
+          "expr": "(histogram_quantile(0.5, sum by (le) ((increase(pi_session_tokens_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) and (pi_session_tokens_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval})) or (max_over_time(pi_session_tokens_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) unless (pi_session_tokens_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval}))))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "legendFormat": "p50",
+          "interval": "${trend_step}"
         },
         {
           "refId": "B",
-          "expr": "histogram_quantile(0.9, sum by (le) ((increase(pi_session_tokens_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_session_tokens_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_session_tokens_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_session_tokens_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
-          "legendFormat": "p90"
+          "expr": "(histogram_quantile(0.9, sum by (le) ((increase(pi_session_tokens_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) and (pi_session_tokens_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval})) or (max_over_time(pi_session_tokens_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) unless (pi_session_tokens_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval}))))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "legendFormat": "p90",
+          "interval": "${trend_step}"
         }
       ],
       "fieldConfig": {
@@ -2384,14 +2690,14 @@
           "sort": "desc"
         }
       },
-      "interval": "1h",
       "gridPos": {
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 127
+        "y": 131
       },
-      "id": 70
+      "id": 70,
+      "maxDataPoints": 11000
     },
     {
       "type": "bargauge",
@@ -2443,7 +2749,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 127
+        "y": 131
       },
       "id": 71
     },
@@ -2490,7 +2796,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 127
+        "y": 131
       },
       "id": 72
     },
@@ -2499,7 +2805,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 135
+        "y": 139
       },
       "id": 46,
       "type": "bargauge",
@@ -2563,7 +2869,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 135
+        "y": 139
       },
       "id": 47
     },
@@ -2575,7 +2881,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 143
+        "y": 147
       },
       "panels": [],
       "id": 73
@@ -2584,7 +2890,6 @@
       "type": "timeseries",
       "title": "Runs, turns and inputs",
       "description": "Agent runs per prompt, model turns within runs, repeated runs (agent restarted after settling) and user inputs per window (at least 20 minutes to cover the maximum five-minute export cadence). Lifetime totals are used only for newly observed series.",
-      "interval": "20m",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
@@ -2592,23 +2897,27 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum ((increase(pi_agent_run_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_agent_run_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_agent_run_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_agent_run_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)))",
-          "legendFormat": "Agent runs"
+          "expr": "(sum ((increase(pi_agent_run_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) and (pi_agent_run_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval})) or (max_over_time(pi_agent_run_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) unless (pi_agent_run_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval})))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "legendFormat": "Agent runs",
+          "interval": "${trend_step}"
         },
         {
           "refId": "B",
-          "expr": "sum ((increase(pi_turn_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_turn_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_turn_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_turn_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)))",
-          "legendFormat": "Turns"
+          "expr": "(sum ((increase(pi_turn_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) and (pi_turn_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval})) or (max_over_time(pi_turn_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) unless (pi_turn_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval})))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "legendFormat": "Turns",
+          "interval": "${trend_step}"
         },
         {
           "refId": "C",
-          "expr": "sum ((increase(pi_agent_run_repeated_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_agent_run_repeated_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_agent_run_repeated_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_agent_run_repeated_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)))",
-          "legendFormat": "Repeated runs"
+          "expr": "(sum ((increase(pi_agent_run_repeated_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) and (pi_agent_run_repeated_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval})) or (max_over_time(pi_agent_run_repeated_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) unless (pi_agent_run_repeated_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval})))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "legendFormat": "Repeated runs",
+          "interval": "${trend_step}"
         },
         {
           "refId": "D",
-          "expr": "sum ((increase(pi_user_input_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_user_input_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_user_input_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_user_input_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)))",
-          "legendFormat": "User inputs"
+          "expr": "(sum ((increase(pi_user_input_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) and (pi_user_input_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval})) or (max_over_time(pi_user_input_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) unless (pi_user_input_count_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval})))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "legendFormat": "User inputs",
+          "interval": "${trend_step}"
         }
       ],
       "fieldConfig": {
@@ -2636,9 +2945,10 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 144
+        "y": 148
       },
-      "id": 74
+      "id": 74,
+      "maxDataPoints": 11000
     },
     {
       "type": "timeseries",
@@ -2651,23 +2961,27 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.5, sum by (le) ((increase(gen_ai_invoke_agent_inference_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) and (gen_ai_invoke_agent_inference_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)) or (max_over_time(gen_ai_invoke_agent_inference_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) unless (gen_ai_invoke_agent_inference_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval))))",
-          "legendFormat": "LLM calls p50"
+          "expr": "(histogram_quantile(0.5, sum by (le) ((increase(gen_ai_invoke_agent_inference_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[${trend_interval}]) and (gen_ai_invoke_agent_inference_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset ${trend_interval})) or (max_over_time(gen_ai_invoke_agent_inference_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[${trend_interval}]) unless (gen_ai_invoke_agent_inference_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset ${trend_interval}))))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "legendFormat": "LLM calls p50",
+          "interval": "${trend_step}"
         },
         {
           "refId": "B",
-          "expr": "histogram_quantile(0.9, sum by (le) ((increase(gen_ai_invoke_agent_inference_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) and (gen_ai_invoke_agent_inference_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)) or (max_over_time(gen_ai_invoke_agent_inference_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) unless (gen_ai_invoke_agent_inference_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval))))",
-          "legendFormat": "LLM calls p90"
+          "expr": "(histogram_quantile(0.9, sum by (le) ((increase(gen_ai_invoke_agent_inference_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[${trend_interval}]) and (gen_ai_invoke_agent_inference_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset ${trend_interval})) or (max_over_time(gen_ai_invoke_agent_inference_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[${trend_interval}]) unless (gen_ai_invoke_agent_inference_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset ${trend_interval}))))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "legendFormat": "LLM calls p90",
+          "interval": "${trend_step}"
         },
         {
           "refId": "C",
-          "expr": "histogram_quantile(0.5, sum by (le) ((increase(gen_ai_invoke_agent_tool_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) and (gen_ai_invoke_agent_tool_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)) or (max_over_time(gen_ai_invoke_agent_tool_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) unless (gen_ai_invoke_agent_tool_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval))))",
-          "legendFormat": "Tool calls p50"
+          "expr": "(histogram_quantile(0.5, sum by (le) ((increase(gen_ai_invoke_agent_tool_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[${trend_interval}]) and (gen_ai_invoke_agent_tool_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset ${trend_interval})) or (max_over_time(gen_ai_invoke_agent_tool_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[${trend_interval}]) unless (gen_ai_invoke_agent_tool_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset ${trend_interval}))))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "legendFormat": "Tool calls p50",
+          "interval": "${trend_step}"
         },
         {
           "refId": "D",
-          "expr": "histogram_quantile(0.9, sum by (le) ((increase(gen_ai_invoke_agent_tool_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) and (gen_ai_invoke_agent_tool_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)) or (max_over_time(gen_ai_invoke_agent_tool_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) unless (gen_ai_invoke_agent_tool_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval))))",
-          "legendFormat": "Tool calls p90"
+          "expr": "(histogram_quantile(0.9, sum by (le) ((increase(gen_ai_invoke_agent_tool_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[${trend_interval}]) and (gen_ai_invoke_agent_tool_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset ${trend_interval})) or (max_over_time(gen_ai_invoke_agent_tool_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[${trend_interval}]) unless (gen_ai_invoke_agent_tool_calls_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset ${trend_interval}))))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "legendFormat": "Tool calls p90",
+          "interval": "${trend_step}"
         }
       ],
       "fieldConfig": {
@@ -2691,14 +3005,14 @@
           "sort": "desc"
         }
       },
-      "interval": "1h",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 144
+        "y": 148
       },
-      "id": 75
+      "id": 75,
+      "maxDataPoints": 11000
     },
     {
       "type": "timeseries",
@@ -2711,23 +3025,27 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.5, sum by (le) ((increase(pi_turn_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_turn_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_turn_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_turn_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
-          "legendFormat": "Turn p50"
+          "expr": "(histogram_quantile(0.5, sum by (le) ((increase(pi_turn_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) and (pi_turn_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval})) or (max_over_time(pi_turn_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) unless (pi_turn_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval}))))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "legendFormat": "Turn p50",
+          "interval": "${trend_step}"
         },
         {
           "refId": "B",
-          "expr": "histogram_quantile(0.95, sum by (le) ((increase(pi_turn_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_turn_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_turn_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_turn_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
-          "legendFormat": "Turn p95"
+          "expr": "(histogram_quantile(0.95, sum by (le) ((increase(pi_turn_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) and (pi_turn_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval})) or (max_over_time(pi_turn_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) unless (pi_turn_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval}))))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "legendFormat": "Turn p95",
+          "interval": "${trend_step}"
         },
         {
           "refId": "C",
-          "expr": "histogram_quantile(0.5, sum by (le) ((increase(pi_agent_run_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_agent_run_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_agent_run_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_agent_run_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
-          "legendFormat": "Run p50"
+          "expr": "(histogram_quantile(0.5, sum by (le) ((increase(pi_agent_run_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) and (pi_agent_run_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval})) or (max_over_time(pi_agent_run_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) unless (pi_agent_run_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval}))))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "legendFormat": "Run p50",
+          "interval": "${trend_step}"
         },
         {
           "refId": "D",
-          "expr": "histogram_quantile(0.95, sum by (le) ((increase(pi_agent_run_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_agent_run_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_agent_run_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_agent_run_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
-          "legendFormat": "Run p95"
+          "expr": "(histogram_quantile(0.95, sum by (le) ((increase(pi_agent_run_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) and (pi_agent_run_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval})) or (max_over_time(pi_agent_run_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) unless (pi_agent_run_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval}))))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "legendFormat": "Run p95",
+          "interval": "${trend_step}"
         }
       ],
       "fieldConfig": {
@@ -2751,14 +3069,14 @@
           "sort": "desc"
         }
       },
-      "interval": "1h",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 152
+        "y": 156
       },
-      "id": 76
+      "id": 76,
+      "maxDataPoints": 11000
     },
     {
       "type": "timeseries",
@@ -2771,8 +3089,9 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.95, sum by (le, gen_ai_tool_name) ((increase(gen_ai_execute_tool_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) and (gen_ai_execute_tool_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval)) or (max_over_time(gen_ai_execute_tool_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[$__interval]) unless (gen_ai_execute_tool_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset $__interval))))",
-          "legendFormat": "{{gen_ai_tool_name}}"
+          "expr": "(histogram_quantile(0.95, sum by (le, gen_ai_tool_name) ((increase(gen_ai_execute_tool_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[${trend_interval}]) and (gen_ai_execute_tool_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset ${trend_interval})) or (max_over_time(gen_ai_execute_tool_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"}[${trend_interval}]) unless (gen_ai_execute_tool_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\"} offset ${trend_interval}))))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "legendFormat": "{{gen_ai_tool_name}}",
+          "interval": "${trend_step}"
         }
       ],
       "fieldConfig": {
@@ -2796,14 +3115,14 @@
           "sort": "desc"
         }
       },
-      "interval": "1h",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 152
+        "y": 156
       },
-      "id": 77
+      "id": 77,
+      "maxDataPoints": 11000
     },
     {
       "type": "bargauge",
@@ -2848,7 +3167,7 @@
         "h": 8,
         "w": 6,
         "x": 0,
-        "y": 160
+        "y": 164
       },
       "id": 78
     },
@@ -2895,7 +3214,7 @@
         "h": 8,
         "w": 6,
         "x": 6,
-        "y": 160
+        "y": 164
       },
       "id": 79
     },
@@ -2942,7 +3261,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 160
+        "y": 164
       },
       "id": 80
     },
@@ -2957,13 +3276,15 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.5, sum by (le) ((increase(pi_user_wait_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_user_wait_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_user_wait_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_user_wait_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
-          "legendFormat": "p50"
+          "expr": "(histogram_quantile(0.5, sum by (le) ((increase(pi_user_wait_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) and (pi_user_wait_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval})) or (max_over_time(pi_user_wait_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) unless (pi_user_wait_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval}))))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "legendFormat": "p50",
+          "interval": "${trend_step}"
         },
         {
           "refId": "B",
-          "expr": "histogram_quantile(0.95, sum by (le) ((increase(pi_user_wait_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_user_wait_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval)) or (max_over_time(pi_user_wait_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[$__interval]) unless (pi_user_wait_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset $__interval))))",
-          "legendFormat": "p95"
+          "expr": "(histogram_quantile(0.95, sum by (le) ((increase(pi_user_wait_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) and (pi_user_wait_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval})) or (max_over_time(pi_user_wait_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"}[${trend_interval}]) unless (pi_user_wait_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",pi_repo_slug=~\"$repo\"} offset ${trend_interval}))))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+          "legendFormat": "p95",
+          "interval": "${trend_step}"
         }
       ],
       "fieldConfig": {
@@ -2987,14 +3308,14 @@
           "sort": "desc"
         }
       },
-      "interval": "1h",
       "gridPos": {
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 160
+        "y": 164
       },
-      "id": 81
+      "id": 81,
+      "maxDataPoints": 11000
     },
     {
       "type": "row",
@@ -3004,7 +3325,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 168
+        "y": 172
       },
       "panels": [],
       "id": 48
@@ -3061,7 +3382,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 169
+        "y": 173
       },
       "id": 49
     },
@@ -3108,7 +3429,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 169
+        "y": 173
       },
       "id": 50
     },
@@ -3152,7 +3473,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 177
+        "y": 181
       },
       "id": 51
     },
@@ -3196,7 +3517,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 177
+        "y": 181
       },
       "id": 52
     },
@@ -3208,7 +3529,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 185
+        "y": 189
       },
       "panels": [
         {
@@ -3216,7 +3537,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 186
+            "y": 190
           },
           "id": 56,
           "type": "bargauge",
@@ -3263,7 +3584,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 186
+            "y": 190
           },
           "id": 57,
           "type": "bargauge",
@@ -3335,7 +3656,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 194
+            "y": 198
           },
           "id": 58,
           "interval": "1h"
@@ -3375,7 +3696,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 194
+            "y": 198
           },
           "id": 59,
           "interval": "1h"
@@ -3390,8 +3711,9 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "sum by (stage, reason) ((increase(axon_recommender_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",outcome=~\"failed|skipped|cancelled\"}[$__interval]) and (axon_recommender_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",outcome=~\"failed|skipped|cancelled\"} offset $__interval)) or (max_over_time(axon_recommender_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",outcome=~\"failed|skipped|cancelled\"}[$__interval]) unless (axon_recommender_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",outcome=~\"failed|skipped|cancelled\"} offset $__interval)))",
-              "legendFormat": "{{stage}} · {{reason}}"
+              "expr": "(sum by (stage, reason) ((increase(axon_recommender_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",outcome=~\"failed|skipped|cancelled\"}[${trend_interval}]) and (axon_recommender_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",outcome=~\"failed|skipped|cancelled\"} offset ${trend_interval})) or (max_over_time(axon_recommender_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",outcome=~\"failed|skipped|cancelled\"}[${trend_interval}]) unless (axon_recommender_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\",outcome=~\"failed|skipped|cancelled\"} offset ${trend_interval})))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+              "legendFormat": "{{stage}} · {{reason}}",
+              "interval": "${trend_step}"
             }
           ],
           "fieldConfig": {
@@ -3410,17 +3732,17 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 202
+            "y": 206
           },
           "id": 60,
-          "interval": "1h"
+          "maxDataPoints": 11000
         },
         {
           "gridPos": {
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 202
+            "y": 206
           },
           "id": 61,
           "type": "bargauge",
@@ -3513,7 +3835,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 210
+            "y": 214
           },
           "id": 82
         },
@@ -3563,7 +3885,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 210
+            "y": 214
           },
           "id": 83
         },
@@ -3589,7 +3911,7 @@
             "h": 8,
             "w": 24,
             "x": 0,
-            "y": 218
+            "y": 222
           },
           "id": 62
         }
@@ -3604,7 +3926,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 226
+        "y": 230
       },
       "panels": [
         {
@@ -3617,8 +3939,9 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "sum by (stage, outcome) ((increase(axon_backup_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) and (axon_backup_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_backup_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) unless (axon_backup_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval)))",
-              "legendFormat": "{{stage}} · {{outcome}}"
+              "expr": "(sum by (stage, outcome) ((increase(axon_backup_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[${trend_interval}]) and (axon_backup_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset ${trend_interval})) or (max_over_time(axon_backup_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[${trend_interval}]) unless (axon_backup_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset ${trend_interval})))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+              "legendFormat": "{{stage}} · {{outcome}}",
+              "interval": "${trend_step}"
             }
           ],
           "fieldConfig": {
@@ -3637,10 +3960,10 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 227
+            "y": 231
           },
           "id": 63,
-          "interval": "1h"
+          "maxDataPoints": 11000
         },
         {
           "type": "timeseries",
@@ -3652,8 +3975,9 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "sum by (stage, outcome) ((increase(axon_restore_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) and (axon_restore_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_restore_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) unless (axon_restore_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval)))",
-              "legendFormat": "{{stage}} · {{outcome}}"
+              "expr": "(sum by (stage, outcome) ((increase(axon_restore_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[${trend_interval}]) and (axon_restore_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset ${trend_interval})) or (max_over_time(axon_restore_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[${trend_interval}]) unless (axon_restore_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset ${trend_interval})))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+              "legendFormat": "{{stage}} · {{outcome}}",
+              "interval": "${trend_step}"
             }
           ],
           "fieldConfig": {
@@ -3672,10 +3996,10 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 227
+            "y": 231
           },
           "id": 64,
-          "interval": "1h"
+          "maxDataPoints": 11000
         },
         {
           "type": "timeseries",
@@ -3712,7 +4036,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 235
+            "y": 239
           },
           "id": 65,
           "interval": "1h"
@@ -3752,7 +4076,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 235
+            "y": 239
           },
           "id": 66,
           "interval": "1h"
@@ -3768,7 +4092,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 243
+        "y": 247
       },
       "panels": [
         {
@@ -3801,7 +4125,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 244
+            "y": 248
           },
           "id": 67,
           "interval": "1h"
@@ -3816,13 +4140,15 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "sum by (stage, outcome) ((increase(axon_auth_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) and (axon_auth_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_auth_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) unless (axon_auth_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval)))",
-              "legendFormat": "Auth {{stage}} · {{outcome}}"
+              "expr": "(sum by (stage, outcome) ((increase(axon_auth_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[${trend_interval}]) and (axon_auth_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset ${trend_interval})) or (max_over_time(axon_auth_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[${trend_interval}]) unless (axon_auth_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset ${trend_interval})))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+              "legendFormat": "Auth {{stage}} · {{outcome}}",
+              "interval": "${trend_step}"
             },
             {
               "refId": "B",
-              "expr": "sum by (outcome, reason) ((increase(axon_config_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) and (axon_config_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_config_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) unless (axon_config_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval)))",
-              "legendFormat": "Config {{outcome}} · {{reason}}"
+              "expr": "(sum by (outcome, reason) ((increase(axon_config_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[${trend_interval}]) and (axon_config_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset ${trend_interval})) or (max_over_time(axon_config_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[${trend_interval}]) unless (axon_config_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset ${trend_interval})))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+              "legendFormat": "Config {{outcome}} · {{reason}}",
+              "interval": "${trend_step}"
             }
           ],
           "fieldConfig": {
@@ -3841,10 +4167,10 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 244
+            "y": 248
           },
           "id": 68,
-          "interval": "1h"
+          "maxDataPoints": 11000
         },
         {
           "type": "timeseries",
@@ -3856,8 +4182,9 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "sum by (stage, outcome, reason) ((increase(axon_update_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) and (axon_update_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_update_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) unless (axon_update_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval)))",
-              "legendFormat": "{{stage}} · {{outcome}} · {{reason}}"
+              "expr": "(sum by (stage, outcome, reason) ((increase(axon_update_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[${trend_interval}]) and (axon_update_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset ${trend_interval})) or (max_over_time(axon_update_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[${trend_interval}]) unless (axon_update_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset ${trend_interval})))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+              "legendFormat": "{{stage}} · {{outcome}} · {{reason}}",
+              "interval": "${trend_step}"
             }
           ],
           "fieldConfig": {
@@ -3876,9 +4203,92 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 252
+            "y": 256
           },
           "id": 69,
+          "maxDataPoints": 11000
+        },
+        {
+          "type": "timeseries",
+          "title": "Startup outcomes",
+          "description": "Launcher prepare and spawn results and the first ready Pi session, with bounded failure reasons.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "(sum by (stage, outcome, reason) ((increase(axon_startup_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[${trend_interval}]) and (axon_startup_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset ${trend_interval})) or (max_over_time(axon_startup_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[${trend_interval}]) unless (axon_startup_events_total{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset ${trend_interval})))) and on() ((day_of_week(vector(time() + 43200)) == 1) or on() (label_replace(vector(1), \"trend\", \"${trend_interval}\", \"\", \"\") unless on(trend) label_replace(vector(1), \"trend\", \"1w\", \"\", \"\")))",
+              "legendFormat": "{{stage}} · {{outcome}} · {{reason}}",
+              "interval": "${trend_step}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom"
+            }
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 256
+          },
+          "id": 101,
+          "maxDataPoints": 11000
+        },
+        {
+          "type": "timeseries",
+          "title": "Auth, config and update latency p95",
+          "description": "Wall time of auth preflight/verification, backend config fetches, and update checks and installs.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "histogram_quantile(0.95, sum by (le, stage) ((increase(axon_auth_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) and (axon_auth_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_auth_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) unless (axon_auth_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval))))",
+              "legendFormat": "Auth {{stage}}"
+            },
+            {
+              "refId": "B",
+              "expr": "histogram_quantile(0.95, sum by (le, stage) ((increase(axon_config_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) and (axon_config_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_config_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) unless (axon_config_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval))))",
+              "legendFormat": "Config {{stage}}"
+            },
+            {
+              "refId": "C",
+              "expr": "histogram_quantile(0.95, sum by (le, stage) ((increase(axon_update_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) and (axon_update_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval)) or (max_over_time(axon_update_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"}[$__interval]) unless (axon_update_duration_seconds_bucket{user_email=~\"$user\",axon_workflow_name=~\"$workflow\",component=\"cli\"} offset $__interval))))",
+              "legendFormat": "Update {{stage}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom"
+            }
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 264
+          },
+          "id": 102,
           "interval": "1h"
         }
       ],
@@ -3892,7 +4302,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 260
+        "y": 272
       },
       "panels": [
         {
@@ -3938,7 +4348,7 @@
             "h": 8,
             "w": 8,
             "x": 0,
-            "y": 261
+            "y": 273
           },
           "id": 85
         },
@@ -3985,7 +4395,7 @@
             "h": 8,
             "w": 8,
             "x": 8,
-            "y": 261
+            "y": 273
           },
           "id": 86
         },
@@ -4032,7 +4442,7 @@
             "h": 8,
             "w": 8,
             "x": 16,
-            "y": 261
+            "y": 273
           },
           "id": 87
         },
@@ -4082,7 +4492,7 @@
             "h": 8,
             "w": 8,
             "x": 0,
-            "y": 269
+            "y": 281
           },
           "id": 88
         },
@@ -4129,7 +4539,7 @@
             "h": 8,
             "w": 8,
             "x": 8,
-            "y": 269
+            "y": 281
           },
           "id": 89
         },
@@ -4176,7 +4586,7 @@
             "h": 8,
             "w": 8,
             "x": 16,
-            "y": 269
+            "y": 281
           },
           "id": 90
         },
@@ -4202,7 +4612,7 @@
             "h": 8,
             "w": 24,
             "x": 0,
-            "y": 277
+            "y": 289
           },
           "id": 91
         }
@@ -4217,7 +4627,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 285
+        "y": 297
       },
       "panels": [
         {
@@ -4263,7 +4673,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 286
+            "y": 298
           },
           "id": 93
         },
@@ -4310,7 +4720,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 286
+            "y": 298
           },
           "id": 94
         },
@@ -4360,7 +4770,7 @@
             "h": 8,
             "w": 8,
             "x": 0,
-            "y": 294
+            "y": 306
           },
           "id": 95
         },
@@ -4407,7 +4817,7 @@
             "h": 8,
             "w": 8,
             "x": 8,
-            "y": 294
+            "y": 306
           },
           "id": 96
         },
@@ -4457,7 +4867,7 @@
             "h": 8,
             "w": 8,
             "x": 16,
-            "y": 294
+            "y": 306
           },
           "id": 97
         },
@@ -4504,7 +4914,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 302
+            "y": 314
           },
           "id": 98
         },
@@ -4551,7 +4961,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 302
+            "y": 314
           },
           "id": 99
         },
@@ -4577,7 +4987,7 @@
             "h": 8,
             "w": 24,
             "x": 0,
-            "y": 310
+            "y": 322
           },
           "id": 100
         }
@@ -4595,8 +5005,8 @@
           "type": "prometheus",
           "uid": "${DS_PROMETHEUS}"
         },
-        "query": "label_values({__name__=~\"pi_interaction_count_total|axon_.*_events_total\",user_email!=\"\"}, user_email)",
-        "definition": "label_values({__name__=~\"pi_interaction_count_total|axon_.*_events_total\",user_email!=\"\"}, user_email)",
+        "query": "label_values({__name__=~\"pi_session_started_total|pi_interaction_count_total|axon_.*_events_total\",user_email!=\"\"}, user_email)",
+        "definition": "label_values({__name__=~\"pi_session_started_total|pi_interaction_count_total|axon_.*_events_total\",user_email!=\"\"}, user_email)",
         "includeAll": true,
         "allValue": ".+",
         "multi": true,
@@ -4610,8 +5020,8 @@
           "type": "prometheus",
           "uid": "${DS_PROMETHEUS}"
         },
-        "query": "label_values({__name__=~\"pi_interaction_count_total|axon_.*_events_total\",user_email=~\"$user\",axon_workflow_name!=\"\"}, axon_workflow_name)",
-        "definition": "label_values({__name__=~\"pi_interaction_count_total|axon_.*_events_total\",user_email=~\"$user\",axon_workflow_name!=\"\"}, axon_workflow_name)",
+        "query": "label_values({__name__=~\"pi_session_started_total|pi_interaction_count_total|axon_.*_events_total\",user_email=~\"$user\",axon_workflow_name!=\"\"}, axon_workflow_name)",
+        "definition": "label_values({__name__=~\"pi_session_started_total|pi_interaction_count_total|axon_.*_events_total\",user_email=~\"$user\",axon_workflow_name!=\"\"}, axon_workflow_name)",
         "includeAll": true,
         "allValue": ".*",
         "multi": true,
@@ -4631,6 +5041,59 @@
         "allValue": ".*",
         "multi": true,
         "refresh": 1
+      },
+      {
+        "name": "trend_interval",
+        "label": "Trend interval",
+        "type": "custom",
+        "query": "Hourly : 1h,Daily : 1d,Weekly : 1w",
+        "current": {
+          "text": "Hourly",
+          "value": "1h"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "Hourly",
+            "value": "1h"
+          },
+          {
+            "selected": false,
+            "text": "Daily",
+            "value": "1d"
+          },
+          {
+            "selected": false,
+            "text": "Weekly",
+            "value": "1w"
+          }
+        ],
+        "hide": 0,
+        "includeAll": false,
+        "multi": false
+      },
+      {
+        "name": "trend_step",
+        "label": "Trend step",
+        "description": "Query step for Trend interval: the interval itself, or one day for Weekly so weeks can start on Monday.",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "query": "query_result(label_replace(label_replace(vector(1), \"step\", \"${trend_interval}\", \"\", \"\"), \"step\", \"1d\", \"step\", \"1w\"))",
+        "definition": "query_result(label_replace(label_replace(vector(1), \"step\", \"${trend_interval}\", \"\", \"\"), \"step\", \"1d\", \"step\", \"1w\"))",
+        "regex": "/step=\"([^\"]+)\"/",
+        "refresh": 1,
+        "current": {
+          "text": "1h",
+          "value": "1h"
+        },
+        "options": [],
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "skipUrlSync": true
       },
       {
         "name": "min_session_cost",

@@ -20,6 +20,7 @@ from app.core.cli_config import (
     CliLiteLLMFeaturesConfig,
     CliModelRecommenderConfig,
     CliPiConfig,
+    CliSessionNamingConfig,
     CliTelemetryConfig,
     CliTuiDefaultModelConfig,
     OtelProxySettings,
@@ -28,6 +29,7 @@ from app.core.cli_config import (
     parse_cli_litellm_features,
     parse_cli_model_recommender,
     parse_cli_pi,
+    parse_cli_session_naming,
     parse_cli_telemetry,
     parse_cli_tui_default_model,
     parse_otel_proxy,
@@ -216,6 +218,7 @@ class Settings:
     log_format: str = "json"
     cli_pi: CliPiConfig | None = None
     cli_compaction: CliCompactionConfig | None = None
+    cli_session_naming: CliSessionNamingConfig | None = None
     cli_model_recommender: CliModelRecommenderConfig | None = None
     cli_litellm_client: CliLiteLLMClientConfig | None = None
     cli_litellm_features: CliLiteLLMFeaturesConfig | None = None
@@ -248,10 +251,16 @@ def _cli_tui_default_model(raw_config: dict[str, Any]) -> CliTuiDefaultModelConf
 
 def _cli_launch_preferences(
     raw_config: dict[str, Any],
-) -> tuple[CliCompactionConfig | None, CliModelRecommenderConfig | None, CliLiteLLMClientConfig | None]:
+) -> tuple[
+    CliCompactionConfig | None,
+    CliSessionNamingConfig | None,
+    CliModelRecommenderConfig | None,
+    CliLiteLLMClientConfig | None,
+]:
     try:
         return (
             parse_cli_compaction(raw_config),
+            parse_cli_session_naming(raw_config),
             parse_cli_model_recommender(raw_config),
             parse_cli_litellm_client(raw_config),
         )
@@ -797,7 +806,7 @@ def get_settings() -> Settings:
     cli_litellm_features = _cli_litellm_features(raw_config)
     cli_pi = _cli_pi_settings(raw_config)
     cli_tui_default_model = _cli_tui_default_model(raw_config)
-    cli_compaction, cli_model_recommender, cli_litellm_client = _cli_launch_preferences(raw_config)
+    cli_compaction, cli_session_naming, cli_model_recommender, cli_litellm_client = _cli_launch_preferences(raw_config)
     session_backups = _session_backups(raw_config)
     web_search = _web_search(raw_config)
     terminal_permissions = _terminal_permissions(raw_config)
@@ -822,6 +831,7 @@ def get_settings() -> Settings:
         cli_telemetry=cli_telemetry,
         cli_pi=cli_pi,
         cli_compaction=cli_compaction,
+        cli_session_naming=cli_session_naming,
         cli_model_recommender=cli_model_recommender,
         cli_litellm_client=cli_litellm_client,
         cli_litellm_features=cli_litellm_features,

@@ -207,7 +207,9 @@ function startAuthSession(
           ? "You're not signed in to Axon. Sign in to continue this chat."
           : "Your Axon session expired. Sign in to continue this chat.",
         CHOICES,
-        rpc ? { signal } : { signal, timeout: Math.max(1, offered.expiresAt - Date.now()) },
+        rpc
+          ? { signal, blockedKind: "auth" }
+          : { signal, blockedKind: "auth", timeout: Math.max(1, offered.expiresAt - Date.now()) },
       );
       if (current.dismiss.signal.aborted || lifetime.signal.aborted) return;
       if (rpc) {
@@ -257,7 +259,7 @@ function startAuthSession(
       const choice = await ctx.ui.select(
         "You're not signed in to Axon. Sign in to start this chat.",
         CHOICES,
-        { signal },
+        { signal, blockedKind: "auth" },
       );
       if (signal.aborted) return;
       if (choice !== LOGIN_CHOICE) {

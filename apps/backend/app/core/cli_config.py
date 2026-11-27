@@ -224,6 +224,21 @@ class CliCompactionConfig(BaseModel):
         return value
 
 
+class CliSessionNamingConfig(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    enabled: bool | None = Field(default=None, strict=True)
+    model: str | None = Field(default=None, strict=True, max_length=256)
+    timeout_ms: Annotated[int, Field(strict=True, ge=1, le=60000), BeforeValidator(_json_integer)] | None = Field(
+        default=None, alias="timeoutMs"
+    )
+
+    @field_validator("model")
+    @classmethod
+    def qualified_model(cls, value: str | None) -> str | None:
+        return CliCompactionConfig.qualified_model(value)
+
+
 class CliModelRecommenderConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -271,6 +286,15 @@ def parse_cli_compaction(raw: dict[str, object]) -> CliCompactionConfig | None:
             "TIMEOUT_MS": "timeoutMs",
         },
         CliCompactionConfig,
+    )
+
+
+def parse_cli_session_naming(raw: dict[str, object]) -> CliSessionNamingConfig | None:
+    return _parse_preferences(
+        raw,
+        "SESSION_NAMING",
+        {"ENABLED": "enabled", "MODEL": "model", "TIMEOUT_MS": "timeoutMs"},
+        CliSessionNamingConfig,
     )
 
 

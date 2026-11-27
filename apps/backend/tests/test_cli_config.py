@@ -76,6 +76,7 @@ def test_config_uses_session_guard_and_only_allowlisted_fields(monkeypatch: pyte
             }
         ),
         cli_compaction=parse_cli_compaction({"CLI_CLIENT_CONFIG": {"COMPACTION": {"ENABLED": False}}}),
+        cli_session_naming=None,
         cli_model_recommender=parse_cli_model_recommender(
             {"CLI_CLIENT_CONFIG": {"MODEL_RECOMMENDER": {"AUTO_SELECT_MS": 10000}}}
         ),
@@ -128,6 +129,7 @@ def test_config_uses_session_guard_and_only_allowlisted_fields(monkeypatch: pyte
         cli_telemetry=None,
         cli_pi=None,
         cli_compaction=None,
+        cli_session_naming=None,
         cli_model_recommender=None,
         cli_litellm_client=None,
         cli_litellm_features=None,

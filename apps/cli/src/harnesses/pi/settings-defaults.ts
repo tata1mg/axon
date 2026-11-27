@@ -9,6 +9,17 @@ import { piSettingsPath, readPiSettings, writePiSettings } from "./setup/package
 /** Pi's automatic pair format: the light theme first, the dark theme second. */
 export const AXON_THEME_SETTING = "axon-light/axon-dark";
 
+/**
+ * Pi's transcript notices driven by the managed `showCacheMissNotices` toggle, matching how Pi
+ * migrates that legacy setting. Notices Pi adds later keep the user's choice.
+ */
+export const MANAGED_PI_NOTICES = [
+  "cacheMisses",
+  "cacheWarming",
+  "compactionCosts",
+  "reasoningDrops",
+] as const;
+
 /** Suppress Pi's upstream startup notes; Axon tracks its own releases separately. */
 export async function applyPiChangelogDefaults(paths: AxonPaths, piVersion: string): Promise<void> {
   await withFileLock(paths.piPackageLock, async () => {
@@ -50,12 +61,29 @@ export async function applyPiDefaults(
         }
       }
 
+      // Pi 1.6.1 replaced showCacheMissNotices with notices.*. Its migration lets existing notices.*
+      // keys win, so writing the legacy key would stop the managed toggle applying after Pi's first save.
+      const { showCacheMissNotices: _legacyNotices, ...saved } = settings.config;
+      // Pi ignores a non-object notices value and replaces it on its next notice toggle; do the same
+      // rather than letting one bad key block every managed default.
+      const savedNotices =
+        typeof saved["notices"] === "object" &&
+        saved["notices"] !== null &&
+        !Array.isArray(saved["notices"])
+          ? saved["notices"]
+          : {};
+      const shown = defaults.showCacheMissNotices ?? true;
+      const notices = {
+        ...savedNotices,
+        ...Object.fromEntries(MANAGED_PI_NOTICES.map((notice) => [notice, shown])),
+      };
+
       // LiteLLM's optional features are launch environment (LITELLM_ENABLE_*), not settings;
       // litellm.* blocks saved by earlier Axon releases are left as they are.
       const config = {
-        ...settings.config,
+        ...saved,
         defaultTools: tools,
-        showCacheMissNotices: defaults.showCacheMissNotices ?? true,
+        notices,
         // Unmanaged defaults keep the user's last /model selection.
         ...(defaults.defaultProvider !== undefined && defaults.defaultModel !== undefined
           ? { defaultProvider: defaults.defaultProvider, defaultModel: defaults.defaultModel }
