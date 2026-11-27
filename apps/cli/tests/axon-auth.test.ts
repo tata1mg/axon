@@ -342,6 +342,8 @@ test("an RPC client other than Paseo keeps its open card after a failed run", as
   expect(dialogs).toHaveLength(1);
   dialogs[0]?.answer("Login from browser");
   await waitFor(() => state.signIns === 1);
+  // The relay records sign-in before the client receives its response and notifies the user.
+  await waitFor(() => notifications.some((message) => message.startsWith("Signed in")));
   expect(notifications.at(-1)).toContain("Restart this agent");
 });
 
