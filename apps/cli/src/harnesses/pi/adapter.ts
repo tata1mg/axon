@@ -21,6 +21,7 @@ import {
   createCompactionOverrides,
   createLiteLLMClientOverrides,
   createModelRecommenderOverrides,
+  createSessionNamingOverrides,
 } from "./launch-preferences-environment.ts";
 import { createLiteLLMFeatureOverrides } from "./litellm-features.ts";
 import { invalidateStalePiRelayModels } from "./model-cache.ts";
@@ -167,6 +168,7 @@ export function createPiAdapter(): HarnessAdapter {
         });
         featureOverrides = {
           ...createCompactionOverrides(config?.compaction),
+          ...createSessionNamingOverrides(config?.sessionNaming),
           ...createModelRecommenderOverrides(config?.modelRecommender),
           ...createLiteLLMClientOverrides(config?.litellmClient),
           ...createLiteLLMFeatureOverrides(context.environment, config?.litellmFeatures),

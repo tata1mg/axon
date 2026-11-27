@@ -39,6 +39,7 @@ def test_terminal_preferences_are_projected_into_the_cli_response() -> None:
                 cli_telemetry=None,
                 cli_pi=None,
                 cli_compaction=None,
+                cli_session_naming=None,
                 cli_model_recommender=None,
                 cli_litellm_client=None,
                 cli_litellm_features=None,

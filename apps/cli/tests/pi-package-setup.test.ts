@@ -980,6 +980,7 @@ describe("package and resource locks", () => {
       "axon-auth.ts",
       "pi-org-telemetry.mjs",
       "model-recommender.ts",
+      "session-naming.ts",
       "session-backup.mjs",
       "web-search.ts",
       "compaction.ts",
