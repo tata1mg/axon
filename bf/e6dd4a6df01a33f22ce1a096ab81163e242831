@@ -1,0 +1,20 @@
+apps/cli/scripts/build-logging.ts
+  h_dc688f708c4675 14
+apps/cli/src/logging/logger.ts
+  h_dc688f708c4675 101
+apps/cli/src/logging/process-logger.cjs
+  h_dc688f708c4675 249
+apps/cli/src/logging/process-logger.d.cts
+  h_dc688f708c4675 15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bfe6dd4a6df01a33f22ce1a096ab81163e242831",
+  "prompts": {},
+  "humans": {
+    "h_dc688f708c4675": {
+      "author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  }
+}

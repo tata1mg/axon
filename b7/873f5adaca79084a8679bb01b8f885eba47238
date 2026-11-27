@@ -1,0 +1,28 @@
+apps/cli/src/logging/process-logger.cjs
+  s_75aa8ad4d6e61b::t_118be4d4e219d2 52-53,57
+apps/cli/src/logging/process-logger-preload.cjs
+  s_75aa8ad4d6e61b::t_6d82207cf8b699 53-54,58
+apps/cli/src/logging/logger.ts
+  s_75aa8ad4d6e61b::t_c9e8fcf7510aa1 63-65,69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b7873f5adaca79084a8679bb01b8f885eba47238",
+  "prompts": {},
+  "humans": {
+    "h_dc688f708c4675": {
+      "author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_75aa8ad4d6e61b": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "510735",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  }
+}

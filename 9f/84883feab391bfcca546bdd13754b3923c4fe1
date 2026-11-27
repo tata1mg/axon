@@ -1,0 +1,50 @@
+apps/cli/src/cli/commands/paths.ts
+  s_75aa8ad4d6e61b::t_6a66337428c3b0 1-3,9-10
+apps/cli/scripts/build-logging.ts
+  s_75aa8ad4d6e61b::t_faa615c58cb050 1-14
+apps/cli/src/harnesses/pi/adapter.ts
+  s_75aa8ad4d6e61b::t_dd5daa4868a02e 12,258
+apps/cli/src/logging/process-logger-preload.cjs
+  s_75aa8ad4d6e61b::t_431ef3df3f3d63 1-250
+apps/cli/src/logging/process-logger.d.cts
+  s_75aa8ad4d6e61b::t_30ca91cfd8e58e 1-15
+apps/cli/src/index.ts
+  s_75aa8ad4d6e61b::t_2bfdc6e436d036 10,29-30,32,37-38,60-63,65-68
+  s_75aa8ad4d6e61b::t_83053be6977907 64
+biome.json
+  s_75aa8ad4d6e61b::t_cd8239bc8c7d4b 39
+apps/cli/src/logging/logger.ts
+  s_75aa8ad4d6e61b::t_adce28eab3fe83 2-7,10-86,90-91,93-101
+  s_75aa8ad4d6e61b::t_88a4a1c5eea0d4 1,87-89,92
+  s_75aa8ad4d6e61b::t_88a56d9a830e4d 8-9
+apps/cli/src/types/assets.d.ts
+  s_75aa8ad4d6e61b::t_314840652f898d 16-20
+apps/cli/package.json
+  s_75aa8ad4d6e61b::t_1280d8921f98b9 17-20,34,39
+apps/cli/src/logging/process-logger.cjs
+  s_75aa8ad4d6e61b::t_646fc1e31bc8a5 1-54,56-104,109-120,128-179,184-249
+  s_75aa8ad4d6e61b::t_d88c687493517d 55,105-108,121-127,180-183
+apps/cli/src/launcher/spawn-harness.ts
+  s_75aa8ad4d6e61b::t_a1dd00bee83f3a 1,16,44,88-94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9f84883feab391bfcca546bdd13754b3923c4fe1",
+  "prompts": {},
+  "humans": {
+    "h_dc688f708c4675": {
+      "author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_75aa8ad4d6e61b": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "510735",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>"
+    }
+  }
+}
