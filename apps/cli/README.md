@@ -448,8 +448,8 @@ online launches and refreshed on `/reload`. Omitted/null `PI`, offline/admin lau
 fetches leave the last local settings untouched. Trusted project settings can override this default.
 See [Pi startup defaults](../backend/README.md#pi-startup-defaults) for the full backend configuration.
 
-The authenticated config response can include partial `compaction`, `modelRecommender`, and
-`litellmClient` objects. Each explicitly supplied backend field wins over inherited environment
+The authenticated config response can include partial `compaction`, `sessionNaming`,
+`modelRecommender`, and `litellmClient` objects. Each explicitly supplied backend field wins over inherited environment
 values, including false and discovery timeout zero. Missing/null fields retain local values, then
 existing extension/provider defaults. Removing a field restores that fallback on the next launch.
 
@@ -460,6 +460,9 @@ existing extension/provider defaults. Removing a field restores that fallback on
 | `COMPACTION.THRESHOLD_TOKENS` | `PI_COMPACTION_THRESHOLD_TOKENS` |
 | `COMPACTION.MAX_OUTPUT_TOKENS` | `PI_COMPACTION_MAX_OUTPUT_TOKENS` |
 | `COMPACTION.TIMEOUT_MS` | `PI_COMPACTION_TIMEOUT_MS` |
+| `SESSION_NAMING.ENABLED` | `PI_SESSION_NAMING_ENABLED` |
+| `SESSION_NAMING.MODEL` | `PI_SESSION_NAMING_MODEL` |
+| `SESSION_NAMING.TIMEOUT_MS` | `PI_SESSION_NAMING_TIMEOUT_MS` |
 | `MODEL_RECOMMENDER.ENABLED` | `PI_MODEL_RECOMMENDER_DISABLED` (inverted) |
 | `MODEL_RECOMMENDER.TIMEOUT_MS` | `PI_MODEL_RECOMMENDER_TIMEOUT_MS` |
 | `MODEL_RECOMMENDER.AUTO_SELECT_MS` | `PI_MODEL_RECOMMENDER_AUTO_SELECT_MS` |
@@ -480,6 +483,17 @@ silently switching summary models. Pi 1.4 summaries use the model's output limit
 `COMPACTION.MAX_OUTPUT_TOKENS` / `PI_COMPACTION_MAX_OUTPUT_TOKENS` cap is clamped to the
 selected summary model's known positive output limit. Positive limits are not a guarantee of
 a sensible combination.
+Automatic session naming titles a session from its first prompt, in the background, so the title
+appears within seconds instead of after the first run finishes. It uses
+`litellm/anthropic/claude-haiku-5-5` unless `SESSION_NAMING.MODEL` names another model, and makes
+at most two attempts, 10 seconds apart, before warning once. It stays off when
+Paseo, T3 Code, or Ghostex launched Pi (detected by `PASEO_AGENT_ID`, `T3CODE_THREAD_ID`,
+`T3_PI_MCP_EXTENSION_PATH`, or `GHOSTEX_SESSION_ID`), because those apps title sessions themselves.
+Users choose with `axon pi --session-naming on|off|auto` or `AXON_SESSION_NAMING=on|off|auto`; the
+flag wins, and `auto` is the default. `on` only re-enables naming under those apps: a backend
+`SESSION_NAMING.ENABLED: false` or an offline launch still keeps it off. Pi's `/name` always works,
+and a name set with it is never overwritten.
+
 Recommender countdowns must be positive; backend recommendation eligibility/204 still takes priority.
 Provider discovery timeout zero disables discovery (and affected integrations such as MCP). Context
 window fallback only fills missing metadata; known per-model context/output limits are preserved.

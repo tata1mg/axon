@@ -83,7 +83,7 @@
     },
     "SESSION_NAMING": {
       "ENABLED": null,
-      "MODEL": "litellm/google/gemini-2.5-pro",
+      "MODEL": "litellm/anthropic/claude-haiku-5-5",
       "TIMEOUT_MS": 30000
     },
     "MODEL_RECOMMENDER": {
